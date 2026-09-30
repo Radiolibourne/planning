@@ -1,4 +1,5 @@
 # Tests à chaque modification ; publication du site sur GitHub Pages si les tests passent (branche main).
+# Toutes les heures : republication pour rafraîchir les calendriers d'abonnement (planning publié dans Firebase).
 name: Tests et publication
 
 on:
@@ -6,6 +7,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
 
 permissions:
   contents: read
@@ -14,6 +17,7 @@ permissions:
 
 jobs:
   tests:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,8 +32,8 @@ jobs:
         run: python tests/lancer_tests.py
 
   publication:
-    if: github.event_name != 'pull_request'
     needs: tests
+    if: always() && github.event_name != 'pull_request' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
     runs-on: ubuntu-latest
     concurrency:
       group: pages
@@ -44,6 +48,10 @@ jobs:
           python-version: "3.12"
       - name: Construction du site
         run: python outils/construire.py
+      - name: Calendriers d'abonnement
+        env:
+          CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
+        run: python outils/calendriers_abonnement.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

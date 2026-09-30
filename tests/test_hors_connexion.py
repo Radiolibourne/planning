@@ -38,7 +38,8 @@ def serveur(op, a):
 import http.server, shutil, socketserver, tempfile, threading
 RACINE_WEB = tempfile.mkdtemp(prefix="planning-web-")
 for f in os.listdir(DIST):
-    shutil.copy(os.path.join(DIST, f), RACINE_WEB)
+    if os.path.isfile(os.path.join(DIST, f)):
+        shutil.copy(os.path.join(DIST, f), RACINE_WEB)
 os.makedirs(os.path.join(RACINE_WEB, "firebasejs", "10.14.1"))
 for nom, code in FB.items():
     open(os.path.join(RACINE_WEB, "firebasejs", "10.14.1", nom), "w", encoding="utf-8").write(code)

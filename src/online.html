@@ -628,10 +628,11 @@ function renderMon() {
   let html = `<div class="card">
     <h2>${esc(pub.titre.replace("Planning du service de radiologie — ", "Planning de "))} · ${esc(me)}</h2>
     <p class="sub">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} travaillée${nHalf > 1 ? "s" : ""}` : ""}</p>
-    ${ics ? `<a class="b primary" id="icsMe" download="${esc(ics.name)}" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics.text)}">Ajouter à mon calendrier (iPhone)</a>
-    <details class="small" style="margin-top:10px"><summary>Comment ça marche ?</summary>
+    <div id="subBox" hidden style="margin-bottom:12px"></div>
+    ${ics ? `<a class="b${S.store.mode === "firebase" ? "" : " primary"}" id="icsMe" download="${esc(ics.name)}" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics.text)}">Importer ce mois dans mon calendrier</a>
+    <details class="small" style="margin-top:10px"><summary>Import ponctuel : comment ça marche ?</summary>
       <ol class="steps"><li>Touchez le bouton depuis Safari sur l'iPhone, puis <b>Ajouter tout</b> et choisissez un calendrier (idéalement un calendrier dédié « Planning radio »).</li>
-      <li>Si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import, pour éviter les doublons.</li></ol>
+      <li>Un import ne se met pas à jour : si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import. L'abonnement ci-dessus évite cette manipulation.</li></ol>
     </details>` : `<p class="muted">Aucune vacation pour vous dans ce planning.</p>`}
   </div>`;
   if (myConf.length) {
@@ -662,6 +663,42 @@ function renderMon() {
     }
   }
   v.innerHTML = html;
+  fillSubscription(me);
+}
+
+// Abonnement : adresse personnelle, mise à jour automatique par le téléphone
+const subCache = {};
+async function fillSubscription(ini) {
+  const box = $("subBox");
+  if (!box || S.store.mode !== "firebase" || !window.crypto || !crypto.subtle) return;
+  const cle = S.code + "|" + ini;
+  try {
+    if (!subCache[cle]) {
+      const token = await calToken(S.code, ini);
+      const chemin = location.pathname.replace(/[^/]*$/, "") + `cal/${token}.ics`;
+      let dispo = false;
+      try { dispo = (await fetch(`cal/${token}.ics`, { method: "HEAD", cache: "no-store" })).ok; } catch (e) { dispo = false; }
+      subCache[cle] = { https: `https://${location.host}${chemin}`, webcal: `webcal://${location.host}${chemin}`, dispo };
+    }
+    const c = subCache[cle];
+    if ($("subBox") !== box) return;   // la page a été redessinée entre-temps
+    box.hidden = false;
+    box.innerHTML = c.dispo ? `<a class="b primary" id="subMe" href="${c.webcal}">S'abonner (mise à jour automatique)</a>
+      <details class="small" style="margin-top:10px"><summary>Abonnement : comment ça marche ?</summary>
+        <ol class="steps">
+          <li><b>iPhone</b> : touchez le bouton, puis <b>S'abonner</b>. Le calendrier « Planning radio ${esc(ini)} » apparaît et se met à jour tout seul (en quelques heures au plus après une publication). Pour accélérer : Réglages → Calendrier → Comptes → Récupérer les données → Toutes les 15 minutes.</li>
+          <li><b>Android / Google Agenda, Outlook</b> : copiez l'adresse et ajoutez-la comme « agenda à partir d'une URL ».</li>
+          <li>Cette adresse est personnelle : ne la partagez pas.</li>
+        </ol>
+        <div class="row" style="margin-top:6px"><button class="b" type="button" id="subCopy">Copier l'adresse</button></div>
+      </details>`
+      : `<div class="banner info small" style="margin:0">L'abonnement automatique au calendrier sera disponible dans l'heure qui suit la prochaine publication du planning.</div>`;
+    const cp = $("subCopy");
+    if (cp) cp.onclick = async () => {
+      try { await navigator.clipboard.writeText(c.https); cp.textContent = "Adresse copiée"; }
+      catch (e) { prompt("Adresse de votre calendrier :", c.https); }
+    };
+  } catch (e) { console.error(e); }
 }
 
 // Tableau (général, lecture seule ou édition)

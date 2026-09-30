@@ -287,3 +287,12 @@ function parseFirebaseConfig(text) {
   if (!cfg.authDomain) cfg.authDomain = `${cfg.projectId}.firebaseapp.com`;
   return cfg;
 }
+
+// ================================================================ Abonnement calendrier (webcal)
+// Même jeton que outils/calendriers_abonnement.py : HMAC-SHA256(code d'équipe, "cal:" + initiales), 24 caractères hexa.
+async function calToken(code, ini) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(code), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode("cal:" + ini)));
+  return [...sig].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 24);
+}

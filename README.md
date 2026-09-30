@@ -30,7 +30,12 @@ Tant que Firebase n'est pas configuré, le site s'ouvre en **mode démonstration
 
 La configuration Firebase est publique par nature. En revanche, le **code d'équipe** et les **UID administrateurs** ne vont que dans les règles de sécurité de la console Firebase, jamais dans le dépôt.
 
-### 3. Démarrage
+### 3. Calendriers d'abonnement (mise à jour automatique sur les téléphones)
+1. Dans GitHub : **Settings → Secrets and variables → Actions → New repository secret**.
+2. Name : `CODE_EQUIPE` ; Secret : votre code d'équipe (celui des règles de sécurité, `RADIO-…`) → **Add secret**.
+3. Après la prochaine publication (au plus une heure), chaque médecin voit dans « Mon planning » un bouton **S'abonner (mise à jour automatique)**.
+
+### 4. Démarrage
 1. Ouvrez le site, saisissez le code d'équipe, puis **Admin** → connectez-vous → **Remplacer par un classeur mis à jour** : déposez votre vrai classeur de paramètres.
 2. Générez et publiez un planning d'essai. Vérifiez sur votre iPhone et depuis un poste de l'hôpital.
 3. Envoyez l'adresse du site et le code d'équipe aux médecins. Pour installer l'application « Planning radio » :

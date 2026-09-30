@@ -104,6 +104,11 @@ MODS = {'firebase-app.js': APP, 'firebase-firestore.js': FS, 'firebase-auth.js':
 seen_urls = []
 def handle(route):
     u = route.request.url; seen_urls.append(u)
+    if u.startswith('https://planning.test/cal/'):
+        f = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dist', 'cal', u.split('/cal/')[1].split('?')[0])
+        if os.path.isfile(f):
+            return route.fulfill(status=200, body=open(f, 'rb').read(), headers={'content-type': 'text/calendar; charset=utf-8'})
+        return route.fulfill(status=404, body='')
     if u.startswith('https://planning.test/'):
         return route.fulfill(status=200, body=html, headers={'content-type': 'text/html; charset=utf-8'})
     m = re.match(r'https://www\.gstatic\.com/firebasejs/10\.14\.1/(firebase-[a-z]+\.js)$', u)
@@ -177,6 +182,35 @@ with sync_playwright() as pw:
     # --- médecin : reçoit le planning en temps réel
     doc.click('a[data-tab=mon]'); doc.wait_for_selector('#icsMe', timeout=8000)
     ok(doc.locator('#vMon .day').count() == len(ouvres), 'médecin : planning reçu en temps réel')
+    # --- abonnement calendrier : fichier produit « par GitHub » à partir de Firestore (réponse REST simulée)
+    doc.wait_for_selector('#subBox:not([hidden])', timeout=8000)
+    ok('prochaine publication' in doc.inner_text('#subBox'), "abonnement : annoncé tant que le calendrier n'est pas produit")
+    import subprocess, sys as _sys, urllib.parse as _up
+    def enc(v):
+        if isinstance(v, bool): return {'booleanValue': v}
+        if isinstance(v, int): return {'integerValue': str(v)}
+        if isinstance(v, float): return {'doubleValue': v}
+        if isinstance(v, str): return {'stringValue': v}
+        if v is None: return {'nullValue': None}
+        if isinstance(v, list): return {'arrayValue': {'values': [enc(x) for x in v]}}
+        return {'mapValue': {'fields': {k: enc(x) for k, x in v.items()}}}
+    rest = os.path.join(SORTIE, 'firestore_publie.json')
+    json.dump({'fields': {k: enc(x) for k, x in stored.items()}}, open(rest, 'w', encoding='utf-8'))
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run([_sys.executable, os.path.join(racine, 'outils', 'calendriers_abonnement.py')], capture_output=True, text=True,
+                       env={**os.environ, 'CODE_EQUIPE': TEAM, 'FIRESTORE_JSON': rest})
+    ok(r.returncode == 0 and 'calendriers d\'abonnement produits' in r.stdout, 'GitHub : calendriers d\'abonnement produits — ' + r.stdout.strip()[-80:])
+    import hmac as _h, hashlib as _hl
+    jeton_py = _h.new(TEAM.encode(), b'cal:DA', _hl.sha256).hexdigest()[:24]
+    jeton_js = doc.evaluate("([c, i]) => calToken(c, i)", [TEAM, 'DA'])
+    ok(jeton_js == jeton_py, 'même adresse calculée par la page et par GitHub')
+    ics_abo = open(os.path.join(racine, 'dist', 'cal', jeton_py + '.ics'), encoding='utf-8', newline='').read()
+    ics_imp = _up.unquote(doc.get_attribute('#icsMe', 'href').split(',', 1)[1])
+    uids = lambda t: sorted(l for l in t.replace('\r\n ', '').split('\r\n') if l.startswith('UID:'))
+    ok(uids(ics_abo) == uids(ics_imp) and len(uids(ics_abo)) > 5, f"abonnement : mêmes vacations que l'import ({len(uids(ics_abo))} événements)")
+    ok('REFRESH-INTERVAL;VALUE=DURATION:PT1H' in ics_abo, 'abonnement : rafraîchissement horaire demandé au téléphone')
+    doc.reload(); doc.wait_for_selector('#subMe', timeout=8000)
+    ok(doc.get_attribute('#subMe', 'href') == f'webcal://planning.test/cal/{jeton_py}.ics', 'bouton « S\'abonner » : lien webcal personnel')
     # --- persistance du code sur l'appareil
     doc.reload(); doc.wait_for_selector('#vMon:not([hidden])'); doc.wait_for_selector('#icsMe', timeout=8000)
     ok(True, 'code et initiales mémorisés après rechargement')

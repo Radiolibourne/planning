@@ -41,6 +41,14 @@ Toutes les pages sont des **fichiers HTML uniques**, sans dépendance externe, �
 | `app.html` | Interface du générateur hors ligne |
 | `pwa/` | Application installable : `sw.js` (service worker), icônes PNG (dessinées par `outils/creer_icones.py`, commitées). Le manifeste est écrit par `construire.py` |
 
+### Abonnement calendrier (webcal)
+- `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore (sans compte, grâce au code d'équipe) et écrit `dist/cal/<jeton>.ics` par médecin.
+- `jeton = HMAC-SHA256(code d'équipe, "cal:" + initiales)[:24]` ; la page calcule le même (`calToken`) pour afficher le bouton « S'abonner » (lien `webcal://…`), seulement si le fichier existe déjà.
+- Le code d'équipe vient du **secret GitHub `CODE_EQUIPE`** (Settings → Secrets and variables → Actions). Sans secret, rien n'est produit ; aucune erreur de ce script ne bloque la publication du site (avertissement seulement).
+- Mêmes UID d'événements que l'import ponctuel (`buildIcs`) : les deux doivent rester alignés (test `test_firebase.py`).
+- GitHub désactive les tâches planifiées d'un dépôt public après 60 jours sans activité : dans ce cas, réactiver le workflow dans l'onglet Actions (bouton « Enable workflow »).
+- Si le code d'équipe change, les adresses changent : chaque médecin doit se réabonner.
+
 ### Application installable et hors connexion
 - Nom sur l'écran d'accueil : « Planning radio ». Icône : calendrier blanc sur fond bleu #1f3864.
 - `sw.js` : page et icônes en « réseau d'abord, copie locale sinon » ; bibliothèque Firebase (URL versionnée) en « copie locale d'abord ». Version du cache = empreinte des pages construites (chaque déploiement invalide l'ancien cache). Activé sur https et localhost uniquement.
@@ -97,7 +105,7 @@ Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`,
 ## État et limites connues
 - Le moteur est heuristique (recuit simulé) : il se situe à environ 0,05 % de l'optimum exact sur octobre 2026 (données réelles, vérifié avec un solveur exact).
 - Capacité insuffisante à ce jour. Avec les priorités actuelles, ferment d'abord l'échographie 2, puis l'IRM 2 (ostéo-articulaire), puis la mammographie de Blaye. C'est un choix du service, réglable via les priorités du classeur.
-- Calendriers iPhone : import d'un fichier .ics (pas d'abonnement, le site est statique). Après une republication, chaque médecin réimporte son fichier.
+- Calendriers iPhone : abonnement (mise à jour automatique, délai = passage horaire de GitHub + fréquence de rafraîchissement du téléphone) ou import ponctuel d'un .ics.
 - Code d'équipe = mot de passe partagé ; un médecin peut supprimer l'absence d'un collègue. Le reste (paramètres, publication) est réservé aux administrateurs authentifiés.
-- Fonctions ajoutées depuis la première version : application installable « Planning radio » avec ouverture hors connexion ; verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
+- Fonctions ajoutées depuis la première version : abonnement calendrier mis à jour automatiquement ; application installable « Planning radio » avec ouverture hors connexion ; verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
 - Pistes demandées ou envisagées : onglet « Quotas » générique (min / max par médecin, poste et période) ; échanges de vacations entre médecins.
