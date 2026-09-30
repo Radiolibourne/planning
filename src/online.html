@@ -202,7 +202,8 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
     <div class="card">
       <h2>Signaler une indisponibilité</h2>
       <p class="sub">Congés, formation, congrès… L'administrateur en tient compte à la prochaine génération du planning.</p>
-      <form id="indForm">
+      <div id="indLock" class="banner info small" hidden></div>
+      <form id="indForm" novalidate>
         <div class="row">
           <label class="f">Du<input type="date" id="indD1" required></label>
           <label class="f">Au<input type="date" id="indD2" required></label>
@@ -304,6 +305,30 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
         <h2>Indisponibilités saisies</h2>
         <p class="sub" id="admIndSub"></p>
         <ul class="list" id="admInd"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Dates limites de dépôt des absences</h2>
+        <p class="sub">Après la date limite, les médecins ne peuvent plus déclarer d'absence sur la période concernée (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus.</p>
+        <ul class="list" id="cloList"></ul>
+        <div class="row" style="margin-top:10px">
+          <label class="f">Période du<input type="date" id="cDu"></label>
+          <label class="f">au<input type="date" id="cAu"></label>
+          <label class="f">Dépôt possible jusqu'au<input type="date" id="cLim"></label>
+          <button class="b" id="cAdd" type="button">Ajouter</button>
+        </div>
+        <div class="msg" id="cloMsg" role="status"></div>
+      </div>
+
+      <div class="card" id="rulesCard" hidden>
+        <details>
+          <summary>Règles de sécurité à jour</summary>
+          <p class="small muted">Après une évolution du site touchant aux données, les règles de sécurité Firebase doivent être republiées : Firestore → Règles → remplacer tout le texte par celui-ci → Publier. Elles reprennent votre code d'équipe et votre identifiant administrateur.</p>
+          <label class="f">UID des autres administrateurs (facultatif, un par ligne)<textarea id="rUids" style="min-height:50px"></textarea></label>
+          <textarea id="rText" readonly style="min-height:200px;margin-top:10px"></textarea>
+          <div class="row" style="margin-top:8px"><button class="b" id="rCopy" type="button">Copier les règles</button></div>
+          <div class="msg" id="rMsg" role="status"></div>
+        </details>
       </div>
 
       <div class="card" id="setupCard">
@@ -411,12 +436,12 @@ const setMsg = (el, text, cls = "") => { el.className = "msg " + cls; el.textCon
 // ------------------------------------------------------------ état
 const S = {
   store: null, code: null, me: ls.get("planning-radio-me") || "", user: null,
-  params: null, P: null, paramsErr: "", published: null, indispos: [],
+  params: null, P: null, paramsErr: "", published: null, indispos: [], saisie: null,
   draft: null, draftPr: null, draftSource: "", genView: { week: "cur", mode: "poste" }, draftWeek: "all",
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie` };
 
 // ------------------------------------------------------------ navigation
 const TABS = { mon: "vMon", general: "vGeneral", indispos: "vIndispos", admin: "vAdmin" };
@@ -432,6 +457,7 @@ function route() {
     if (a.dataset.tab === t) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
   show(TABS[t]);
+  updateHeader();
   render();
 }
 window.addEventListener("hashchange", route);
@@ -471,6 +497,7 @@ async function enter(code, silent) {
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; render(); }, onErr));
+  S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => { S.saisie = d; render(); }, onErr));
   route();
 }
 $("codeForm").addEventListener("submit", (e) => {
@@ -672,9 +699,24 @@ function renderGeneral() {
   $("genBody").innerHTML = `<div class="toolbar">
       <div class="seg" role="group" aria-label="Vue"><button data-mode="poste" aria-pressed="${S.genView.mode === "poste"}">Par poste</button><button data-mode="medecin" aria-pressed="${S.genView.mode === "medecin"}">Par médecin</button></div>
       <select id="genWeek" aria-label="Semaine">${weekOptions(pub, week)}</select>
-    </div>` + planningTable(pub, { mode: S.genView.mode, week, editable: false, highlight: S.me });
+      ${S.P ? `<button class="b" id="genXlsx" type="button" style="min-height:38px;padding:6px 12px">Télécharger en Excel</button>` : ""}
+    </div><div class="msg" id="genMsg" role="status"></div>` + planningTable(pub, { mode: S.genView.mode, week, editable: false, highlight: S.me });
   $("genBody").querySelectorAll(".seg button").forEach((b) => b.onclick = () => { S.genView.mode = b.dataset.mode; renderGeneral(); });
   $("genWeek").onchange = (e) => { S.genView.week = e.target.value; renderGeneral(); };
+  if ($("genXlsx")) $("genXlsx").onclick = () => downloadPublishedXlsx($("genMsg"));
+}
+async function downloadPublishedXlsx(msgEl) {
+  const pub = S.published;
+  if (!pub || !S.P) return;
+  setMsg(msgEl, "Préparation du fichier…");
+  try {
+    const pr = problemFor(pub.start, pub.end);
+    const R = { assign: assignFromDraft(pr, pub), iterations: 0 };
+    const bytes = await exportPlanning(pr, R, checks(pr, R), { icsHint: "Chaque médecin retrouve son planning et son calendrier iPhone sur le site du planning." });
+    const x = ymd(pub.start);
+    saveFile(bytes, `planning_radiologie_${x.y}-${pad2(x.m)}.xlsx`, XLSX_TYPE);
+    setMsg(msgEl, "");
+  } catch (e) { console.error(e); setMsg(msgEl, "Export impossible : " + e.message, "err"); }
 }
 
 // ------------------------------------------------------------ indisponibilités
@@ -683,16 +725,30 @@ function indLine(x, canDelete, showIni) {
   const when = same ? `le ${JC[weekday(x.d1)].toLowerCase()} ${fmtDay(x.d1)}` : `du ${fmtDay(x.d1, false)} au ${fmtDay(x.d2)}`;
   return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}</div><div class="small muted">${esc(x.motif)}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">Supprimer</button>` : ""}</li>`;
 }
+const lockOf = (x) => lockReason(x.d1, x.d2, S.published, S.saisie);
 function renderIndispos() {
   const today = todayDay();
-  if (!$("indD1").value) { $("indD1").value = toInput(today); $("indD2").value = toInput(today); }
+  const first = S.published && !S.user ? Math.max(today, S.published.end + 1) : today;
+  $("indD1").min = S.user ? "" : toInput(first);
+  // valeur par défaut seulement si le champ est vide : ne jamais remplacer une date saisie
+  if (!$("indD1").value) { $("indD1").value = toInput(first); $("indD2").value = toInput(first); }
+  // informations de verrouillage
+  const infos = [];
+  if (S.published) infos.push(`Planning publié jusqu'au <b>${fmtDay(S.published.end)}</b> : absences possibles à partir du ${fmtDay(S.published.end + 1)}.`);
+  const now = Date.now();
+  for (const c of ((S.saisie && S.saisie.clotures) || [])) {
+    if (c.au < today) continue;
+    infos.push(`Période du ${fmtDay(c.du, false)} au ${fmtDay(c.au)} : ${now > c.finMs ? "<b>dépôt clos</b>" : `dépôt ouvert jusqu'au <b>${fmtDay(c.limite)}</b>`}.`);
+  }
+  $("indLock").hidden = !infos.length;
+  $("indLock").innerHTML = infos.join("<br>");
   $("indSubmit").disabled = !S.me;
   if (!S.me) setMsg($("indMsg"), "Choisissez d'abord vos initiales (bouton « Qui êtes-vous ? » en haut).", "err");
   else if ($("indMsg").classList.contains("err") && $("indMsg").textContent.startsWith("Choisissez")) setMsg($("indMsg"), "");
   $("myIndTitle").textContent = S.me ? `Mes indisponibilités (${S.me})` : "Mes indisponibilités";
   const sorted = S.indispos.slice().sort((a, b) => a.d1 - b.d1 || String(a.ini).localeCompare(b.ini));
   const mine = sorted.filter((x) => String(x.ini).toUpperCase() === S.me && x.d2 >= today);
-  $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, true, false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
+  $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, !!S.user || !lockOf(x), false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
   const team = sorted.filter((x) => x.d2 >= today);
   $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
 }
@@ -705,6 +761,9 @@ $("indForm").addEventListener("submit", async (e) => {
   if (d1 === null || d2 === null) return setMsg(msg, "Dates invalides.", "err");
   if (d2 < d1) return setMsg(msg, "La date de fin est avant la date de début.", "err");
   if (d2 - d1 > 366) return setMsg(msg, "Période trop longue (un an maximum).", "err");
+  const verrou = lockReason(d1, d2, S.published, S.saisie);
+  if (verrou && !S.user) return setMsg(msg, verrou, "err");
+  if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
   const prec = $("indPrec").value.trim().slice(0, 60);
   const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: $("indMotif").value + (prec ? ` — ${prec}` : ""), creeLe: Date.now() };
   $("indSubmit").disabled = true;
@@ -766,9 +825,51 @@ function renderAdmin() {
   $("admIndSub").textContent = `${future.length} à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}. Elles seront prises en compte à la prochaine génération.`;
   $("admInd").innerHTML = future.length ? future.map((x) => indLine(x, true, true).replace("<div class=\"grow\">",
     `<div class="grow">${confIds.has(x.id) ? `<span class="tag err" style="float:right">affecté pendant l'absence</span>` : ""}`)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
+  // dates limites de dépôt
+  const clos = ((S.saisie && S.saisie.clotures) || []).slice().sort((a, b) => a.du - b.du);
+  const nowMs = Date.now();
+  $("cloList").innerHTML = clos.length ? clos.map((c, i) => `<li><div class="grow"><b>Du ${fmtDay(c.du, false)} au ${fmtDay(c.au)}</b>
+      <div class="small muted">Dépôt jusqu'au ${fmtDay(c.limite)} · ${nowMs > c.finMs ? "clos" : "ouvert"}</div></div>
+      <button class="x" data-clo="${c.du}_${c.au}_${c.limite}">Supprimer</button></li>`).join("") : `<li class="muted small">Aucune date limite définie.</li>`;
+  $("cAdd").disabled = clos.length >= MAX_CLOTURES;
+  // règles de sécurité à jour (mode en ligne)
+  $("rulesCard").hidden = S.store.mode === "demo";
+  if (S.store.mode !== "demo") refreshRules();
   // mise en ligne
   $("setupDetails").open = $("setupDetails").open || S.store.mode === "demo";
 }
+async function saveClotures(list, msgEl) {
+  try { await S.store.set(PATHS.saisie(), { clotures: list, majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok"); }
+  catch (e) { setMsg(msgEl, e.message, "err"); }
+}
+$("cAdd").addEventListener("click", () => {
+  const msg = $("cloMsg");
+  const du = fromInput($("cDu").value), au = fromInput($("cAu").value), lim = fromInput($("cLim").value);
+  if (du === null || au === null || lim === null) return setMsg(msg, "Renseignez les trois dates.", "err");
+  if (au < du) return setMsg(msg, "La fin de période est avant son début.", "err");
+  const list = ((S.saisie && S.saisie.clotures) || []).slice();
+  if (list.length >= MAX_CLOTURES) return setMsg(msg, `${MAX_CLOTURES} dates limites au plus : supprimez-en une ancienne.`, "err");
+  list.push({ du, au, limite: lim, finMs: parisEndOfDayMs(lim) });
+  saveClotures(list, msg);
+  $("cDu").value = $("cAu").value = $("cLim").value = "";
+});
+$("cloList").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-clo]"); if (!b) return;
+  const [du, au, lim] = b.dataset.clo.split("_").map(Number);
+  if (!confirm(`Supprimer la date limite du ${fmtDay(lim)} (période du ${fmtDay(du, false)} au ${fmtDay(au, false)}) ?`)) return;
+  saveClotures(((S.saisie && S.saisie.clotures) || []).filter((c) => !(c.du === du && c.au === au && c.limite === lim)), $("cloMsg"));
+});
+function refreshRules() {
+  if (!S.user || !S.code) return;
+  const extra = $("rUids").value.split(/[\s,;]+/).map((x) => x.trim()).filter((u) => /^[A-Za-z0-9]{10,64}$/.test(u));
+  $("rText").value = firestoreRules(S.code, [...new Set([S.user.uid, ...extra])]);
+}
+$("rUids").addEventListener("input", refreshRules);
+$("rCopy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("rText").value); }
+  catch (e) { $("rText").select(); document.execCommand("copy"); }
+  setMsg($("rMsg"), "Règles copiées. Collez-les dans Firestore → Règles, puis Publier.", "ok");
+});
 $("admInd").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) deleteIndispo(b.dataset.del, $("paramMsg")); });
 
 // Paramètres

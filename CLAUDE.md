@@ -13,7 +13,7 @@
 2. **Le code d'équipe et les UID administrateurs ne vont jamais dans le dépôt.** Ils vivent uniquement dans les règles Firestore collées dans la console Firebase. `config/firebase.json` (clé API web, projectId…) est public par nature et peut être commité.
 3. **Tous les tests doivent passer** (`python tests/lancer_tests.py`) avant de proposer une modification. Toute nouvelle règle ou fonction s'accompagne d'un test.
 4. **Rester compatible avec les données déjà en ligne** : les plannings publiés (`planning/publie`) et les absences déjà saisies doivent rester lisibles après une mise à jour. Pour changer un format, ajouter des champs optionnels ; ne pas renommer ni supprimer.
-5. **Toute modification des chemins ou champs Firestore** impose de mettre à jour `firestoreRules()` (`src/online_core.js`), et de dire clairement à Ayoub de republier les règles dans la console Firebase, avec la marche à suivre.
+5. **Toute modification des chemins ou champs Firestore** impose de mettre à jour `firestoreRules()` (`src/online_core.js`), et de dire clairement à Ayoub de republier les règles. La carte **Admin → « Règles de sécurité à jour »** du site les génère toute prêtes (avec son code d'équipe et son UID) : Firestore → Règles → coller → Publier. Console Firebase du projet : `radiolib-5f387`.
 6. Interface en **français**, pensée d'abord pour l'**iPhone** (Safari). Pas de défilement horizontal de page.
 
 ## Commandes
@@ -79,7 +79,11 @@ En-têtes en ligne 4, données à partir de la ligne 5. Semaines A / B : alterna
 ### Données en ligne (Firestore, sous `espaces/{codeEquipe}/`)
 - `config/parametres` : `{nom, majLe, par, xlsx (base64)}`. Écriture réservée à l'admin.
 - `planning/publie` : planning publié (format décrit en tête de `online_core.js`). Écriture admin. Taille < 1 Mo, pas de tableaux imbriqués, pas de `undefined`.
-- `indispos/{id}` : `{ini, d1, d2, periode, motif, creeLe}`. Création et suppression par l'équipe, champs validés par les règles.
+- `indispos/{id}` : `{ini, d1, d2, periode, motif, creeLe}`. Création et suppression par l'équipe, champs validés par les règles, **uniquement sur une période ouverte** (voir ci-dessous) ; les administrateurs ne sont pas limités.
+- `config/saisie` : `{clotures: [{du, au, limite, finMs}], majLe}`. Dates limites de dépôt définies par l'admin (5 au plus, `MAX_CLOTURES`). `finMs` = fin de la journée `limite`, heure de Paris (`parisEndOfDayMs`).
+
+### Verrouillage de la saisie des absences
+Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`, ou si elle touche une période dont la date limite de dépôt est passée (`lockReason` dans `online_core.js`). Ce contrôle est fait **deux fois** : dans la page (message clair) et dans les règles Firestore (fonction `ouvert`), qui font foi. Toute évolution de cette logique doit modifier les deux, ainsi que la doublure de `tests/test_firebase.py` (fonction `ouvert`).
 - Dates stockées en **numéro de jour** (jours depuis le 01/01/1970, UTC). Excel : numéro + 25569.
 
 ## État et limites connues
@@ -87,4 +91,5 @@ En-têtes en ligne 4, données à partir de la ligne 5. Semaines A / B : alterna
 - Capacité insuffisante à ce jour. Avec les priorités actuelles, ferment d'abord l'échographie 2, puis l'IRM 2 (ostéo-articulaire), puis la mammographie de Blaye. C'est un choix du service, réglable via les priorités du classeur.
 - Calendriers iPhone : import d'un fichier .ics (pas d'abonnement, le site est statique). Après une republication, chaque médecin réimporte son fichier.
 - Code d'équipe = mot de passe partagé ; un médecin peut supprimer l'absence d'un collègue. Le reste (paramètres, publication) est réservé aux administrateurs authentifiés.
+- Fonctions ajoutées depuis la première version : verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
 - Pistes demandées ou envisagées : onglet « Quotas » générique (min / max par médecin, poste et période) ; échanges de vacations entre médecins.

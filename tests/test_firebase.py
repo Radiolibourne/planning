@@ -30,6 +30,14 @@ def valid_indispo(d):
     return (set(d) == keys and isinstance(d['ini'], str) and len(d['ini']) <= 10 and isinstance(d['d1'], (int, float))
             and isinstance(d['d2'], (int, float)) and d['d2'] >= d['d1'] and d['d2'] - d['d1'] <= 366
             and d['periode'] in ('Journée', 'Matin', 'Après-midi') and isinstance(d['motif'], str) and len(d['motif']) <= 100)
+def ouvert(d1, d2):
+    import time as _t
+    pub = DB.get(f'espaces/{TEAM}/planning/publie')
+    if pub and d1 <= pub['end']:
+        return False
+    sa = DB.get(f'espaces/{TEAM}/config/saisie') or {}
+    now = _t.time() * 1000
+    return all(now <= c['finMs'] or d2 < c['du'] or d1 > c['au'] for c in sa.get('clotures', [])[:5])
 def server(op, a):
     uid = a.get('uid')
     p = a.get('path')
@@ -46,12 +54,13 @@ def server(op, a):
     in_ind = len(s) >= 3 and s[2] == 'indispos'
     if not can_read(p): return denied()
     if op == 'add':
-        if not (valid_indispo(a['data']) if in_ind else is_admin(uid)): return denied()
+        if not (valid_indispo(a['data']) and (is_admin(uid) or ouvert(a['data']['d1'], a['data']['d2'])) if in_ind else is_admin(uid)): return denied()
         p = p + '/' + f'id{next(ids)}'
     elif op == 'set':
-        if not (is_admin(uid) or (in_ind and valid_indispo(a['data']))): return denied()
+        if not (is_admin(uid) or (in_ind and valid_indispo(a['data']) and ouvert(a['data']['d1'], a['data']['d2']))): return denied()
     elif op == 'del':
-        if not (is_admin(uid) or in_ind): return denied()
+        old = DB.get(p)
+        if not (is_admin(uid) or (in_ind and old and ouvert(old['d1'], old['d2']))): return denied()
         DB.pop(p, None); ver[0] += 1; return {}
     DB[p] = copy.deepcopy(a['data']); ver[0] += 1
     return {'id': s[-1] if op == 'set' else p.split('/')[-1]}
@@ -155,6 +164,12 @@ with sync_playwright() as pw:
     stored = DB.get(f'espaces/{TEAM}/planning/publie')
     ok(stored and stored.get('publiePar') == 'admin@chl.fr' and len(json.dumps(stored)) < 1_000_000, f'planning publié en base ({len(json.dumps(stored))//1024} Ko, limite Firestore 1 024 Ko)')
     ok(all(v != 'ABS' or True for v in []) and 'ABS' in json.dumps(stored['statuts'].get('DA', {})), 'absence de DA enregistrée dans le planning publié')
+    ok('ouvert(code' in rules and 'request.time.toMillis()' in rules, 'règles : verrou de saisie présent')
+    dans_periode = ouvres[3]
+    from commun import numero_jour
+    r = doc.evaluate('''async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos',
+        data: {ini: 'DA', d1: j, d2: j, periode: 'Journée', motif: 'test', creeLe: 1}}))).error || 'accepté' ''', [TEAM, numero_jour(dans_periode)])
+    ok(r == 'permission-denied', 'serveur : absence refusée sur la période publiée (même en contournant la page)')
     # --- médecin : reçoit le planning en temps réel
     doc.click('a[data-tab=mon]'); doc.wait_for_selector('#icsMe', timeout=8000)
     ok(doc.locator('#vMon .day').count() == len(ouvres), 'médecin : planning reçu en temps réel')

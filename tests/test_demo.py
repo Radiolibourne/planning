@@ -94,23 +94,56 @@ def main():
         B.ok("Absent" in doc.inner_text("#vMon"), "congés affichés")
         ics = urllib.parse.unquote(doc.get_attribute("#icsMe", "href").split(",", 1)[1])
         B.ok(ics.startswith("BEGIN:VCALENDAR") and ics.count("BEGIN:VEVENT") > 5, "calendrier iPhone généré")
-        # conflit : absence signalée sur un jour travaillé
+        # verrou : période publiée fermée aux médecins
         jour = doc.evaluate("""() => { const t = document.querySelector('#vMon .day .slot:not(.off)');
             return t ? t.closest('.day').querySelector('.date span').innerText : null; }""")
         dd, mm = jour.split("/")
         an = d1.year if int(mm) >= d1.month else d2.year
+        jour_travaille = f"{an}-{mm}-{dd}"
         doc.click("a[data-tab=indispos]")
-        doc.fill("#indD1", f"{an}-{mm}-{dd}"); doc.fill("#indD2", f"{an}-{mm}-{dd}")
-        doc.select_option("#indMotif", "Formation"); doc.fill("#indPrec", "")
-        doc.click("#indSubmit"); doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')")
+        B.ok("Planning publié jusqu'au" in doc.inner_text("#indLock"), "bandeau : période publiée verrouillée")
+        doc.evaluate("(v) => { const i = document.querySelector('#indD1'); i.removeAttribute('min'); i.value = v; document.querySelector('#indD2').value = v; }", jour_travaille)
+        doc.click("#indSubmit")
+        B.ok("publié jusqu'au" in doc.inner_text("#indMsg"), "médecin : absence refusée sur la période publiée")
+        B.ok(doc.input_value("#indD1") == jour_travaille, "la date saisie n'est jamais modifiée par la page")
+        # l'administrateur peut toujours en ajouter une (ex. arrêt maladie) → conflit signalé
+        adm.click("#meBtn"); adm.wait_for_selector(f"#whoGrid button[data-ini={MEDECIN}]"); adm.click(f"#whoGrid button[data-ini={MEDECIN}]")
+        adm.click("a[data-tab=indispos]")
+        adm.fill("#indD1", jour_travaille); adm.fill("#indD2", jour_travaille)
+        adm.select_option("#indMotif", "Autre"); adm.fill("#indPrec", "arrêt")
+        adm.click("#indSubmit"); adm.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')")
+        B.ok(True, "administrateur : absence tardive enregistrée")
         doc.click("a[data-tab=mon]"); doc.wait_for_selector(".banner.warn", timeout=5000)
         B.ok("absence signalée" in doc.inner_text("#vMon"), "conflit signalé au médecin")
+        adm.click("a[data-tab=admin]")
         adm.wait_for_function("document.querySelector('#admInd').innerText.includes('affecté pendant')", timeout=5000)
         B.ok(True, "conflit signalé à l'administrateur")
+        # dates limites de dépôt : le mois suivant la période publiée, clos depuis hier
+        m2_debut = d2 + dt.timedelta(days=1)
+        m2_fin = (m2_debut.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        hier = dt.date.today() - dt.timedelta(days=1)
+        adm.fill("#cDu", m2_debut.isoformat()); adm.fill("#cAu", m2_fin.isoformat()); adm.fill("#cLim", hier.isoformat())
+        adm.click("#cAdd"); adm.wait_for_function("document.querySelector('#cloList').innerText.includes('clos')")
+        B.ok(True, "administrateur : date limite de dépôt enregistrée")
+        doc.click("a[data-tab=indispos]")
+        doc.wait_for_function("document.querySelector('#indLock').innerText.includes('dépôt clos')", timeout=5000)
+        B.ok(True, "bandeau : dépôt clos affiché au médecin")
+        x = m2_debut + dt.timedelta(days=7)
+        doc.fill("#indD1", x.isoformat()); doc.fill("#indD2", x.isoformat()); doc.click("#indSubmit")
+        B.ok("est clos depuis" in doc.inner_text("#indMsg"), "médecin : absence refusée après la date limite")
+        y = m2_fin + dt.timedelta(days=10)
+        doc.fill("#indD1", y.isoformat()); doc.fill("#indD2", y.isoformat()); doc.click("#indSubmit")
+        doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')", timeout=5000)
+        B.ok(True, "médecin : absence acceptée hors période close")
         # planning général
         doc.click("a[data-tab=general]"); doc.wait_for_selector("#genBody table")
         B.ok(doc.locator("#genBody td.me").count() > 0, "cases du médecin encadrées")
         B.ok(doc.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "pas de défilement horizontal sur mobile")
+        with doc.expect_download() as d:
+            doc.click("#genXlsx")
+        d.value.save_as(os.path.join(SORTIE, "general.xlsx"))
+        from openpyxl import load_workbook as _lw
+        B.ok("Planning par poste" in _lw(os.path.join(SORTIE, "general.xlsx")).sheetnames, "médecin : planning publié téléchargé en Excel")
         # exports depuis la copie du planning publié
         adm.click("#editPublished"); adm.wait_for_selector("#draftBody:not([hidden])")
         with adm.expect_download() as d:

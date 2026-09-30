@@ -105,6 +105,36 @@ function conflicts(draft, indispos) {
   return out;
 }
 
+// ================================================================ Verrouillage de la saisie des absences
+// - période du planning publié : aucune absence ne peut commencer avant ou pendant (d1 <= publie.end)
+// - dates limites de dépôt (config/saisie.clotures, 5 au plus) : {du, au, limite, finMs}
+//   après finMs (fin de la journée « limite », heure de Paris), plus de demande touchant [du, au]
+const MAX_CLOTURES = 5;
+
+// Fin de la journée `day` à Paris, en millisecondes (minuit suivant, heure de Paris)
+function parisEndOfDayMs(day) {
+  const utcMidnight = (day + 1) * 86400000;
+  let offsetH = 1;
+  try {
+    const part = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", timeZoneName: "shortOffset" })
+      .formatToParts(new Date(utcMidnight)).find((x) => x.type === "timeZoneName");
+    const m = part && /GMT([+-]\d+)/.exec(part.value);
+    if (m) offsetH = +m[1];
+  } catch (e) { /* heure d'hiver par défaut */ }
+  return utcMidnight - offsetH * 3600000;
+}
+
+// Raison du refus d'une absence [d1, d2], ou null si la saisie est ouverte
+function lockReason(d1, d2, published, saisie, nowMs = Date.now()) {
+  if (published && Number.isFinite(published.end) && d1 <= published.end)
+    return `Le planning est publié jusqu'au ${fmtDay(published.end)} : les absences ne peuvent plus être déclarées sur cette période. Contactez l'administrateur.`;
+  for (const c of ((saisie && saisie.clotures) || []).slice(0, MAX_CLOTURES)) {
+    if (nowMs > c.finMs && d2 >= c.du && d1 <= c.au)
+      return `Le dépôt des demandes pour la période du ${fmtDay(c.du, false)} au ${fmtDay(c.au)} est clos depuis le ${fmtDay(c.limite)}. Contactez l'administrateur.`;
+  }
+  return null;
+}
+
 // ================================================================ Stockage
 // Interface commune : get(path), set(path, data), add(coll, data), del(path),
 // watchDoc(path, cb, err) -> unsubscribe, watchColl(coll, cb, err) -> unsubscribe,
@@ -195,6 +225,7 @@ function demoStore() {
 // ================================================================ Règles de sécurité Firestore
 function firestoreRules(teamCode, adminUids) {
   const uids = adminUids.map((u) => `'${u}'`).join(", ");
+  const cl = [...Array(MAX_CLOTURES).keys()].map((i) => `(c.size() < ${i + 1} || cloture(c[${i}], d1, d2))`).join("\n        && ");
   return `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -205,12 +236,24 @@ service cloud.firestore {
     // Administrateurs (identifiants des comptes créés dans Authentication).
     function admin() { return request.auth != null && request.auth.uid in [${uids}]; }
 
+    // Saisie des absences ouverte pour [d1, d2] : après la période publiée
+    // et hors des périodes dont la date limite de dépôt est passée.
+    function publie(code) { return /databases/$(database)/documents/espaces/$(code)/planning/publie; }
+    function saisie(code) { return /databases/$(database)/documents/espaces/$(code)/config/saisie; }
+    function apresPublication(code, d1) { return !exists(publie(code)) || d1 > get(publie(code)).data.end; }
+    function cloture(k, d1, d2) { return request.time.toMillis() <= k.finMs || d2 < k.du || d1 > k.au; }
+    function horsClotures(code, d1, d2) {
+      let c = exists(saisie(code)) ? get(saisie(code)).data.clotures : [];
+      return ${cl};
+    }
+    function ouvert(code, d1, d2) { return apresPublication(code, d1) && horsClotures(code, d1, d2); }
+
     match /espaces/{code}/{document=**} {
       allow read: if equipe(code);
       allow write: if equipe(code) && admin();
     }
 
-    // Indisponibilités : saisies par chaque médecin, format contrôlé.
+    // Indisponibilités : saisies par chaque médecin, format contrôlé, période ouverte.
     match /espaces/{code}/indispos/{id} {
       allow create, update: if equipe(code)
         && request.resource.data.keys().hasAll(['ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'])
@@ -220,8 +263,9 @@ service cloud.firestore {
         && request.resource.data.d2 >= request.resource.data.d1
         && request.resource.data.d2 - request.resource.data.d1 <= 366
         && request.resource.data.periode in ['Journée', 'Matin', 'Après-midi']
-        && request.resource.data.motif is string && request.resource.data.motif.size() <= 100;
-      allow delete: if equipe(code);
+        && request.resource.data.motif is string && request.resource.data.motif.size() <= 100
+        && (admin() || ouvert(code, request.resource.data.d1, request.resource.data.d2));
+      allow delete: if equipe(code) && (admin() || ouvert(code, resource.data.d1, resource.data.d2));
     }
   }
 }
