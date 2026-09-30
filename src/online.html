@@ -502,11 +502,15 @@ function updateHeader() {
   $("adminBtn").textContent = S.user ? "Admin ✓" : "Admin";
   $("adminBtn").classList.toggle("admin", !!S.user);
   $("tabAdmin").hidden = !S.user && currentTab() !== "admin";
+  if (!$("whoOverlay").hidden) renderWho(); // la liste se complète si les paramètres arrivent pendant que la fenêtre est ouverte
 }
-function openWho() {
+function renderWho() {
   const list = doctorList();
   $("whoGrid").innerHTML = list.length ? list.map((d) => `<button type="button" data-ini="${esc(d)}" class="${d === S.me ? "sel" : ""}">${esc(d)}</button>`).join("")
     : `<p class="muted small">Aucun médecin : l'administrateur n'a pas encore chargé les paramètres.</p>`;
+}
+function openWho() {
+  renderWho();
   $("whoOverlay").hidden = false;
   const first = $("whoGrid").querySelector("button"); if (first) first.focus();
 }
