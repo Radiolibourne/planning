@@ -70,6 +70,9 @@ FS = r"""
 const call = async (op, a) => { const r = await window.__fb(op, JSON.stringify({ ...a, uid: globalThis.__uid || null })); const o = JSON.parse(r);
   if (o && o.error) { const e = new Error(o.error); e.code = o.error; throw e; } return o; };
 export function getFirestore(app){ return { app }; }
+export function persistentMultipleTabManager(){ return { tabs: 'multi' }; }
+export function persistentLocalCache(opts){ globalThis.__cacheLocal = true; return { kind: 'persistent', opts }; }
+export function initializeFirestore(app, settings){ globalThis.__settings = settings; return { app }; }
 export function doc(fs, path){ if (path.split('/').length % 2) throw new Error('doc path must have even segments: ' + path); return { type: 'doc', path, id: path.split('/').pop() }; }
 export function collection(fs, path){ if (path.split('/').length % 2 === 0) throw new Error('collection path must have odd segments: ' + path); return { type: 'coll', path }; }
 const snap = (ref, data) => ({ id: ref.id, exists: () => data != null, data: () => data == null ? undefined : JSON.parse(JSON.stringify(data)) });
@@ -170,6 +173,7 @@ with sync_playwright() as pw:
     r = doc.evaluate('''async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos',
         data: {ini: 'DA', d1: j, d2: j, periode: 'Journée', motif: 'test', creeLe: 1}}))).error || 'accepté' ''', [TEAM, numero_jour(dans_periode)])
     ok(r == 'permission-denied', 'serveur : absence refusée sur la période publiée (même en contournant la page)')
+    ok(doc.evaluate('globalThis.__cacheLocal === true'), 'cache local des données Firestore activé')
     # --- médecin : reçoit le planning en temps réel
     doc.click('a[data-tab=mon]'); doc.wait_for_selector('#icsMe', timeout=8000)
     ok(doc.locator('#vMon .day').count() == len(ouvres), 'médecin : planning reçu en temps réel')

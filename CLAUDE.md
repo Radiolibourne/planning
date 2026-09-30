@@ -39,6 +39,14 @@ Toutes les pages sont des **fichiers HTML uniques**, sans dépendance externe, �
 | `online_core.js` | Format du planning publié, stockage Firebase / démonstration, règles Firestore, conflits absences ↔ planning |
 | `online.html` | Interface du site (onglets Mon planning, Général, Absences, Admin, assistant de mise en ligne) |
 | `app.html` | Interface du générateur hors ligne |
+| `pwa/` | Application installable : `sw.js` (service worker), icônes PNG (dessinées par `outils/creer_icones.py`, commitées). Le manifeste est écrit par `construire.py` |
+
+### Application installable et hors connexion
+- Nom sur l'écran d'accueil : « Planning radio ». Icône : calendrier blanc sur fond bleu #1f3864.
+- `sw.js` : page et icônes en « réseau d'abord, copie locale sinon » ; bibliothèque Firebase (URL versionnée) en « copie locale d'abord ». Version du cache = empreinte des pages construites (chaque déploiement invalide l'ancien cache). Activé sur https et localhost uniquement.
+- Données : cache local Firestore (`persistentLocalCache`, multi-onglets) → le dernier planning consulté reste lisible sans réseau.
+- Au démarrage, un code d'équipe déjà mémorisé n'est pas revérifié (ouverture hors connexion) ; un refus d'accès ultérieur l'efface (`forgetCode`).
+- Hors connexion, toutes les écritures sont bloquées avec un message (`needOnline`) ; bandeau « Hors connexion ».
 
 ### Le moteur (`engine.js`)
 - Variables : `a[médecin][créneau] = poste | -1`. Créneau = jour ouvré × {M, AM}.
@@ -91,5 +99,5 @@ Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`,
 - Capacité insuffisante à ce jour. Avec les priorités actuelles, ferment d'abord l'échographie 2, puis l'IRM 2 (ostéo-articulaire), puis la mammographie de Blaye. C'est un choix du service, réglable via les priorités du classeur.
 - Calendriers iPhone : import d'un fichier .ics (pas d'abonnement, le site est statique). Après une republication, chaque médecin réimporte son fichier.
 - Code d'équipe = mot de passe partagé ; un médecin peut supprimer l'absence d'un collègue. Le reste (paramètres, publication) est réservé aux administrateurs authentifiés.
-- Fonctions ajoutées depuis la première version : verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
+- Fonctions ajoutées depuis la première version : application installable « Planning radio » avec ouverture hors connexion ; verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
 - Pistes demandées ou envisagées : onglet « Quotas » générique (min / max par médecin, poste et période) ; échanges de vacations entre médecins.

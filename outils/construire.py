@@ -8,12 +8,23 @@ Construit les pages du site dans dist/ à partir de src/.
 
 Usage : python outils/construire.py
 """
-import base64, json, os, sys
+import base64, hashlib, json, os, shutil, sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(RACINE, "src")
 DIST = os.path.join(RACINE, "dist")
 EXEMPLE = os.path.join(RACINE, "exemple", "parametres_exemple.xlsx")
+PWA = os.path.join(SRC, "pwa")
+MANIFESTE = {
+    "name": "Planning radiologie", "short_name": "Planning radio", "lang": "fr",
+    "start_url": "./", "scope": "./", "display": "standalone",
+    "background_color": "#f3f4f7", "theme_color": "#1f3864",
+    "icons": [
+        {"src": "icone-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "icone-512.png", "sizes": "512x512", "type": "image/png"},
+        {"src": "icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    ],
+}
 CONFIG = os.path.join(RACINE, "config", "firebase.json")
 CLES = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"]
 
@@ -68,6 +79,18 @@ def main():
         with open(os.path.join(DIST, nom), "w", encoding="utf-8") as f:
             f.write(html)
         print(f"{nom:30s} {len(html.encode()) // 1024} Ko")
+    # application installable et hors connexion
+    for f in os.listdir(PWA):
+        if f.endswith(".png"):
+            shutil.copy(os.path.join(PWA, f), os.path.join(DIST, f))
+    with open(os.path.join(DIST, "manifest.webmanifest"), "w", encoding="utf-8") as f:
+        json.dump(MANIFESTE, f, ensure_ascii=False, indent=2)
+    version = hashlib.sha256("".join(pages[k] for k in sorted(pages)).encode()).hexdigest()[:12]
+    with open(os.path.join(PWA, "sw.js"), encoding="utf-8") as f:
+        sw = f.read().replace("__VERSION__", version)
+    with open(os.path.join(DIST, "sw.js"), "w", encoding="utf-8") as f:
+        f.write(sw)
+    print(f"{'sw.js + manifeste + icônes':30s} version {version}")
     print("Site :", "Firebase (" + config["projectId"] + ")" if config else "démonstration (config/firebase.json absent)")
 
 

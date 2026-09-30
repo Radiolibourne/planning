@@ -33,7 +33,10 @@ La configuration Firebase est publique par nature. En revanche, le **code d'équ
 ### 3. Démarrage
 1. Ouvrez le site, saisissez le code d'équipe, puis **Admin** → connectez-vous → **Remplacer par un classeur mis à jour** : déposez votre vrai classeur de paramètres.
 2. Générez et publiez un planning d'essai. Vérifiez sur votre iPhone et depuis un poste de l'hôpital.
-3. Envoyez l'adresse du site et le code d'équipe aux médecins. Sur iPhone : Safari → Partager → **Sur l'écran d'accueil**.
+3. Envoyez l'adresse du site et le code d'équipe aux médecins. Pour installer l'application « Planning radio » :
+   - **iPhone** : ouvrir le lien dans **Safari** → bouton Partager → **Sur l'écran d'accueil** ;
+   - **Android** : ouvrir le lien dans **Chrome** → menu ⋮ → **Ajouter à l'écran d'accueil** (ou **Installer l'application**).
+   Une fois ouvert au moins une fois avec le réseau, le dernier planning consulté reste lisible **hors connexion**.
 
 ---
 
@@ -62,7 +65,7 @@ Le code vous appartient. Il est lisible et documenté (`CLAUDE.md`), et n'import
 | Dossier | Contenu |
 |---|---|
 | `src/` | Code de l'application : moteur de planning, export Excel et calendriers, pages |
-| `outils/` | Construction du site (`construire.py`), classeur d'exemple |
+| `outils/` | Construction du site (`construire.py`), classeur d'exemple, icônes |
 | `exemple/` | Classeur de paramètres fictif (démonstration et tests) |
 | `tests/` | Tests automatiques (navigateur simulé) |
 | `config/` | Configuration Firebase du site |

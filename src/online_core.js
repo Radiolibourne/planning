@@ -164,7 +164,10 @@ async function firebaseStore(cfg) {
     throw new StoreError("network", "Impossible de charger Firebase. Vérifiez votre connexion à internet.");
   }
   const app = A.initializeApp(cfg);
-  const fs = F.getFirestore(app);
+  // Cache local des données : le dernier planning consulté reste lisible sans réseau.
+  let fs;
+  try { fs = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
+  catch (e) { fs = F.getFirestore(app); }
   const auth = U.getAuth(app);
   const wrap = async (fn) => { try { return await fn(); } catch (e) { throw frenchError(e); } };
   return {

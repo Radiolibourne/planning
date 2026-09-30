@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-title" content="Planning radio">
 <meta name="theme-color" content="#1f3864">
 <title>Planning radiologie</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icone-180.png">
+<link rel="icon" type="image/png" href="favicon-32.png">
 <style>
 :root {
   --bg: #f3f4f7; --panel: #ffffff; --ink: #1b2330; --muted: #5d6675; --line: #dde1e8; --soft: #eef1f6;
@@ -39,6 +42,8 @@ nav.tabs a[aria-current=page] { color: var(--accent-2); border-bottom-color: var
 .demo { background: #fff4d6; color: #6b4e00; font-size: 13px; padding: 7px 0; border-bottom: 1px solid #f0dca0; }
 @media (prefers-color-scheme: dark) { .demo { background: #3a3218; color: #f3d98a; border-color: #5a4c20; } }
 .demo .wrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.offline { background: #e8ecf3; color: #33415c; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+@media (prefers-color-scheme: dark) { .offline { background: #232b38; color: #c7d2e5; } }
 main { padding: 18px 0 70px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
 .card h2 { font-size: 16px; margin: 0 0 4px; }
@@ -154,6 +159,7 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
     <span><b>Mode démonstration</b> — les données restent dans ce navigateur. Aucune donnée n'est partagée.</span>
     <a href="#admin" class="small" style="color:inherit;font-weight:600">Mettre en ligne pour l'équipe →</a>
   </div></div>
+  <div id="offlineBanner" class="offline" hidden><div class="wrap"><b>Hors connexion</b> — affichage de la dernière version enregistrée sur cet appareil. Les modifications seront possibles au retour du réseau.</div></div>
   <div class="wrap">
     <div class="bar">
       <h1>Planning radiologie</h1>
@@ -443,6 +449,21 @@ const S = {
 const base = () => `espaces/${S.code}`;
 const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie` };
 
+// ------------------------------------------------------------ hors connexion
+function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
+window.addEventListener("online", updateOnline);
+window.addEventListener("offline", updateOnline);
+function needOnline(msgEl) {
+  if (S.store && S.store.mode !== "demo" && navigator.onLine === false) {
+    setMsg(msgEl, "Hors connexion : réessayez quand le réseau sera revenu.", "err");
+    return false;
+  }
+  return true;
+}
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => { /* hors connexion indisponible */ }));
+}
+
 // ------------------------------------------------------------ navigation
 const TABS = { mon: "vMon", general: "vGeneral", indispos: "vIndispos", admin: "vAdmin" };
 function currentTab() { const h = location.hash.slice(1); return TABS[h] ? h : "mon"; }
@@ -470,17 +491,27 @@ async function connect() {
     S.store = demoStore();
     $("demoBanner").hidden = false;
   }
+  updateOnline();
   S.store.onAuth((u) => { S.user = u; updateHeader(); if (currentTab() === "admin") render(); });
   const saved = S.store.mode === "demo" ? "demo" : ls.get("planning-radio-code");
   if (saved) await enter(saved, true);
   else route();
 }
 
+function forgetCode(message) {
+  S.unsub.forEach((f) => f()); S.unsub = [];
+  S.code = null; S.params = S.P = S.published = S.saisie = null; S.indispos = [];
+  ls.set("planning-radio-code", null);
+  route();
+  setMsg($("codeMsg"), message || "", message ? "err" : "");
+}
 async function enter(code, silent) {
   const msg = $("codeMsg");
-  setMsg(msg, "Vérification…");
+  setMsg(msg, silent ? "" : "Vérification…");
   S.code = code;
-  try {
+  // Code déjà mémorisé sur l'appareil : pas de vérification bloquante (ouverture possible hors connexion) ;
+  // un code devenu invalide est détecté par les abonnements (accès refusé).
+  if (!silent) try {
     await S.store.get(PATHS.params());
   } catch (e) {
     S.code = null;
@@ -493,7 +524,10 @@ async function enter(code, silent) {
   setMsg(msg, "");
   if (S.store.mode !== "demo") ls.set("planning-radio-code", code);
   S.unsub.forEach((f) => f()); S.unsub = [];
-  const onErr = (e) => { console.error(e); };
+  const onErr = (e) => {
+    console.error(e);
+    if (e && e.code === "permission-denied" && S.code) forgetCode("Code d'équipe refusé : il a peut-être changé. Saisissez le nouveau code.");
+  };
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; render(); }, onErr));
@@ -761,6 +795,7 @@ $("indForm").addEventListener("submit", async (e) => {
   if (d1 === null || d2 === null) return setMsg(msg, "Dates invalides.", "err");
   if (d2 < d1) return setMsg(msg, "La date de fin est avant la date de début.", "err");
   if (d2 - d1 > 366) return setMsg(msg, "Période trop longue (un an maximum).", "err");
+  if (!needOnline(msg)) return;
   const verrou = lockReason(d1, d2, S.published, S.saisie);
   if (verrou && !S.user) return setMsg(msg, verrou, "err");
   if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
@@ -776,6 +811,7 @@ $("indForm").addEventListener("submit", async (e) => {
 });
 async function deleteIndispo(id, msgEl) {
   const x = S.indispos.find((i) => i.id === id);
+  if (!needOnline(msgEl)) return;
   if (!x || !confirm(`Supprimer l'indisponibilité de ${x.ini} (${fmtDay(x.d1, false)}${x.d1 !== x.d2 ? " → " + fmtDay(x.d2, false) : ""}) ?`)) return;
   try { await S.store.del(`${PATHS.indispos()}/${id}`); }
   catch (e) { if (msgEl) setMsg(msgEl, e.message, "err"); }
@@ -839,6 +875,7 @@ function renderAdmin() {
   $("setupDetails").open = $("setupDetails").open || S.store.mode === "demo";
 }
 async function saveClotures(list, msgEl) {
+  if (!needOnline(msgEl)) return;
   try { await S.store.set(PATHS.saisie(), { clotures: list, majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok"); }
   catch (e) { setMsg(msgEl, e.message, "err"); }
 }
@@ -878,6 +915,7 @@ async function saveParams(bytes, nom) {
   try {
     readParams(await readXlsx(bytes.buffer)); // validation avant envoi
   } catch (e) { return setMsg(msg, `Classeur refusé : ${e.message}`, "err"); }
+  if (!needOnline(msg)) return;
   setMsg(msg, "Enregistrement…");
   try {
     await S.store.set(PATHS.params(), { nom, majLe: Date.now(), par: (S.user && S.user.email) || "", xlsx: bytesToB64(bytes) });
@@ -1005,6 +1043,7 @@ $("publishBtn").addEventListener("click", async () => {
   const msg = $("pubMsg");
   const ctx = draftContext();
   const nErr = ctx ? ctx.items.filter((i) => i[0] === "Erreur").length : 0;
+  if (!needOnline(msg)) return;
   if (nErr && !confirm(`${nErr} erreur(s) détectée(s) (voir « Contrôle des règles »). Publier quand même ?`)) return;
   if (!confirm("Publier ce planning ? Il remplacera la version actuelle pour toute l'équipe.")) return;
   const doc = JSON.parse(JSON.stringify(S.draft));
