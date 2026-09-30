@@ -1,0 +1,7 @@
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+# Le vrai classeur du service ne doit jamais être déposé ici :
+parametres_planning*.xlsx
+planning_radiologie_*.xlsx

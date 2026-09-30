@@ -1,0 +1,148 @@
+# -*- coding: utf-8 -*-
+"""
+Scénario complet en mode démonstration : un médecin et l'administrateur dans deux onglets.
+Produit aussi (via l'assistant de mise en ligne) la page configurée et les règles utilisées par test_firebase.py.
+"""
+import datetime as dt
+import os
+import time
+import urllib.parse
+from playwright.sync_api import sync_playwright
+from commun import Bilan, DIST, SORTIE, chromium, jours_ouvres, mois_suivant, numero_jour, verifier_dist
+
+MEDECIN = "SB"          # médecin fictif (off le mercredi)
+
+
+def main():
+    verifier_dist()
+    B = Bilan("Mode démonstration")
+    url = "file://" + os.path.join(DIST, "demo.html")
+    d1, d2 = mois_suivant()
+    ouvres = jours_ouvres(d1, d2)
+    # congés : la 2e semaine complète du mois (lundi → vendredi)
+    lundis = [d for d in ouvres if d.weekday() == 0]
+    conge_debut = lundis[1] if len(lundis) > 1 else lundis[0]
+    conge_fin = conge_debut + dt.timedelta(days=4)
+    erreurs_js, reseau = [], []
+    with sync_playwright() as p:
+        b = chromium(p)
+        ctx = b.new_context(accept_downloads=True, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        ctx.route("**/*", lambda r: r.continue_() if r.request.url.startswith(("file:", "blob:", "data:"))
+                  else (reseau.append(r.request.url), r.abort()))
+        doc, adm = ctx.new_page(), ctx.new_page()
+        for pg in (doc, adm):
+            pg.on("pageerror", lambda e: erreurs_js.append(str(e)))
+            pg.on("dialog", lambda d: d.accept())
+        # --- médecin, avant tout paramétrage
+        doc.goto(url)
+        doc.wait_for_selector("#vMon:not([hidden])")
+        B.ok(doc.is_visible("#demoBanner"), "bandeau démonstration visible")
+        doc.click("#meBtn")
+        doc.wait_for_selector("#whoOverlay:not([hidden])")
+        B.ok("pas encore chargé" in doc.inner_text("#whoGrid"), "aucun médecin tant que les paramètres ne sont pas chargés")
+        doc.click("#whoClose")
+        # --- administrateur : paramètres
+        adm.goto(url + "#admin")
+        adm.wait_for_selector("#loginCard:not([hidden])")
+        adm.fill("#loginEmail", "admin@test.fr"); adm.fill("#loginPw", "x"); adm.click("#loginForm button[type=submit]")
+        adm.wait_for_selector("#adminBody:not([hidden])")
+        adm.click("#useDefault")
+        adm.wait_for_function("document.querySelector('#paramInfo').innerText.includes('médecins')")
+        B.ok("11 médecins" in adm.inner_text("#paramInfo"), "paramètres d'exemple chargés")
+        # --- médecin : initiales + congés
+        doc.click("#meBtn"); doc.wait_for_selector(f"#whoGrid button[data-ini={MEDECIN}]", timeout=5000)
+        doc.click(f"#whoGrid button[data-ini={MEDECIN}]")
+        B.ok(doc.inner_text("#meBtn") == f"Vous : {MEDECIN}", "initiales mémorisées")
+        doc.click("a[data-tab=indispos]")
+        doc.fill("#indD1", conge_debut.isoformat()); doc.fill("#indD2", conge_fin.isoformat())
+        doc.select_option("#indMotif", "Congés"); doc.fill("#indPrec", "vacances")
+        doc.click("#indSubmit")
+        doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')")
+        doc.wait_for_function(f"document.querySelector('#myInd').innerText.includes('{conge_debut:%d/%m}')")
+        B.ok("Congés — vacances" in doc.inner_text("#myInd"), "indisponibilité listée")
+        doc.fill("#indD1", conge_fin.isoformat()); doc.fill("#indD2", conge_debut.isoformat()); doc.click("#indSubmit")
+        B.ok("avant la date" in doc.inner_text("#indMsg"), "dates incohérentes refusées")
+        # --- administrateur : génération sur le mois suivant
+        adm.wait_for_function(f"document.querySelector('#admInd').innerText.includes('{MEDECIN}')")
+        B.ok(True, "l'administrateur voit l'indisponibilité en temps réel")
+        adm.fill("#gStart", d1.isoformat()); adm.fill("#gEnd", d2.isoformat())
+        adm.select_option("#gQual", "10")
+        t = time.time(); adm.click("#gBtn")
+        adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning généré')", timeout=90000)
+        B.ok(True, f"génération en {time.time() - t:.0f} s")
+        B.ok("Erreur" not in adm.inner_text("#dChecks"), "aucune erreur de règle")
+        n = adm.evaluate("""([ini, a, b]) => { const d = JSON.parse(localStorage.getItem('planning-radio-draft')).draft;
+            return Object.entries(d.cases).filter(([k, v]) => { const j = +k.split('_')[0];
+              return j >= a && j <= b && v.split('/').map((s) => s.trim()).includes(ini); }).length; }""",
+                         [MEDECIN, numero_jour(conge_debut), numero_jour(conge_fin)])
+        B.ok(n == 0, f"{MEDECIN} non affecté pendant ses congés")
+        # retouche manuelle
+        cell = adm.locator("#draftGrid td[data-k]").first
+        k, avant = cell.get_attribute("data-k"), cell.inner_text()
+        cell.click(); adm.keyboard.press("Control+A"); adm.keyboard.type("da oa, zz"); adm.keyboard.press("Enter")
+        B.ok(adm.locator(f'#draftGrid td[data-k="{k}"]').inner_text() == "DA / OA / ZZ", "retouche saisie et normalisée")
+        B.ok("ZZ ne figure pas" in adm.inner_text("#dChecks"), "initiales inconnues signalées")
+        adm.locator(f'#draftGrid td[data-k="{k}"]').click(); adm.keyboard.press("Control+A")
+        adm.keyboard.type(avant if avant != "FERMÉ" else ""); adm.keyboard.press("Enter")
+        # publication
+        adm.click("#publishBtn")
+        adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
+        B.ok(adm.is_hidden("#draftBody"), "publication effectuée")
+        # --- médecin : son planning
+        doc.click("a[data-tab=mon]"); doc.wait_for_selector("#icsMe", timeout=5000)
+        B.ok(doc.locator("#vMon .day").count() == len(ouvres), f"planning personnel : {len(ouvres)} jours ouvrés")
+        B.ok("Absent" in doc.inner_text("#vMon"), "congés affichés")
+        ics = urllib.parse.unquote(doc.get_attribute("#icsMe", "href").split(",", 1)[1])
+        B.ok(ics.startswith("BEGIN:VCALENDAR") and ics.count("BEGIN:VEVENT") > 5, "calendrier iPhone généré")
+        # conflit : absence signalée sur un jour travaillé
+        jour = doc.evaluate("""() => { const t = document.querySelector('#vMon .day .slot:not(.off)');
+            return t ? t.closest('.day').querySelector('.date span').innerText : null; }""")
+        dd, mm = jour.split("/")
+        an = d1.year if int(mm) >= d1.month else d2.year
+        doc.click("a[data-tab=indispos]")
+        doc.fill("#indD1", f"{an}-{mm}-{dd}"); doc.fill("#indD2", f"{an}-{mm}-{dd}")
+        doc.select_option("#indMotif", "Formation"); doc.fill("#indPrec", "")
+        doc.click("#indSubmit"); doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')")
+        doc.click("a[data-tab=mon]"); doc.wait_for_selector(".banner.warn", timeout=5000)
+        B.ok("absence signalée" in doc.inner_text("#vMon"), "conflit signalé au médecin")
+        adm.wait_for_function("document.querySelector('#admInd').innerText.includes('affecté pendant')", timeout=5000)
+        B.ok(True, "conflit signalé à l'administrateur")
+        # planning général
+        doc.click("a[data-tab=general]"); doc.wait_for_selector("#genBody table")
+        B.ok(doc.locator("#genBody td.me").count() > 0, "cases du médecin encadrées")
+        B.ok(doc.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "pas de défilement horizontal sur mobile")
+        # exports depuis la copie du planning publié
+        adm.click("#editPublished"); adm.wait_for_selector("#draftBody:not([hidden])")
+        with adm.expect_download() as d:
+            adm.click("#dlDraftXlsx")
+        d.value.save_as(os.path.join(SORTIE, "export.xlsx"))
+        with adm.expect_download() as d:
+            adm.click("#dlDraftIcs")
+        d.value.save_as(os.path.join(SORTIE, "calendriers.zip"))
+        # assistant de mise en ligne → page configurée + règles (réutilisées par test_firebase.py)
+        adm.fill("#sCfg", 'const firebaseConfig = { apiKey: "AIzaTEST", authDomain: "test.firebaseapp.com", '
+                          'projectId: "test", storageBucket: "test.appspot.com", messagingSenderId: "1", appId: "1:1:web:1" };')
+        adm.click("#sGenCode"); code = adm.input_value("#sCode")
+        adm.fill("#sUids", "AdminUidDeTest0000000000")
+        adm.click("#sBuild"); adm.wait_for_selector("#sOut:not([hidden])")
+        regles = adm.input_value("#sRules")
+        B.ok(code in regles and "AdminUidDeTest0000000000" in regles, "règles de sécurité générées")
+        with adm.expect_download() as d:
+            adm.click("#sDl")
+        d.value.save_as(os.path.join(SORTIE, "index_configure.html"))
+        with open(os.path.join(SORTIE, "regles.txt"), "w", encoding="utf-8") as f:
+            f.write(regles)
+        b.close()
+    html = open(os.path.join(SORTIE, "index_configure.html"), encoding="utf-8").read()
+    B.ok('"apiKey": "AIzaTEST"' in html, "page configurée : configuration Firebase présente")
+    B.ok('DEFAULT_PARAMS_B64 = ""' in html and code not in html, "page configurée : ni données du service, ni code d'équipe")
+    from openpyxl import load_workbook
+    wb = load_workbook(os.path.join(SORTIE, "export.xlsx"))
+    B.ok({"Planning par poste", "Planning par médecin", "Synthèse"} <= set(wb.sheetnames), "export Excel lisible")
+    B.ok(not reseau, "aucune connexion réseau en démonstration")
+    B.ok(not erreurs_js, "aucune erreur JavaScript" + (f" : {erreurs_js[:3]}" if erreurs_js else ""))
+    return B.fin()
+
+
+if __name__ == "__main__":
+    raise SystemExit(0 if main() else 1)

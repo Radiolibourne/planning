@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planning radiologie</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #1c2330; --muted: #5d6675; --line: #dde1e7; --soft: #eef1f5;
+  --accent: #1f3864; --accent-2: #2f5597; --accent-ink: #ffffff; --ok: #3f7d2a; --warn: #b3541e; --err: #b42318;
+  --closed-bg: #fbe3dc; --closed-ink: #b42318; --part-bg: #fce9d9; --site1: #2f5597; --site2: #548235; --site3: #9a7300;
+  --rem1: #e2efda; --rem2: #fdf1cc; --off: #e4e6ea; --focus: #2f5597;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161d; --panel: #1b2029; --ink: #e6e9ef; --muted: #9aa3b2; --line: #2d3440; --soft: #232a35;
+    --accent: #7fa3e6; --accent-2: #9db9ee; --accent-ink: #0f1520; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
+    --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --site1: #7fa3e6; --site2: #8cc47a; --site3: #e0bf5c;
+    --rem1: #26402a; --rem2: #4a4020; --off: #2a2f38; --focus: #9db9ee;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+header { background: var(--panel); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+header .wrap { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; padding-top: 22px; padding-bottom: 18px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); font-size: 14px; }
+main.wrap { padding-top: 24px; padding-bottom: 60px; }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; margin-bottom: 20px; }
+h2 { font-size: 17px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+h2 .step { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; }
+.sub { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+.row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.drop {
+  flex: 1 1 360px; border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; cursor: pointer;
+  color: var(--muted); transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over { border-color: var(--accent-2); background: var(--soft); }
+.drop strong { color: var(--ink); }
+.drop input { display: none; }
+.srcinfo { flex: 1 1 360px; background: var(--soft); border-radius: 10px; padding: 14px 16px; font-size: 14px; }
+.srcinfo b { font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+input[type=date], select {
+  font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 170px;
+}
+button, a.btn {
+  font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+}
+button.primary, a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible, a.btn:focus-visible, .drop:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button.link { color: var(--accent-2); cursor: pointer; text-decoration: underline; font-size: 14px; background: none; border: 0; padding: 0; font-weight: 500; }
+.progress { height: 8px; background: var(--soft); border-radius: 999px; overflow: hidden; margin-top: 16px; display: none; }
+.progress > div { height: 100%; width: 0; background: var(--accent-2); transition: width .2s; }
+.status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 21px; }
+.error { color: var(--err); font-weight: 600; }
+#results { display: none; }
+.downloads { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.icslist { display: flex; flex-wrap: wrap; gap: 8px; }
+.icslist a { font-size: 13px; padding: 6px 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+.cov { display: grid; grid-template-columns: minmax(150px, 1.3fr) 2fr 52px; gap: 6px 10px; align-items: center; font-size: 13px; }
+.bar { height: 10px; background: var(--soft); border-radius: 999px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--ok); }
+.bar.mid > div { background: var(--warn); }
+.bar.low > div { background: var(--err); }
+.cov .pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.checks { list-style: none; padding: 0; margin: 0; font-size: 13px; max-height: 300px; overflow: auto; }
+.checks li { padding: 5px 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; }
+.lvl { font-weight: 700; min-width: 52px; }
+.lvl.OK { color: var(--ok); } .lvl.Alerte { color: var(--warn); } .lvl.Erreur { color: var(--err); } .lvl.Info { color: var(--accent-2); }
+.tabs { display: flex; gap: 6px; margin: 4px 0 12px; flex-wrap: wrap; }
+.tabs button { font-weight: 500; padding: 6px 12px; font-size: 14px; }
+.tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tablewrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 8px; }
+table.pl { border-collapse: separate; border-spacing: 0; font-size: 12px; width: max-content; min-width: 100%; }
+table.pl th, table.pl td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 4px 7px; text-align: center; white-space: nowrap; }
+table.pl thead th { position: sticky; top: 0; background: var(--accent); color: var(--accent-ink); z-index: 2; font-weight: 600; }
+table.pl thead tr:nth-child(2) th { top: 27px; }
+table.pl th.s1 { background: var(--site1); color: #fff; } table.pl th.s2 { background: var(--site2); color: #fff; } table.pl th.s3 { background: var(--site3); color: #fff; }
+table.pl td.lead { position: sticky; left: 0; background: var(--panel); z-index: 1; text-align: left; font-weight: 600; }
+table.pl tr.week td { background: var(--soft); color: var(--accent-2); font-weight: 700; text-align: left; }
+table.pl tr.m td { border-top: 2px solid var(--muted); }
+td.closed { background: var(--closed-bg); color: var(--closed-ink); font-weight: 700; }
+td.part { background: var(--part-bg); }
+td.na { color: var(--muted); }
+td.off { background: var(--off); color: var(--muted); font-size: 11px; }
+td.dispo { font-style: italic; color: var(--warn); }
+td.rem1 { background: var(--rem1); font-weight: 700; } td.rem2 { background: var(--rem2); font-weight: 700; }
+details { margin-top: 6px; }
+details summary { cursor: pointer; font-weight: 600; }
+.help ol, .help ul { margin: 8px 0 0; padding-left: 20px; }
+.help li { margin-bottom: 6px; }
+.small { font-size: 13px; color: var(--muted); }
+@media (max-width: 600px) { section.card { padding: 18px 16px; } .wrap { padding: 0 16px; } }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Planning radiologie</h1>
+  <p>Libourne · Sainte-Foy-la-Grande · Blaye — générateur autonome, fonctionne sans connexion</p>
+</div></header>
+
+<main class="wrap">
+  <section class="card">
+    <h2><span class="step">1</span>Paramètres</h2>
+    <p class="sub">Médecins, postes, règles, absences : tout vient du classeur de paramètres Excel.</p>
+    <div class="row">
+      <div class="srcinfo" id="srcinfo">Chargement…</div>
+      <label class="drop" id="drop" tabindex="0">
+        <input type="file" id="fileParams" accept=".xlsx">
+        <strong>Déposer un classeur de paramètres mis à jour</strong><br>
+        <span>ou cliquer pour le choisir (.xlsx)</span>
+      </label>
+    </div>
+    <p class="small" style="margin:12px 0 0">
+      <button class="link" id="dlTemplate">Télécharger le classeur de paramètres</button> — à compléter dans Excel (absences, nouveaux médecins, période…), puis à redéposer ici.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span>Générer le planning</h2>
+    <p class="sub">La période peut être ajustée ici sans modifier le classeur.</p>
+    <div class="row">
+      <label class="f">Début<input type="date" id="dStart"></label>
+      <label class="f">Fin<input type="date" id="dEnd"></label>
+      <label class="f">Qualité de calcul
+        <select id="quality">
+          <option value="10">Rapide (10 s)</option>
+          <option value="25" selected>Standard (25 s)</option>
+          <option value="60">Approfondie (1 min)</option>
+        </select>
+      </label>
+      <button class="primary" id="btnGen" disabled>Générer le planning</button>
+    </div>
+    <div class="progress" id="prog"><div></div></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card" id="results">
+    <h2><span class="step">3</span>Résultat</h2>
+    <p class="sub" id="resSub"></p>
+    <div class="downloads">
+      <a class="btn primary" id="dlXlsx">Télécharger le planning Excel</a>
+      <a class="btn" id="dlZip">Tous les calendriers iPhone (.zip)</a>
+    </div>
+    <p class="small" style="margin:0 0 8px">Calendrier individuel à envoyer à chaque médecin :</p>
+    <div class="icslist" id="icsList"></div>
+
+    <div class="grid2" style="margin-top:22px">
+      <div>
+        <h3 style="margin:0 0 10px;font-size:15px">Couverture des postes</h3>
+        <div class="cov" id="cov"></div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 10px;font-size:15px">Contrôle des règles</h3>
+        <ul class="checks" id="checks"></ul>
+      </div>
+    </div>
+
+    <h3 style="margin:24px 0 6px;font-size:15px">Aperçu</h3>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-view="poste">Par poste</button>
+      <button role="tab" aria-selected="false" data-view="medecin">Par médecin</button>
+    </div>
+    <div class="tablewrap"><table class="pl" id="preview"></table></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">4</span>Calendriers depuis un planning modifié</h2>
+    <p class="sub">Vous avez retouché le planning Excel à la main ? Déposez-le ici pour refaire les calendriers iPhone à partir de vos modifications.</p>
+    <div class="row">
+      <label class="drop" id="drop2" tabindex="0">
+        <input type="file" id="filePlanning" accept=".xlsx">
+        <strong>Déposer le planning Excel modifié</strong><br><span>ou cliquer pour le choisir</span>
+      </label>
+    </div>
+    <div class="status" id="status2" role="status" aria-live="polite"></div>
+    <div class="downloads" id="dl2" style="display:none;margin-top:10px"><a class="btn primary" id="dlZip2">Tous les calendriers (.zip)</a></div>
+    <div class="icslist" id="icsList2"></div>
+  </section>
+
+  <section class="card help">
+    <h2>Mode d'emploi</h2>
+    <details open>
+      <summary>Ajouter le planning dans l'iPhone</summary>
+      <ol>
+        <li>Envoyez à chaque médecin son fichier <b>planning_XX_…ics</b> par mail.</li>
+        <li>Sur l'iPhone, il touche la pièce jointe, puis <b>Tout ajouter</b>.</li>
+        <li>Il peut choisir un calendrier dédié (par exemple « Planning radio ») : il est alors facile à masquer, ou à effacer avant d'importer une nouvelle version.</li>
+      </ol>
+      <p class="small">Si le planning change après l'import, supprimez l'ancien calendrier dédié et importez le nouveau fichier, pour éviter les doublons.</p>
+    </details>
+    <details>
+      <summary>Chaque mois</summary>
+      <ul>
+        <li>Téléchargez le classeur de paramètres (étape 1), saisissez la nouvelle période et les absences, puis déposez-le.</li>
+        <li>Générez, vérifiez l'onglet « Fermetures », ajustez à la main si besoin dans « Planning par poste ».</li>
+        <li>Après des modifications à la main, refaites les calendriers à l'étape 4.</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Régler les priorités</summary>
+      <p class="small">Dans l'onglet Postes du classeur de paramètres, la colonne « Priorité » décide de ce qui ferme en premier quand il manque des médecins (1 = couvert en premier). Par exemple, passer l'IRM 2 de 7 à 5 la fait ouvrir plus souvent, au détriment des sites extérieurs.</p>
+    </details>
+    <details>
+      <summary>Confidentialité</summary>
+      <p class="small">Tout le calcul se fait dans ce navigateur. Aucune donnée n'est envoyée sur internet ; le fichier fonctionne même sans connexion.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+/*__LIBS__*/
+</script>
+<script>
+const DEFAULT_PARAMS_B64 = "/*__PARAMS__*/";
+
+const $ = (id) => document.getElementById(id);
+let current = null;          // {S, P, name}
+const urls = [];
+function blobUrl(data, type) { const u = URL.createObjectURL(new Blob([data], { type })); urls.push(u); return u; }
+function b64ToBytes(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function toInputDate(d) { const x = ymd(d); return `${x.y}-${pad2(x.m)}-${pad2(x.d)}`; }
+function fromInputDate(v) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); return m ? dayFromYMD(+m[1], +m[2], +m[3]) : null; }
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function loadParams(bytes, name) {
+  const S = await readXlsx(bytes.buffer);
+  const P = readParams(S);
+  current = { S, P, name, bytes };
+  const nAbs = P.abs.length, nImp = P.forced.length;
+  $("srcinfo").innerHTML = `<b>${esc(name)}</b>
+    <div class="chips">
+      <span class="chip">${Object.keys(P.docs).length} médecins</span>
+      <span class="chip">${Object.keys(P.postes).length} postes</span>
+      <span class="chip">${P.siteList.length} sites</span>
+      <span class="chip">${nAbs} absence${nAbs > 1 ? "s" : ""}</span>
+      ${nImp ? `<span class="chip">${nImp} affectation${nImp > 1 ? "s" : ""} imposée${nImp > 1 ? "s" : ""}</span>` : ""}
+      <span class="chip">période du ${fmtDay(P.start)} au ${fmtDay(P.end)}</span>
+    </div>`;
+  $("dStart").value = toInputDate(P.start);
+  $("dEnd").value = toInputDate(P.end);
+  $("btnGen").disabled = false;
+}
+
+function wireDrop(dropId, inputId, handler) {
+  const drop = $(dropId), input = $(inputId);
+  drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handler(f); });
+  input.addEventListener("change", () => { const f = input.files[0]; if (f) handler(f); input.value = ""; });
+}
+
+wireDrop("drop", "fileParams", async (f) => {
+  $("status").textContent = "";
+  try { await loadParams(new Uint8Array(await f.arrayBuffer()), f.name); }
+  catch (e) { $("status").innerHTML = `<span class="error">${esc(e.message)}</span>`; }
+});
+
+$("dlTemplate").addEventListener("click", () => {
+  const bytes = current ? current.bytes : b64ToBytes(DEFAULT_PARAMS_B64);
+  const a = document.createElement("a");
+  a.href = blobUrl(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  a.download = current && current.name.endsWith(".xlsx") ? current.name : "parametres_planning.xlsx";
+  a.click();
+});
+
+function icsButtons(container, files) {
+  container.innerHTML = "";
+  for (const f of files) {
+    const a = document.createElement("a");
+    a.className = "btn"; a.textContent = `${f.ini} (${f.count})`;
+    a.title = `${f.name} — ${f.count} vacations`;
+    a.href = blobUrl(f.text, "text/calendar;charset=utf-8"); a.download = f.name;
+    container.appendChild(a);
+  }
+}
+async function icsZip(files) { return writeZip(files.map((f) => ({ name: f.name, data: f.text }))); }
+
+let last = null;
+$("btnGen").addEventListener("click", async () => {
+  if (!current) return;
+  const btn = $("btnGen");
+  btn.disabled = true;
+  const prog = $("prog"), bar = prog.firstElementChild;
+  prog.style.display = "block"; bar.style.width = "0";
+  $("status").textContent = "Calcul en cours…";
+  try {
+    const P = { ...current.P };
+    const s = fromInputDate($("dStart").value), e = fromInputDate($("dEnd").value);
+    if (s === null || e === null || e < s) throw new Error("Période invalide : vérifiez les dates de début et de fin.");
+    P.start = s; P.end = e;
+    const pr = buildProblem(P);
+    const secs = +$("quality").value;
+    const R = await solve(pr, secs, (f, best, it) => {
+      bar.style.width = `${Math.round(f * 100)}%`;
+      $("status").textContent = `Calcul en cours… ${Math.round(f * 100)} % (${it.toLocaleString("fr-FR")} combinaisons évaluées)`;
+    });
+    $("status").textContent = "Création du fichier Excel…";
+    const items = checks(pr, R);
+    const xlsx = await exportPlanning(pr, R, items);
+    const { ev, postes } = eventsFromResult(pr, R);
+    const title = `Planning du service de radiologie — ${monthLabel(P)}`;
+    const ics = buildIcs(ev, postes, title);
+    const zip = await icsZip(ics);
+    const tag = (() => { const x = ymd(P.start); return `${x.y}-${pad2(x.m)}`; })();
+    $("dlXlsx").href = blobUrl(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    $("dlXlsx").download = `planning_radiologie_${tag}.xlsx`;
+    $("dlZip").href = blobUrl(zip, "application/zip");
+    $("dlZip").download = `calendriers_iphone_${tag}.zip`;
+    icsButtons($("icsList"), ics);
+    last = { pr, R };
+    renderResults(pr, R, items);
+    bar.style.width = "100%";
+    const nErr = items.filter((i) => i[0] === "Erreur").length;
+    $("status").textContent = nErr ? `Terminé, avec ${nErr} erreur(s) à examiner.` : "Terminé. Planning prêt à télécharger.";
+    $("results").style.display = "block";
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    console.error(err);
+    $("status").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { prog.style.display = "none"; }, 800);
+  }
+});
+
+function renderResults(pr, R, items) {
+  const cov = coverage(pr, R);
+  const closedHalf = cov.reduce((a, c) => a + c.opened - c.filled, 0);
+  $("resSub").textContent = `${monthLabel(pr.P)} · ${pr.days.length} jours ouvrés · ${pr.docs.length} médecins · ${closedHalf} places non pourvues sur l'ensemble des postes.`;
+  $("cov").innerHTML = cov.map((c) => {
+    const r = c.opened ? c.filled / c.opened : 1;
+    const cls = r >= 0.9 ? "" : r >= 0.5 ? "mid" : "low";
+    return `<div title="${esc(c.site)}">${esc(c.label)}</div><div class="bar ${cls}"><div style="width:${(r * 100).toFixed(0)}%"></div></div><div class="pct">${(r * 100).toFixed(0)} %</div>`;
+  }).join("");
+  const order = { Erreur: 0, Alerte: 1, OK: 2, Info: 3 };
+  $("checks").innerHTML = items.slice().sort((a, b) => order[a[0]] - order[b[0]])
+    .map(([l, t]) => `<li><span class="lvl ${l}">${l}</span><span>${esc(t)}</span></li>`).join("");
+  renderPreview("poste");
+}
+
+function renderPreview(view) {
+  if (!last) return;
+  const { pr, R } = last;
+  const get = (s, p) => R.assign.get(s + "|" + p) || [];
+  const siteCls = (site) => "s" + (pr.P.siteList.indexOf(site) % 3 + 1);
+  let head = "", body = "";
+  if (view === "poste") {
+    const sites = pr.P.siteList.filter((s) => pr.postes.some((p) => pr.P.postes[p].site === s));
+    head = `<tr><th rowspan="2">Date</th><th rowspan="2">Période</th>${sites.map((s) =>
+      `<th class="${siteCls(s)}" colspan="${pr.postes.filter((p) => pr.P.postes[p].site === s).length}">${esc(s)}</th>`).join("")}</tr>
+      <tr>${pr.postes.map((p) => `<th class="${siteCls(pr.P.postes[p].site)}">${esc(pr.P.postes[p].label)}</th>`).join("")}</tr>`;
+  } else {
+    head = `<tr><th>Date</th><th>Période</th>${pr.docs.map((d) => `<th>${esc(d)}</th>`).join("")}</tr>`;
+  }
+  const ncol = 2 + (view === "poste" ? pr.postes.length : pr.docs.length);
+  const JC = ["Lun", "Mar", "Mer", "Jeu", "Ven"];
+  pr.weeks.forEach((w, wi) => {
+    body += `<tr class="week"><td colspan="${ncol}">Semaine du ${fmtDay(w)} — semaine ${pr.weekType.get(w)}</td></tr>`;
+    for (const di of pr.daysOfWeek[wi]) for (const s of pr.slotsOfDay[di]) {
+      const sl = pr.slots[s];
+      let row = `<tr class="${sl.h === "M" ? "m" : ""}"><td class="lead">${sl.h === "M" ? `${JC[weekday(sl.d)]} ${fmtDay(sl.d, false)}` : ""}</td><td>${HALF_LABEL[sl.h]}</td>`;
+      if (view === "poste") {
+        pr.postes.forEach((code, p) => {
+          if (!pr.open[s][p]) { row += `<td class="na">—</td>`; return; }
+          const inis = get(s, p);
+          const cls = !inis.length ? "closed" : inis.length < pr.po[p].need ? "part" : "";
+          row += `<td class="${cls}">${inis.length ? esc(inis.join(" / ")) : "FERMÉ"}</td>`;
+        });
+      } else {
+        const byDoc = {};
+        pr.postes.forEach((code, p) => get(s, p).forEach((ini) => { byDoc[ini] = p; }));
+        pr.docs.forEach((ini, d) => {
+          if (byDoc[ini] !== undefined) {
+            const p = byDoc[ini], si = pr.pSite[p];
+            row += `<td class="${si === 0 ? "" : "rem" + (((si - 1) % 2) + 1)}">${esc(pr.postes[p])}</td>`;
+          } else {
+            const st = pr.status[d][s];
+            row += st ? `<td class="off">${st}</td>` : `<td class="dispo">dispo</td>`;
+          }
+        });
+      }
+      body += row + "</tr>";
+    }
+  });
+  $("preview").innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+}
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
+  renderPreview(b.dataset.view);
+}));
+
+wireDrop("drop2", "filePlanning", async (f) => {
+  $("status2").textContent = "Lecture du planning…";
+  $("icsList2").innerHTML = ""; $("dl2").style.display = "none";
+  try {
+    const S = await readXlsx(await f.arrayBuffer());
+    const { ev, postes, title } = eventsFromPlanning(S);
+    const ics = buildIcs(ev, postes, title);
+    const zip = await icsZip(ics);
+    $("dlZip2").href = blobUrl(zip, "application/zip");
+    $("dlZip2").download = f.name.replace(/\.xlsx$/i, "") + "_calendriers.zip";
+    $("dl2").style.display = "flex";
+    icsButtons($("icsList2"), ics);
+    $("status2").textContent = `${ics.length} calendriers recréés à partir de « ${f.name} ».`;
+  } catch (e) {
+    $("status2").innerHTML = `<span class="error">${esc(e.message)}</span>`;
+  }
+});
+
+(async () => {
+  if (typeof DecompressionStream === "undefined") {
+    $("srcinfo").innerHTML = '<span class="error">Ce navigateur est trop ancien. Utilisez une version récente de Chrome, Edge, Firefox ou Safari.</span>';
+    return;
+  }
+  try { await loadParams(b64ToBytes(DEFAULT_PARAMS_B64), "Paramètres intégrés au fichier"); }
+  catch (e) { $("srcinfo").innerHTML = `<span class="error">${esc(e.message)}</span>`; }
+})();
+</script>
+</body>
+</html>
