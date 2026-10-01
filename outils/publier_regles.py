@@ -28,7 +28,7 @@ def regles():
 def main():
     essai = "--essai" in sys.argv
     if not essai and not os.environ.get("FIREBASE_CLE", "").strip():
-        print("Secret FIREBASE_CLE absent : règles non publiées automatiquement (copier-coller manuel toujours possible).")
+        print("::notice::Secret FIREBASE_CLE absent : règles non publiées automatiquement (copier-coller manuel toujours possible).")
         return
     texte = regles()
     if essai:
@@ -58,7 +58,7 @@ def main():
         r = s.post(f"{API}/projects/{projet}/releases", json={"name": release, "rulesetName": nom})
     if r.status_code != 200:
         sys.exit(f"Mise en service des règles impossible ({r.status_code}) : {r.text[:1500]}")
-    print(f"Règles de sécurité publiées ({nom.split('/')[-1]}).")
+    print(f"::notice::Règles de sécurité publiées ({nom.split('/')[-1]}).")
 
 
 if __name__ == "__main__":

@@ -59,7 +59,7 @@ def lire_planning(cfg, code):
                 brut = json.load(r)
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                print("Aucun planning publié : pas de calendrier à produire.")
+                print("::notice::Aucun planning publié : pas de calendrier à produire.")
             elif e.code == 403:
                 print("::warning::Accès refusé par Firestore : le secret CODE_EQUIPE ne correspond pas au code "
                       "des règles de sécurité. Calendriers d'abonnement non mis à jour.")
@@ -142,10 +142,10 @@ def calendriers(pub):
 def main():
     code = os.environ.get("CODE_EQUIPE", "").strip()
     if not code:
-        print("Secret CODE_EQUIPE absent : calendriers d'abonnement non produits.")
+        print("::notice::Secret CODE_EQUIPE absent : calendriers d'abonnement non produits.")
         return
     if not os.path.exists(CONFIG):
-        print("config/firebase.json absent : calendriers d'abonnement non produits.")
+        print("::notice::config/firebase.json absent : calendriers d'abonnement non produits.")
         return
     with open(CONFIG, encoding="utf-8") as f:
         cfg = json.load(f)
@@ -161,7 +161,7 @@ def main():
     # page vide : empêche de lister le dossier
     with open(os.path.join(dossier, "index.html"), "w", encoding="utf-8") as f:
         f.write("<!doctype html><title>Planning radio</title>")
-    print(f"{len(cals)} calendriers d'abonnement produits ({pub.get('titre', '')}).")
+    print(f"::notice::{len(cals)} calendriers d'abonnement produits ({pub.get('titre', '')}).")
 
 
 if __name__ == "__main__":
