@@ -119,7 +119,7 @@ params = [
     ("Télétravail : jours par semaine (cible)", 1,
      "Chaque médecin autorisé (onglet Médecins, colonne Télétravail) a si possible 1 journée par semaine, sur les postes marqués « Oui » dans l'onglet Postes."),
     ("Télétravail : maximum de jours par semaine", 1, "Au-delà, jamais."),
-    ("Télétravail : maximum de médecins par demi-journée", 1, "Nombre de médecins en télétravail en même temps (0 = sans limite)."),
+    ("Télétravail : maximum de médecins par jour", 1, "Nombre de médecins en télétravail le même jour (0 = sans limite). Les jours disponibles sont répartis équitablement sur le mois."),
 ]
 for i, (k, v, c) in enumerate(params, 5):
     put(ws, i, [k, v, c], inp=False, align=LEFT)

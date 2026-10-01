@@ -183,8 +183,10 @@ with sync_playwright() as pw:
     ok(r == 'permission-denied', 'serveur : absence refusée sur la période publiée (même en contournant la page)')
     ok(doc.evaluate('globalThis.__cacheLocal === true'), 'cache local des données Firestore activé')
     # --- médecin : reçoit le planning en temps réel
-    doc.click('a[data-tab=mon]'); doc.wait_for_selector('#icsMe', timeout=8000)
+    doc.click('a[data-tab=mon]'); doc.wait_for_selector('#vMon .day', timeout=8000)
     ok(doc.locator('#vMon .day').count() == len(ouvres), 'médecin : planning reçu en temps réel')
+    doc.click('a[data-tab=cal]'); doc.wait_for_selector('#icsMe', timeout=8000)
+    ok(True, 'onglet Calendrier : import du mois disponible')
     # --- abonnement calendrier : fichier produit « par GitHub » à partir de Firestore (réponse REST simulée)
     doc.wait_for_selector('#subBox:not([hidden])', timeout=8000)
     ok('prochaine publication' in doc.inner_text('#subBox'), "abonnement : annoncé tant que le calendrier n'est pas produit")
@@ -215,7 +217,8 @@ with sync_playwright() as pw:
     doc.reload(); doc.wait_for_selector('#subMe', timeout=8000)
     ok(doc.get_attribute('#subMe', 'href') == f'webcal://planning.test/cal/{jeton_py}.ics', 'bouton « S\'abonner » : lien webcal personnel')
     # --- persistance du code sur l'appareil
-    doc.reload(); doc.wait_for_selector('#vMon:not([hidden])'); doc.wait_for_selector('#icsMe', timeout=8000)
+    doc.reload(); doc.wait_for_selector('#vCal:not([hidden])'); doc.wait_for_selector('#icsMe', timeout=8000)
+    doc.click('a[data-tab=mon]'); doc.wait_for_selector('#vMon .day', timeout=8000)
     ok(True, 'code et initiales mémorisés après rechargement')
     b.close()
 ext = [u for u in seen_urls if not u.startswith(('https://planning.test/', 'https://www.gstatic.com/firebasejs/'))]

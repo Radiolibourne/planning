@@ -89,9 +89,11 @@ def main():
         adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
         B.ok(adm.is_hidden("#draftBody"), "publication effectuée")
         # --- médecin : son planning
-        doc.click("a[data-tab=mon]"); doc.wait_for_selector("#icsMe", timeout=5000)
+        doc.click("a[data-tab=mon]"); doc.wait_for_selector("#vMon .day", timeout=5000)
+        B.ok(doc.query_selector("#vMon #icsMe") is None, "Mon planning : plus de bouton calendrier (onglet Calendrier)")
         B.ok(doc.locator("#vMon .day").count() == len(ouvres), f"planning personnel : {len(ouvres)} jours ouvrés")
         B.ok("Absent" in doc.inner_text("#vMon"), "congés affichés")
+        doc.click("a[data-tab=cal]"); doc.wait_for_selector("#icsMe", timeout=5000)
         ics = urllib.parse.unquote(doc.get_attribute("#icsMe", "href").split(",", 1)[1])
         B.ok(ics.startswith("BEGIN:VCALENDAR") and ics.count("BEGIN:VEVENT") > 5, "calendrier iPhone généré")
         # verrou : période publiée fermée aux médecins

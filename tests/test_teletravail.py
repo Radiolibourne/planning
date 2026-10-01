@@ -4,7 +4,7 @@ Télétravail, fermetures ponctuelles et import d'un planning Excel (moteur test
 - 1 jour de télétravail par semaine au plus, si possible pour chaque médecin autorisé ;
 - un jour de télétravail : seulement des postes faisables à distance, jamais mélangé avec une présence sur site ;
 - médecin « Non » jamais en télétravail, médecin « Jeu AM » seulement le jeudi après-midi ;
-- maximum de médecins en télétravail par demi-journée ;
+- maximum de médecins en télétravail par jour, répartition équitable sur le mois ;
 - le télétravail compte pour la couverture du poste d'origine ;
 - onglet Fermetures : poste fermé sur la période ;
 - classeur sans colonne Télétravail : aucun télétravail (compatibilité) ;
@@ -57,7 +57,7 @@ async ([b64, secs]) => {
     for (const ini of R.assign.get(s + "|" + p) || []) {
       if (!pr.pTT[p]) continue;
       (ttOf[ini] = ttOf[ini] || []).push([sl.d, sl.h, weekday(sl.d)]);
-      parSlot[s] = (parSlot[s] || 0) + 1;
+      (parSlot[sl.d] = parSlot[sl.d] || new Set()).add(ini);
       if (!P.postes[code].base || !P.postes[P.postes[code].base].remote) horsPoste.push(code);
     }
   }));
@@ -76,7 +76,7 @@ async ([b64, secs]) => {
   const irm1 = pr.pIdx["IRM1"];
   const irm1Ouvert = pr.slots.filter((sl, s) => pr.open[s][irm1]).map((sl) => sl.d);
   const draft = draftFromResult(pr, R);
-  return { tt: P.tt, twins: pr.postes.filter((c, p) => pr.pTT[p]), ttOf, mix, parSlot: Object.values(parSlot), horsPoste,
+  return { tt: P.tt, twins: pr.postes.filter((c, p) => pr.pTT[p]), ttOf, mix, parSlot: Object.values(parSlot).map((x) => x.size), horsPoste,
            parSemaine, erreurs: items.filter((i) => i[0] === "Erreur").map((i) => i[1]), cov,
            irm1Ouvert, sites: draft.sites, nWeeks: pr.weeks.length, docs, ttDocs: docs.filter((x) => P.docs[x].tt) };
 }
@@ -95,12 +95,14 @@ with sync_playwright() as p:
     B.ok(not r["erreurs"], "aucune erreur de règle" + (f" : {r['erreurs'][:3]}" if r["erreurs"] else ""))
     B.ok(not r["mix"], "jamais télétravail et site le même jour" + (f" : {r['mix'][:3]}" if r["mix"] else ""))
     B.ok(all(n <= 1 for v in r["parSemaine"].values() for n in v), "au plus 1 jour de télétravail par semaine")
-    B.ok(all(n <= 1 for n in r["parSlot"]), "au plus 1 médecin en télétravail par demi-journée (paramètre)")
+    B.ok(all(n <= 1 for n in r["parSlot"]), "au plus 1 médecin en télétravail par jour (paramètre)")
+    libres = [sum(r["parSemaine"].get(i, [])) for i in r["ttDocs"] if i not in ("IA", "IB")]
+    B.ok(max(libres) - min(libres) <= 2, f"télétravail réparti équitablement sur le mois {libres}")
     B.ok("IA" not in r["ttOf"], "IA (Télétravail = Non) jamais en télétravail")
     B.ok(all(wd == 3 and h == "AM" for _, h, wd in r["ttOf"].get("IB", [])), "IB seulement le jeudi après-midi")
     B.ok(not r["horsPoste"], "télétravail seulement sur les postes faisables à distance")
     total = sum(len(v) for v in r["parSemaine"].values())
-    B.ok(total >= r["nWeeks"] * 3, f"le télétravail est bien attribué ({total} jours sur {r['nWeeks']} semaines)")
+    B.ok(total >= r["nWeeks"] * 4, f"le télétravail est bien attribué ({total} jours sur {r['nWeeks']} semaines)")
     scan = next(c for c in r["cov"] if c["code"] == "SCAN")
     B.ok(not any(c["code"].endswith("-TT") for c in r["cov"]) and scan["tt"] > 0, "couverture : le télétravail compte pour le scanner")
     B.ok(all(not (numero_jour(f1) <= d <= numero_jour(f2)) for d in r["irm1Ouvert"]) and r["irm1Ouvert"], "fermeture : IRM 1 fermée sur la période indiquée")

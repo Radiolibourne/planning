@@ -64,7 +64,7 @@ function readParams(S) {
     .split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
   P.ttTarget = int(kv["Télétravail : jours par semaine (cible)"], 1);
   P.ttMax = int(kv["Télétravail : maximum de jours par semaine"], 1);
-  P.ttMaxSlot = int(kv["Télétravail : maximum de médecins par demi-journée"], 0); // 0 = sans limite
+  P.ttMaxDay = int(kv["Télétravail : maximum de médecins par jour"], 0); // 0 = sans limite
   P.timeLimit = Math.min(Math.max(+(kv["Temps de calcul maximum (secondes)"] || 20), 3), 120);
 
   ws = need("Sites");
@@ -318,13 +318,13 @@ class State {
     this.balV = Array.from({ length: D }, () => new Float64Array(groups.length));
     this.remV = Array.from({ length: D }, () => new Float64Array(weeks.length));
     this.sciV = new Float64Array(weeks.length);
-    this.ttV = Array.from({ length: D }, () => new Float64Array(weeks.length));
-    this.cntTT = new Int16Array(S);
+    this.ttV = new Float64Array(D);
+    this.ttDayN = new Int16Array(pr.days.length);   // médecins en télétravail ce jour
     this.pref = 0;
     for (let s = 0; s < S; s++) for (let p = 0; p < NP; p++) this.covV[s][p] = this.covCost(s, p);
     for (let d = 0; d < D; d++) for (let w = 0; w < weeks.length; w++) this.remV[d][w] = this.remCost(d, w);
     for (let w = 0; w < weeks.length; w++) this.sciV[w] = this.sciCost(w);
-    for (let d = 0; d < D; d++) for (let w = 0; w < weeks.length; w++) this.ttV[d][w] = this.ttCost(d, w);
+    for (let d = 0; d < D; d++) this.ttV[d] = this.ttCost(d);
   }
   covCost(s, p) {
     const pr = this.pr;
@@ -366,11 +366,22 @@ class State {
     }
     return [n, half];
   }
-  ttCost(d, w) {
+  // coût sur toute la période : semaines sans télétravail, pénalité croissante (répartition équitable entre médecins)
+  ttCost(d) {
     const pr = this.pr, P = pr.P;
-    if (!P.tt || !pr.ttPossible[d][w]) return 0;
-    const [n, half] = this.ttDays(d, w);
-    return W.ttShort * Math.max(0, P.ttTarget - n) + W.ttHalf * half;
+    if (!P.tt) return 0;
+    let manque = 0, half = 0;
+    for (let w = 0; w < pr.weeks.length; w++) {
+      if (!pr.ttPossible[d][w]) continue;
+      const [n, h] = this.ttDays(d, w);
+      manque += Math.max(0, P.ttTarget - n); half += h;
+    }
+    return W.ttShort * manque * (manque + 1) / 2 + W.ttHalf * half;
+  }
+  isTTDay(d, di) {
+    const pr = this.pr, [s1, s2] = pr.slotsOfDay[di];
+    const p1 = this.a[d][s1], p2 = this.a[d][s2];
+    return (p1 >= 0 && pr.pTT[p1]) || (p2 >= 0 && pr.pTT[p2]);
   }
   sciCount(w, d = -1) {
     const pr = this.pr;
@@ -396,27 +407,27 @@ class State {
     for (const r of this.balV) for (const v of r) t += v;
     for (const r of this.remV) for (const v of r) t += v;
     for (const v of this.sciV) t += v;
-    for (const r of this.ttV) for (const v of r) t += v;
+    for (const v of this.ttV) t += v;
     return t;
   }
   // modification brute (sans objectif)
   set(d, s, p) {
     const pr = this.pr, old = this.a[d][s];
     if (old === p) return;
+    const di = pr.slots[s].di, avant = pr.P.tt && this.isTTDay(d, di);
     // comptes et occupants rangés sous le poste d'origine (le jumeau télétravail occupe la même place)
     if (old >= 0) {
       const b = pr.pBase[old];
       this.cnt[s][b]--; const o = this.occ[s][b]; o.splice(o.indexOf(d), 1);
-      if (pr.pTT[old]) this.cntTT[s]--;
       this.gc[d][pr.pGroup[old]]--; if (pr.elig[d][old] === 2) this.pref += W.pref;
     }
     if (p >= 0) {
       const b = pr.pBase[p];
       this.cnt[s][b]++; this.occ[s][b].push(d);
-      if (pr.pTT[p]) this.cntTT[s]++;
       this.gc[d][pr.pGroup[p]]++; if (pr.elig[d][p] === 2) this.pref -= W.pref;
     }
     this.a[d][s] = p;
+    if (pr.P.tt) { const apres = this.isTTDay(d, di); if (apres !== avant) this.ttDayN[di] += apres ? 1 : -1; }
   }
   snapshot() { return this.a.map((r) => Int16Array.from(r)); }
 }
@@ -431,7 +442,7 @@ function hardOK(st, d, s) {
   if (P.tt) {
     // un jour de télétravail ne se mélange pas avec une présence sur site
     if (p1 >= 0 && p2 >= 0 && pr.pTT[p1] !== pr.pTT[p2]) return false;
-    if (P.ttMaxSlot > 0 && st.cntTT[s] > P.ttMaxSlot) return false;
+    if (P.ttMaxDay > 0 && st.ttDayN[slot.di] > P.ttMaxDay) return false;
     if (st.ttDays(d, w)[0] > P.ttMax) return false;
   }
   if (st.remDays(d, w) > P.remoteMax) return false;
@@ -462,7 +473,7 @@ function applyMove(st, changes) {
       if (q === pr.sci) sciW.add(w);
     }
     const kr = d * 64 + w; if (!rem.has(kr)) rem.set(kr, st.remV[d][w]);
-    if (!tt.has(kr)) tt.set(kr, st.ttV[d][w]);
+    if (!tt.has(d)) tt.set(d, st.ttV[d]);
     journal.push([d, s, old]);
     st.set(d, s, p);
   }
@@ -470,7 +481,7 @@ function applyMove(st, changes) {
   for (const [k, v] of cov) { const s = Math.floor(k / 64), q = k % 64; const nv = st.covCost(s, q); st.covV[s][q] = nv; delta += nv - v; }
   for (const [k, v] of bal) { const d = Math.floor(k / 64), g = k % 64; const nv = st.balCost(d, g); st.balV[d][g] = nv; delta += nv - v; }
   for (const [k, v] of rem) { const d = Math.floor(k / 64), w = k % 64; const nv = st.remCost(d, w); st.remV[d][w] = nv; delta += nv - v; }
-  for (const [k, v] of tt) { const d = Math.floor(k / 64), w = k % 64; const nv = st.ttCost(d, w); st.ttV[d][w] = nv; delta += nv - v; }
+  for (const [d, v] of tt) { const nv = st.ttCost(d); st.ttV[d] = nv; delta += nv - v; }
   const sciOld = new Map();
   for (const w of sciW) { sciOld.set(w, st.sciV[w]); const nv = st.sciCost(w); delta += nv - st.sciV[w]; st.sciV[w] = nv; }
   const undo = () => {
@@ -478,7 +489,7 @@ function applyMove(st, changes) {
     for (const [k, v] of cov) st.covV[Math.floor(k / 64)][k % 64] = v;
     for (const [k, v] of bal) st.balV[Math.floor(k / 64)][k % 64] = v;
     for (const [k, v] of rem) st.remV[Math.floor(k / 64)][k % 64] = v;
-    for (const [k, v] of tt) st.ttV[Math.floor(k / 64)][k % 64] = v;
+    for (const [d, v] of tt) st.ttV[d] = v;
     for (const [w, v] of sciOld) st.sciV[w] = v;
   };
   for (const [d, s] of changes) if (!hardOK(st, d, s)) { undo(); return null; }
@@ -518,7 +529,7 @@ async function solve(pr, timeLimitSec, onProgress, seed = 12345) {
     for (let d = 0; d < D; d++) for (let g = 0; g < pr.groups.length; g++) st.balV[d][g] = st.balCost(d, g);
     for (let d = 0; d < D; d++) for (let w = 0; w < pr.weeks.length; w++) st.remV[d][w] = st.remCost(d, w);
     for (let w = 0; w < pr.weeks.length; w++) st.sciV[w] = st.sciCost(w);
-    for (let d = 0; d < D; d++) for (let w = 0; w < pr.weeks.length; w++) st.ttV[d][w] = st.ttCost(d, w);
+    for (let d = 0; d < D; d++) st.ttV[d] = st.ttCost(d);
   };
   recompute();
   const free = [];
@@ -643,9 +654,9 @@ function checks(pr, R) {
   });
   if (P.tt) {
     const ttOf = (ini, s) => (seen.get(ini + "|" + s) || []).some((p) => pr.pTT[p]);
-    slots.forEach((sl, s) => {
-      const n = docs.filter((ini) => ttOf(ini, s)).length + [...unknown].filter((ini) => ttOf(ini, s)).length;
-      if (P.ttMaxSlot > 0 && n > P.ttMaxSlot) out.push(["Alerte", `${n} médecins en télétravail le ${fmtDay(sl.d, false)} ${HALF_LABEL[sl.h]} (maximum ${P.ttMaxSlot})`]);
+    days.forEach((dd, di) => {
+      const qui = docs.concat([...unknown]).filter((ini) => pr.slotsOfDay[di].some((s) => ttOf(ini, s)));
+      if (P.ttMaxDay > 0 && qui.length > P.ttMaxDay) out.push(["Alerte", `${qui.length} médecins en télétravail le ${fmtDay(dd, false)} (${qui.join(", ")} ; maximum ${P.ttMaxDay})`]);
     });
     docs.forEach((ini, d) => {
       days.forEach((dd, di) => {

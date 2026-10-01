@@ -220,6 +220,7 @@ table.qui tr.site td { background: var(--head); color: #fff; text-transform: non
       <a href="#general" data-tab="general">Général</a>
       <a href="#qui" data-tab="qui">Qui est posté</a>
       <a href="#indispos" data-tab="indispos">Absences</a>
+      <a href="#cal" data-tab="cal">Calendrier</a>
       <a href="#admin" data-tab="admin" id="tabAdmin" hidden>Admin</a>
     </nav>
   </div>
@@ -309,6 +310,9 @@ table.qui tr.site td { background: var(--head); color: #fff; text-transform: non
   </section>
 
   <!-- Indisponibilités -->
+  <!-- Calendrier du téléphone (abonnement / import) -->
+  <section id="vCal" hidden></section>
+
   <section id="vIndispos" hidden>
     <div class="card">
       <h2>Signaler une indisponibilité</h2>
@@ -618,7 +622,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 }
 
 // ------------------------------------------------------------ navigation
-const TABS = { mon: "vMon", general: "vGeneral", qui: "vQui", indispos: "vIndispos", admin: "vAdmin" };
+const TABS = { mon: "vMon", general: "vGeneral", qui: "vQui", indispos: "vIndispos", cal: "vCal", admin: "vAdmin" };
 function currentTab() { const h = location.hash.slice(1); return TABS[h] ? h : "mon"; }
 function show(view) {
   for (const id of ["vCode", "vAuth", "vLoading", ...Object.values(TABS)]) $(id).hidden = id !== view;
@@ -942,6 +946,7 @@ function render() {
   else if (t === "general") renderGeneral();
   else if (t === "qui") renderQui();
   else if (t === "indispos") renderIndispos();
+  else if (t === "cal") renderCal();
   else if (t === "admin") renderAdmin();
 }
 
@@ -972,18 +977,11 @@ function renderMon() {
   const me = S.me;
   const pd = perDoctor(pub)[me] || {};
   const myConf = conflicts(pub, S.indispos.filter((x) => String(x.ini).toUpperCase() === me));
-  const ics = icsForMe(pub, me);
   const nHalf = Object.values(pd).filter((c) => c.code).length;
   const today = todayDay();
   let html = `<div class="card">
     <h2>${esc(pub.titre.replace("Planning du service de radiologie — ", "Planning de "))} · ${esc(me)}</h2>
     <p class="sub">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} travaillée${nHalf > 1 ? "s" : ""}` : ""}</p>
-    <div id="subBox" hidden style="margin-bottom:12px"></div>
-    ${ics ? `<a class="b${S.store.mode === "firebase" ? "" : " primary"}" id="icsMe" download="${esc(ics.name)}" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics.text)}">Importer ce mois dans mon calendrier</a>
-    <details class="small" style="margin-top:10px"><summary>Import ponctuel : comment ça marche ?</summary>
-      <ol class="steps"><li>Touchez le bouton depuis Safari sur l'iPhone, puis <b>Ajouter tout</b> et choisissez un calendrier (idéalement un calendrier dédié « Planning radio »).</li>
-      <li>Un import ne se met pas à jour : si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import. L'abonnement ci-dessus évite cette manipulation.</li></ol>
-    </details>` : `<p class="muted">Aucune vacation pour vous dans ce planning.</p>`}
   </div>`;
   html += relanceBanner();
   if (myConf.length) {
@@ -1014,6 +1012,29 @@ function renderMon() {
     }
   }
   v.innerHTML = html;
+}
+
+// Onglet Calendrier : abonnement (mise à jour automatique) ou import ponctuel du mois
+function renderCal() {
+  const v = $("vCal");
+  const pub = S.published;
+  if (!S.me) {
+    v.innerHTML = `<div class="card empty"><p>Choisissez vos initiales pour ajouter votre planning à votre calendrier.</p><button class="b primary" id="calWho">Qui êtes-vous ?</button></div>`;
+    $("calWho").onclick = openWho; return;
+  }
+  if (!pub) { v.innerHTML = `<div class="card empty"><p><b>Aucun planning publié pour l'instant.</b></p><p class="small">Le calendrier sera disponible dès la première publication.</p></div>`; return; }
+  const me = S.me;
+  const ics = icsForMe(pub, me);
+  v.innerHTML = `<div class="card">
+    <h2>Mon planning dans mon calendrier</h2>
+    <p class="sub">Vos vacations (${esc(me)}) dans l'application Calendrier de l'iPhone, Google Agenda ou Outlook.</p>
+    <div id="subBox" hidden style="margin-bottom:12px"></div>
+    ${ics ? `<a class="b${S.store.mode === "firebase" ? "" : " primary"}" id="icsMe" download="${esc(ics.name)}" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics.text)}">Importer ce mois dans mon calendrier</a>
+    <details class="small" style="margin-top:10px"><summary>Import ponctuel : comment ça marche ?</summary>
+      <ol class="steps"><li>Touchez le bouton depuis Safari sur l'iPhone, puis <b>Ajouter tout</b> et choisissez un calendrier (idéalement un calendrier dédié « Planning radio »).</li>
+      <li>Un import ne se met pas à jour : si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import. L'abonnement ci-dessus évite cette manipulation.</li></ol>
+    </details>` : `<p class="muted">Aucune vacation pour vous dans ce planning.</p>`}
+  </div>`;
   fillSubscription(me);
 }
 

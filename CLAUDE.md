@@ -60,6 +60,7 @@ Toutes les pages sont des **fichiers HTML uniques**, sans dépendance externe, �
 Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par personne, filtre texte. Onglet Général → « PDF de la semaine » (semaine choisie, ou semaine en cours) : 2 pages A4 paysage.
 
 ### Abonnement calendrier (webcal)
+Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderCal`), pas sur Mon planning.
 - `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore (sans compte, grâce au code d'équipe) et écrit `dist/cal/<jeton>.ics` par médecin.
 - `jeton = HMAC-SHA256(code d'équipe, "cal:" + initiales)[:24]` ; la page calcule le même (`calToken`) pour afficher le bouton « S'abonner » (lien `webcal://…`), seulement si le fichier existe déjà.
 - Le code d'équipe vient du **secret GitHub `CODE_EQUIPE`** (Settings → Secrets and variables → Actions). Sans secret, rien n'est produit ; aucune erreur de ce script ne bloque la publication du site (avertissement seulement).
@@ -85,7 +86,7 @@ Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par perso
   - scanner interventionnel : un référent au plus 1 vacation par semaine, 2 si l'autre référent est absent ;
   - affectations imposées fixées ;
   - postes fermés sur une période (onglet Fermetures) ;
-  - télétravail : un jour de télétravail ne se mélange pas avec une présence sur site, maximum de jours par semaine et de médecins par demi-journée (paramètres).
+  - télétravail : un jour de télétravail ne se mélange pas avec une présence sur site, maximum de jours par semaine et de médecins par jour (paramètres, `ttDayN`). Le coût `ttShort` porte sur toute la période et croît avec le nombre de semaines sans télétravail, pour répartir équitablement.
 - **Télétravail** : chaque poste « Télétravail possible » a un jumeau `<CODE>-TT` (site virtuel `TT_SITE` = « Télétravail »), créé par `readParams`. Le jumeau partage les compteurs et la couverture du poste d'origine (`pBase`, `cnt`/`occ` rangés sous l'origine) ; il ne compte pas comme déplacement (`pRemote`). Médecin : colonne Télétravail = Oui (n'importe quel jour), Non / vide (jamais) ou « Jeu AM » (seulement ces demi-journées). Sans colonne Télétravail : aucun jumeau, fonctionnement inchangé. Côté site, le jumeau est un poste ordinaire du planning publié (site « Télétravail », pastille bleue).
 - **Objectif** (à minimiser, poids `W` en tête de fichier) :
   - couverture des postes pondérée par la priorité (`wPrio`), avec un niveau « jusqu'au minimum » et un niveau « au-delà » ;
