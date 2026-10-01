@@ -13,6 +13,7 @@ etapes = [
     ("Comptes", [sys.executable, os.path.join(ICI, "test_comptes.py")]),
     ("Hors connexion", [sys.executable, os.path.join(ICI, "test_hors_connexion.py")]),
     ("Hors ligne", [sys.executable, os.path.join(ICI, "test_hors_ligne.py")]),
+    ("Télétravail et import", [sys.executable, os.path.join(ICI, "test_teletravail.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

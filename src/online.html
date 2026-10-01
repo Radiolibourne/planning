@@ -17,7 +17,7 @@
   --closed-bg: #fbe3dc; --closed-ink: #b42318; --part-bg: #fce9d9; --s1: #0e7c86; --s2: #6a4bc4; --s3: #e46a1c;
   --rem1: #ece6fb; --rem2: #fde7d7; --off: #e8eceb; --today: #fff4cf; --focus: #0e7c86; --shadow: 0 1px 0 rgba(0,0,0,.04);
   /* couleur de chaque site : principal, 2e, 3e (même ordre que l'onglet Sites du classeur) */
-  --site0: #0e7c86; --site1: #6a4bc4; --site2: #e46a1c; --head: #0e5a63; --head-ink: #ffffff; --head-mark: #ffd34d;
+  --site0: #0e7c86; --site1: #6a4bc4; --site2: #e46a1c; --site-tt: #3d6fb6; --head: #0e5a63; --head-ink: #ffffff; --head-mark: #ffd34d;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -25,7 +25,7 @@
     --accent: #5cc6cf; --accent-2: #5cc6cf; --accent-ink: #0b1716; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
     --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --s1: #2f9aa3; --s2: #8a6fe0; --s3: #e8833f;
     --rem1: #2e2748; --rem2: #4a2f1e; --off: #222c2b; --today: #3a3420; --focus: #5cc6cf; --shadow: none;
-    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;
+    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --site-tt: #4f82c9; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;
   }
 }
 * { box-sizing: border-box; }
@@ -192,7 +192,8 @@ textarea { border-radius: 10px; }
 .day:has(.slot:not(.off)) .date span { color: #fff; }
 .slot .p { font-size: 16px; font-weight: 700; }
 .slot .site { border-radius: 999px; padding: 2px 10px; font-weight: 700; color: #fff; }
-.slot .site.r1 { background: var(--site1); } .slot .site.r2 { background: var(--site2); }
+.slot .site.r1 { background: var(--site1); } .slot .site.r2 { background: var(--site2); } .slot .site.tt { background: var(--site-tt); }
+.day:has(.site.tt) .date { background: var(--site-tt); }
 .tablewrap { border-radius: 12px; }
 table.pl thead th { background: var(--head); color: #fff; }
 table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #fff; }
@@ -392,8 +393,13 @@ table.qui tr.site td { background: var(--head); color: #fff; text-transform: non
       <div class="card" id="draftCard">
         <h2 id="draftTitle">Planning à publier</h2>
         <p class="sub" id="draftSub"></p>
-        <div id="draftEmpty" class="row">
-          <button class="b" id="editPublished">Modifier le planning publié</button>
+        <div id="draftEmpty">
+          <div class="row">
+            <button class="b" id="editPublished">Modifier le planning publié</button>
+            <label class="b" style="cursor:pointer">Importer un planning Excel<input type="file" id="upPlanning" accept=".xlsx" hidden></label>
+          </div>
+          <p class="small muted" style="margin:8px 0 0">Importer : un fichier Excel téléchargé depuis ce site (bouton « Excel »), éventuellement retouché.</p>
+          <div class="msg" id="upPlanningMsg" role="status"></div>
         </div>
         <div id="draftBody" hidden>
           <div class="row" style="margin-bottom:14px">
@@ -940,6 +946,7 @@ function render() {
 }
 
 function siteClass(draft, site) {
+  if (site === TT_SITE) return "tt";
   const i = draft.sites.indexOf(site);
   return i <= 0 ? "" : "r" + (((i - 1) % 2) + 1);
 }
@@ -1333,7 +1340,7 @@ function renderAdmin() {
   else if (S.P) {
     const P = S.P;
     $("paramInfo").innerHTML = `<b>${esc(p.nom)}</b> · mis à jour le ${new Date(p.majLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}${p.par ? ` par ${esc(p.par)}` : ""}
-      <div class="chips" style="margin-top:6px"><span class="chip">${Object.keys(P.docs).length} médecins</span><span class="chip">${Object.keys(P.postes).length} postes</span><span class="chip">${P.siteList.length} sites</span><span class="chip">${P.abs.length} absences dans le classeur</span></div>`;
+      <div class="chips" style="margin-top:6px"><span class="chip">${Object.keys(P.docs).length} médecins</span><span class="chip">${Object.values(P.postes).filter((x) => !x.tt).length} postes</span><span class="chip">${P.siteList.filter((x) => x !== TT_SITE).length} sites</span>${P.tt ? `<span class="chip">télétravail : ${Object.values(P.docs).filter((x) => x.tt).length} médecins</span>` : ""}<span class="chip">${P.abs.length} absences dans le classeur</span></div>`;
     if (!$("gStart").value) { $("gStart").value = toInput(P.start); $("gEnd").value = toInput(P.end); }
   }
   $("gBtn").disabled = !S.P;
@@ -1531,6 +1538,20 @@ $("gBtn").addEventListener("click", async () => {
     $("draftCard").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) { console.error(e); setMsg(msg, e.message, "err"); }
   finally { $("gBtn").disabled = !S.P; setTimeout(() => { prog.hidden = true; }, 600); }
+});
+
+$("upPlanning").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  const msg = $("upPlanningMsg");
+  try {
+    const draft = draftFromPlanningXlsx(await readXlsx(await f.arrayBuffer()), S.P);
+    if (S.draft && !confirm("Un planning non publié est en cours d'édition. Le remplacer par le fichier importé ?")) return;
+    setMsg(msg, "");
+    setDraft(draft, `Importé de ${f.name}`);
+    setMsg($("gMsg"), `Planning importé (${fmtDay(draft.start, false)} → ${fmtDay(draft.end, false)}). Vérifiez-le, puis publiez-le.`, "ok");
+    $("draftCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) { console.error(err); setMsg(msg, `Fichier refusé : ${err.message}`, "err"); }
 });
 
 function setDraft(draft, source) {

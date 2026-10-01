@@ -73,6 +73,7 @@ lines = [
     ("• Médecins : quotité, jours off (semaines A et B), indisponibilités fixes, compétences par poste.", N_FONT),
     ("• Absences : congés, formations, maladie… (une ligne par absence).", N_FONT),
     ("• Imposées : affectations à respecter obligatoirement (ex. : OA en IRM 2 le 12/10 matin).", N_FONT),
+    ("• Fermetures : postes fermés sur une période (travaux, remplacement de machine).", N_FONT),
     ("• Fériés : jours non planifiés.", N_FONT),
     ("", N_FONT),
     ("Ajouter un médecin", Font(name=F, bold=True, size=11, color="1F3864")),
@@ -89,6 +90,11 @@ lines = [
     ("Codes de demi-journée", Font(name=F, bold=True, size=11, color="1F3864")),
     ("M = matin, AM = après-midi. Indisponibilités fixes : « Jeu M » ; plusieurs : « Jeu M; Lun AM ».", N_FONT),
     ("Jours off : « Mercredi » ou « Mercredi, Jeudi ». Semaine A / B : alternance une semaine sur deux (voir Paramètres).", N_FONT),
+    ("", N_FONT),
+    ("Télétravail", Font(name=F, bold=True, size=11, color="1F3864")),
+    ("Onglet Postes, colonne « Télétravail possible » : Oui pour les postes faisables à distance (scanner, IRM 2…).", N_FONT),
+    ("Onglet Médecins, colonne « Télétravail » : Oui = 1 journée par semaine choisie par le planning ; Non = jamais ; « Jeu AM » = seulement ces demi-journées.", N_FONT),
+    ("Un jour de télétravail, le médecin ne fait que des postes à distance (ex. scanner toute la journée, ou scanner + IRM 2). Il compte dans l'effectif du poste.", N_FONT),
 ]
 for i, (t, f) in enumerate(lines, 1):
     ws.cell(row=i, column=1, value=t).font = f
@@ -110,6 +116,10 @@ params = [
     ("Scanner interventionnel : référents (1 vacation chacun par semaine)", "IA, IB",
      "Chacun a 1 vacation par semaine ; un référent peut prendre les 2 si l'autre est absent."),
     ("Temps de calcul maximum (secondes)", 180, "Au-delà, le meilleur planning trouvé est retenu."),
+    ("Télétravail : jours par semaine (cible)", 1,
+     "Chaque médecin autorisé (onglet Médecins, colonne Télétravail) a si possible 1 journée par semaine, sur les postes marqués « Oui » dans l'onglet Postes."),
+    ("Télétravail : maximum de jours par semaine", 1, "Au-delà, jamais."),
+    ("Télétravail : maximum de médecins par demi-journée", 1, "Nombre de médecins en télétravail en même temps (0 = sans limite)."),
 ]
 for i, (k, v, c) in enumerate(params, 5):
     put(ws, i, [k, v, c], inp=False, align=LEFT)
@@ -137,8 +147,9 @@ ws = wb.create_sheet("Postes")
 title(ws, "Postes par site",
       "X = poste ouvert sur cette demi-journée. Priorité : 1 = couvert en premier ; les chiffres élevés ferment en premier.")
 cols = ["Code", "Libellé", "Site", "Groupe d'équilibrage", "Nb médecins souhaité", "Nb médecins minimum",
-        "Priorité (jusqu'au minimum)", "Priorité au-delà du minimum", "Remarque"] + DEMI
-header(ws, 4, cols, [9, 30, 20, 16, 11, 11, 12, 12, 42] + [7] * 10)
+        "Priorité (jusqu'au minimum)", "Priorité au-delà du minimum", "Remarque"] + DEMI + ["Télétravail possible"]
+header(ws, 4, cols, [9, 30, 20, 16, 11, 11, 12, 12, 42] + [7] * 10 + [12])
+TELE = {"SCAN", "IRM2"}   # postes faisables à distance
 ALL = {d: "X" for d in DEMI}
 def opn(days):
     return {d: ("X" if d in days else "") for d in DEMI}
@@ -166,7 +177,7 @@ postes = [
      "Fermeture seulement si vraiment pas assez de médecins.", ALL),
 ]
 for i, p in enumerate(postes, 5):
-    vals = list(p[:9]) + [p[9][d] for d in DEMI]
+    vals = list(p[:9]) + [p[9][d] for d in DEMI] + ["Oui" if p[0] in TELE else ""]
     put(ws, i, vals)
     ws.cell(row=i, column=2).alignment = LEFT
     ws.cell(row=i, column=9).alignment = LEFT
@@ -185,8 +196,10 @@ title(ws, "Médecins, quotités et compétences",
       "Une ligne par médecin. Compétences : Oui / Préféré / vide. Pour ajouter un médecin, remplissez la première ligne vide.")
 codes = [p[0] for p in postes]
 mcols = ["Initiales", "Nom (optionnel)", "Statut", "Quotité", "Off semaine A", "Off semaine B",
-         "Indisponibilités fixes", "Surspécialités", "Actif"] + codes
-header(ws, 4, mcols, [10, 18, 14, 9, 16, 16, 18, 30, 7] + [8] * len(codes))
+         "Indisponibilités fixes", "Surspécialités", "Actif"] + codes + ["Télétravail"]
+header(ws, 4, mcols, [10, 18, 14, 9, 16, 16, 18, 30, 7] + [8] * len(codes) + [12])
+# Télétravail : Oui = 1 jour par semaine au choix ; Non = jamais ; « Jeu AM » = seulement ces demi-journées
+TT = {"IA": "Non", "IB": "Jeu AM"}
 
 GEN = {"SCAN": "Oui", "IRM1": "Oui", "IRM2": "Oui", "ECH1": "Oui", "ECH2": "Oui", "SF-RE": "Oui", "BL-RE": "Oui"}
 def comp(**kw):
@@ -211,7 +224,7 @@ docs = [
 ]
 r = 5
 for d in docs:
-    vals = list(d[:8]) + ["Oui"] + [d[8].get(c, "") for c in codes]
+    vals = list(d[:8]) + ["Oui"] + [d[8].get(c, "") for c in codes] + [TT.get(d[0], "Oui")]
     put(ws, r, vals)
     ws.cell(row=r, column=4).number_format = "0%"
     ws.cell(row=r, column=8).alignment = LEFT
@@ -226,7 +239,9 @@ ws.cell(row=6, column=5).comment = Comment(
 ws.freeze_panes = "B5"
 dvc = DataValidation(type="list", formula1='"Oui,Préféré,Non"', allow_blank=True)
 ws.add_data_validation(dvc)
-dvc.add(f"J5:{ws.cell(row=60, column=len(mcols)).coordinate}")
+dvc.add(f"J5:{ws.cell(row=60, column=len(mcols) - 1).coordinate}")
+ws.cell(row=8, column=len(mcols)).comment = Comment(
+    "Oui = 1 jour de télétravail par semaine (au choix du planning) ; Non = jamais ; « Jeu AM » = seulement le jeudi après-midi.", "Planning")
 dva = DataValidation(type="list", formula1='"Oui,Non"', allow_blank=True)
 ws.add_data_validation(dva)
 dva.add("I5:I60")
@@ -255,6 +270,19 @@ for rr in range(5, 45):
 dvp3 = DataValidation(type="list", formula1='"Matin,Après-midi"', allow_blank=True)
 ws.add_data_validation(dvp3)
 dvp3.add("B5:B200")
+
+# ---------------------------------------------------------------- Fermetures
+ws = wb.create_sheet("Fermetures")
+title(ws, "Fermetures ponctuelles de postes",
+      "Travaux, remplacement de machine… Exemple : IRM1 | 12/10/2026 | 30/10/2026 | Journée | Remplacement de l'IRM.")
+header(ws, 4, ["Code poste", "Du", "Au", "Période", "Motif"], [12, 14, 14, 14, 40])
+for rr in range(5, 45):
+    put(ws, rr, [""] * 5)
+    ws.cell(row=rr, column=2).number_format = "DD/MM/YYYY"
+    ws.cell(row=rr, column=3).number_format = "DD/MM/YYYY"
+dvp4 = DataValidation(type="list", formula1='"Journée,Matin,Après-midi"', allow_blank=True)
+ws.add_data_validation(dvp4)
+dvp4.add("D5:D200")
 
 # ---------------------------------------------------------------- Fériés
 ws = wb.create_sheet("Fériés")

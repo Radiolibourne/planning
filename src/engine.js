@@ -5,7 +5,11 @@ const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dim
 const JABR = ["Lun", "Mar", "Mer", "Jeu", "Ven"];
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
-const W = { pref: 30, sciWeek: 800, sciRef: 800, remoteShort: 250, remoteExtra: 20, balSlope: 4.0 };
+const W = { pref: 30, sciWeek: 800, sciRef: 800, remoteShort: 250, remoteExtra: 20, balSlope: 4.0, ttShort: 150, ttHalf: 60 };
+// Télétravail : chaque poste « faisable à distance » a un jumeau « <CODE>-TT » rattaché au site virtuel TT_SITE.
+// Le jumeau compte pour la couverture du poste d'origine ; un jour de télétravail ne se mélange pas avec une présence sur site.
+const TT_SITE = "Télétravail";
+const TT_SUFFIX = "-TT";
 const wPrio = (p) => 1100 - 100 * p;
 
 // Dates = nombre de jours depuis le 01/01/1970 (UTC). Excel : série = jours + 25569.
@@ -58,6 +62,9 @@ function readParams(S) {
   P.sciMin = int(kv["Scanner interventionnel : minimum de vacations par semaine"], 2);
   P.sciRefs = norm(kv["Scanner interventionnel : référents (1 vacation chacun par semaine)"]).replace(/;/g, ",")
     .split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
+  P.ttTarget = int(kv["Télétravail : jours par semaine (cible)"], 1);
+  P.ttMax = int(kv["Télétravail : maximum de jours par semaine"], 1);
+  P.ttMaxSlot = int(kv["Télétravail : maximum de médecins par demi-journée"], 0); // 0 = sans limite
   P.timeLimit = Math.min(Math.max(+(kv["Temps de calcul maximum (secondes)"] || 20), 3), 120);
 
   ws = need("Sites");
@@ -76,9 +83,11 @@ function readParams(S) {
 
   ws = need("Postes");
   const dcols = [];
+  let ttCol = 0;
   for (let c = 1; c <= ws.maxCol; c++) {
     const h = norm(ws.get(4, c)).split(/\s+/);
     if (h.length === 2 && JABR.includes(h[0])) dcols.push([c, JABR.indexOf(h[0]), h[1].toUpperCase() === "AM" ? "AM" : "M"]);
+    if (low(ws.get(4, c)).startsWith("teletravail")) ttCol = c;
   }
   P.postes = {};
   for (let r = 5; r <= ws.maxRow; r++) {
@@ -92,6 +101,7 @@ function readParams(S) {
     P.postes[code] = {
       code, label: norm(ws.get(r, 2)) || code, site: norm(ws.get(r, 3)), group: norm(ws.get(r, 4)) || code,
       need: needN, min: mn, prioMin: pm, prioSup: int(ws.get(r, 8), pm), opens,
+      remote: ttCol > 0 && /^(o|x)/.test(low(ws.get(r, ttCol))),
     };
   }
   const posteCodes = Object.keys(P.postes);
@@ -100,6 +110,19 @@ function readParams(S) {
   const hdr = [];
   for (let c = 1; c <= ws.maxCol; c++) hdr[c] = norm(ws.get(4, c)).toUpperCase();
   P.docs = {};
+  const ttHdr = hdr.findIndex((h) => h && low(h).startsWith("teletravail"));
+  // demi-journées au format « Jeu M; Lun AM » (un jour seul = journée entière)
+  const halfSet = (v) => {
+    const out = new Set();
+    for (const tok of norm(v).replace(/,/g, ";").split(";")) {
+      const p = tok.trim().split(/\s+/);
+      const j = JABR.findIndex((x) => low(x) === low(p[0]).slice(0, 3));
+      if (j < 0) continue;
+      if (p.length >= 2) out.add(j + (p[1].toUpperCase() === "AM" ? "AM" : "M"));
+      else { out.add(j + "M"); out.add(j + "AM"); }
+    }
+    return out;
+  };
   const days = (v) => new Set(norm(v).replace(/;/g, ",").split(",").map(low).map((x) => JOURS_LOW.indexOf(x)).filter((i) => i >= 0));
   for (let r = 5; r <= ws.maxRow; r++) {
     const ini = norm(ws.get(r, 1)).toUpperCase();
@@ -112,6 +135,13 @@ function readParams(S) {
         if (j >= 0) indispo.add(j + (p[1].toUpperCase() === "AM" ? "AM" : "M"));
       }
     }
+    // Télétravail : vide / Non = jamais ; Oui = n'importe quel jour ; « Jeu AM » = seulement ces demi-journées
+    let tt = null;
+    if (ttHdr > 0) {
+      const v = low(ws.get(r, ttHdr));
+      if (v.startsWith("o")) tt = "all";
+      else if (v && !v.startsWith("n")) { const hs = halfSet(ws.get(r, ttHdr)); if (hs.size) tt = hs; }
+    }
     const comp = {};
     for (let c = 1; c < hdr.length; c++) {
       if (!P.postes[hdr[c]]) continue;
@@ -123,7 +153,7 @@ function readParams(S) {
     P.docs[ini] = {
       ini, nom: norm(ws.get(r, 2)), statut: norm(ws.get(r, 3)),
       quotite: typeof q === "number" ? q : (parseFloat(norm(q).replace("%", "").replace(",", ".")) / (norm(q).includes("%") ? 100 : 1) || 1),
-      offA: days(ws.get(r, 5)), offB: days(ws.get(r, 6)), indispo, spec: norm(ws.get(r, 8)), comp,
+      offA: days(ws.get(r, 5)), offB: days(ws.get(r, 6)), indispo, spec: norm(ws.get(r, 8)), comp, tt,
     };
   }
   if (!Object.keys(P.docs).length) throw new Error("Aucun médecin actif dans l'onglet Médecins.");
@@ -154,10 +184,35 @@ function readParams(S) {
     ws = S["Fériés"];
     for (let r = 5; r <= ws.maxRow; r++) { const d = asDay(ws.get(r, 1)); if (d !== null) P.feries.set(d, norm(ws.get(r, 2))); }
   }
+  // fermetures ponctuelles d'un poste (travaux, remplacement de machine…)
+  P.closures = [];
+  if (S["Fermetures"]) {
+    ws = S["Fermetures"];
+    for (let r = 5; r <= ws.maxRow; r++) {
+      const code = norm(ws.get(r, 1)).toUpperCase(), d1 = asDay(ws.get(r, 2));
+      if (!code || d1 === null) continue;
+      if (!P.postes[code]) throw new Error(`Onglet Fermetures, ligne ${r} : le poste « ${code} » n'existe pas dans l'onglet Postes.`);
+      const per = low(ws.get(r, 4));
+      P.closures.push({ code, d1, d2: asDay(ws.get(r, 3)) ?? d1, halves: per.startsWith("m") ? ["M"] : per.startsWith("a") ? ["AM"] : HALVES, motif: norm(ws.get(r, 5)) });
+    }
+  }
+  // télétravail : postes jumeaux sur le site virtuel « Télétravail »
+  const ttBase = posteCodes.filter((c) => P.postes[c].remote);
+  P.tt = ttBase.length > 0 && Object.values(P.docs).some((d) => d.tt);
+  if (P.tt) {
+    P.sites[TT_SITE] = { adresse: "", M: P.sites[P.mainSite].M, AM: P.sites[P.mainSite].AM };
+    P.siteList.push(TT_SITE);
+    for (const c of ttBase) {
+      const x = P.postes[c], code = c + TT_SUFFIX;
+      P.postes[code] = { ...x, code, site: TT_SITE, remote: false, base: c, tt: true };
+      for (const doc of Object.values(P.docs)) if (doc.tt && doc.comp[c]) doc.comp[code] = doc.comp[c];
+    }
+  }
+  const allCodes = Object.keys(P.postes);
   // postes rangés par site (ordre des sites, puis ordre de l'onglet)
-  P.posteOrder = posteCodes.slice().sort((a, b) => {
+  P.posteOrder = allCodes.slice().sort((a, b) => {
     const ia = P.siteList.indexOf(P.postes[a].site), ib = P.siteList.indexOf(P.postes[b].site);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || posteCodes.indexOf(a) - posteCodes.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || allCodes.indexOf(a) - allCodes.indexOf(b);
   });
   return P;
 }
@@ -180,7 +235,9 @@ function buildProblem(P) {
   const pGroup = po.map((x) => groups.indexOf(x.group));
   const pSite = po.map((x) => P.siteList.indexOf(x.site));
   const mainSiteIdx = 0;
-  const pRemote = pSite.map((s) => s !== mainSiteIdx);
+  const pTT = po.map((x) => !!x.tt);
+  const pBase = po.map((x, i) => (x.tt ? pIdx[x.base] : i));
+  const pRemote = pSite.map((s, i) => s !== mainSiteIdx && !pTT[i]);   // déplacement = autre site réel
 
   const absIdx = new Map();
   for (const a of P.abs) for (let d = a.d1; d <= a.d2; d++) for (const h of a.halves) absIdx.set(a.ini + "|" + d + h, a.motif || "Absence");
@@ -193,13 +250,20 @@ function buildProblem(P) {
     if (doc.indispo.has(weekday(s.d) + s.h)) return "INDISPO";
     return "";
   }));
-  const open = slots.map((s) => po.map((x) => x.opens.has(weekday(s.d) + s.h)));
+  const closed = new Set();
+  for (const c of P.closures || []) for (let d = c.d1; d <= c.d2; d++) for (const h of c.halves) closed.add(c.code + "|" + d + h);
+  const open = slots.map((s) => po.map((x) => x.opens.has(weekday(s.d) + s.h) && !closed.has((x.base || x.code) + "|" + s.d + s.h)));
   const elig = docs.map((ini) => postes.map((p) => P.docs[ini].comp[p] || 0));
   // choix possibles pour (médecin, créneau)
   const choices = docs.map((_, d) => slots.map((_, s) => {
     if (status[d][s] !== "") return [];
     const c = [];
-    for (let p = 0; p < NP; p++) if (open[s][p] && elig[d][p]) c.push(p);
+    const tt = P.docs[docs[d]].tt, wh = weekday(slots[s].d) + slots[s].h;
+    for (let p = 0; p < NP; p++) {
+      if (!open[s][p] || !elig[d][p]) continue;
+      if (pTT[p] && !(tt === "all" || (tt && tt.has(wh)))) continue;
+      c.push(p);
+    }
     return c;
   }));
   const availHalf = docs.map((_, d) => status[d].filter((x) => x === "").length);
@@ -213,6 +277,9 @@ function buildProblem(P) {
     slotsOfDay[di].some((s) => choices[d][s].some((p) => pRemote[p])))));
   const availDays = docs.map((_, d) => weeks.map((_, w) => daysOfWeek[w].filter((di) =>
     slotsOfDay[di].some((s) => status[d][s] === "")).length));
+  // télétravail possible cette semaine ?
+  const ttPossible = docs.map((_, d) => weeks.map((_, w) => daysOfWeek[w].some((di) =>
+    slotsOfDay[di].some((s) => choices[d][s].some((p) => pTT[p])))));
 
   // scanner interventionnel
   const sci = pIdx["SCI"];
@@ -232,7 +299,7 @@ function buildProblem(P) {
     } else fixed[d][s] = p;
   }
   return {
-    P, days, weeks, weekType, slots, docs, postes, po, D, S, NP, pIdx, groups, pGroup, pSite, pRemote, status, open,
+    P, days, weeks, weekType, slots, docs, postes, po, D, S, NP, pIdx, groups, pGroup, pSite, pRemote, pTT, pBase, ttPossible, status, open,
     elig, choices, balScale, slotsOfDay, daysOfWeek, remotePossible, availDays, sci, sciSlots, refIdx, refPossible,
     sciAnyPossible, fixed, warnings,
   };
@@ -251,14 +318,17 @@ class State {
     this.balV = Array.from({ length: D }, () => new Float64Array(groups.length));
     this.remV = Array.from({ length: D }, () => new Float64Array(weeks.length));
     this.sciV = new Float64Array(weeks.length);
+    this.ttV = Array.from({ length: D }, () => new Float64Array(weeks.length));
+    this.cntTT = new Int16Array(S);
     this.pref = 0;
     for (let s = 0; s < S; s++) for (let p = 0; p < NP; p++) this.covV[s][p] = this.covCost(s, p);
     for (let d = 0; d < D; d++) for (let w = 0; w < weeks.length; w++) this.remV[d][w] = this.remCost(d, w);
     for (let w = 0; w < weeks.length; w++) this.sciV[w] = this.sciCost(w);
+    for (let d = 0; d < D; d++) for (let w = 0; w < weeks.length; w++) this.ttV[d][w] = this.ttCost(d, w);
   }
   covCost(s, p) {
     const pr = this.pr;
-    if (!pr.open[s][p]) return 0;
+    if (!pr.open[s][p] || pr.pTT[p]) return 0;   // un jumeau télétravail compte pour son poste d'origine
     const x = pr.po[p], n = this.cnt[s][p];
     return -(wPrio(x.prioMin) * Math.min(n, x.min) + wPrio(x.prioSup) * Math.max(0, Math.min(n, x.need) - x.min));
   }
@@ -280,6 +350,27 @@ class State {
     let c = W.remoteExtra * Math.max(0, R - P.remoteTarget);
     if (P.remoteTarget > 0 && pr.availDays[d][w] >= 3) c += W.remoteShort * Math.max(0, P.remoteTarget - R);
     return c;
+  }
+  // jours de télétravail de la semaine ; demi-journées libres un jour de télétravail
+  ttDays(d, w) {
+    const pr = this.pr;
+    let n = 0, half = 0;
+    for (const di of pr.daysOfWeek[w]) {
+      const [s1, s2] = pr.slotsOfDay[di];
+      const p1 = this.a[d][s1], p2 = this.a[d][s2];
+      const t1 = p1 >= 0 && pr.pTT[p1], t2 = p2 >= 0 && pr.pTT[p2];
+      if (t1 || t2) {
+        n++;
+        if ((t1 && p2 < 0 && pr.choices[d][s2].length) || (t2 && p1 < 0 && pr.choices[d][s1].length)) half++;
+      }
+    }
+    return [n, half];
+  }
+  ttCost(d, w) {
+    const pr = this.pr, P = pr.P;
+    if (!P.tt || !pr.ttPossible[d][w]) return 0;
+    const [n, half] = this.ttDays(d, w);
+    return W.ttShort * Math.max(0, P.ttTarget - n) + W.ttHalf * half;
   }
   sciCount(w, d = -1) {
     const pr = this.pr;
@@ -305,18 +396,24 @@ class State {
     for (const r of this.balV) for (const v of r) t += v;
     for (const r of this.remV) for (const v of r) t += v;
     for (const v of this.sciV) t += v;
+    for (const r of this.ttV) for (const v of r) t += v;
     return t;
   }
   // modification brute (sans objectif)
   set(d, s, p) {
     const pr = this.pr, old = this.a[d][s];
     if (old === p) return;
+    // comptes et occupants rangés sous le poste d'origine (le jumeau télétravail occupe la même place)
     if (old >= 0) {
-      this.cnt[s][old]--; const o = this.occ[s][old]; o.splice(o.indexOf(d), 1);
+      const b = pr.pBase[old];
+      this.cnt[s][b]--; const o = this.occ[s][b]; o.splice(o.indexOf(d), 1);
+      if (pr.pTT[old]) this.cntTT[s]--;
       this.gc[d][pr.pGroup[old]]--; if (pr.elig[d][old] === 2) this.pref += W.pref;
     }
     if (p >= 0) {
-      this.cnt[s][p]++; this.occ[s][p].push(d);
+      const b = pr.pBase[p];
+      this.cnt[s][b]++; this.occ[s][b].push(d);
+      if (pr.pTT[p]) this.cntTT[s]++;
       this.gc[d][pr.pGroup[p]]++; if (pr.elig[d][p] === 2) this.pref -= W.pref;
     }
     this.a[d][s] = p;
@@ -331,6 +428,12 @@ function hardOK(st, d, s) {
   const p1 = st.a[d][s1], p2 = st.a[d][s2];
   if (P.oneSite && p1 >= 0 && p2 >= 0 && pr.pSite[p1] !== pr.pSite[p2]) return false;
   const w = slot.w;
+  if (P.tt) {
+    // un jour de télétravail ne se mélange pas avec une présence sur site
+    if (p1 >= 0 && p2 >= 0 && pr.pTT[p1] !== pr.pTT[p2]) return false;
+    if (P.ttMaxSlot > 0 && st.cntTT[s] > P.ttMaxSlot) return false;
+    if (st.ttDays(d, w)[0] > P.ttMax) return false;
+  }
   if (st.remDays(d, w) > P.remoteMax) return false;
   if (pr.sci !== undefined) {
     const k = pr.refIdx.indexOf(d);
@@ -345,7 +448,7 @@ function hardOK(st, d, s) {
 // Applique une liste de changements [d, s, p] ; renvoie le delta d'objectif et un journal d'annulation (ou null si contrainte violée)
 function applyMove(st, changes) {
   const pr = st.pr;
-  const cov = new Map(), bal = new Map(), rem = new Map(), sciW = new Set();
+  const cov = new Map(), bal = new Map(), rem = new Map(), sciW = new Set(), tt = new Map();
   const journal = [];
   const pref0 = st.pref;
   for (const [d, s, p] of changes) {
@@ -353,11 +456,13 @@ function applyMove(st, changes) {
     if (old === p) continue;
     const w = pr.slots[s].w;
     for (const q of [old, p]) if (q >= 0) {
-      const k = s * 64 + q; if (!cov.has(k)) cov.set(k, st.covV[s][q]);
+      const b = pr.pBase[q];
+      const k = s * 64 + b; if (!cov.has(k)) cov.set(k, st.covV[s][b]);
       const kb = d * 64 + pr.pGroup[q]; if (!bal.has(kb)) bal.set(kb, st.balV[d][pr.pGroup[q]]);
       if (q === pr.sci) sciW.add(w);
     }
     const kr = d * 64 + w; if (!rem.has(kr)) rem.set(kr, st.remV[d][w]);
+    if (!tt.has(kr)) tt.set(kr, st.ttV[d][w]);
     journal.push([d, s, old]);
     st.set(d, s, p);
   }
@@ -365,6 +470,7 @@ function applyMove(st, changes) {
   for (const [k, v] of cov) { const s = Math.floor(k / 64), q = k % 64; const nv = st.covCost(s, q); st.covV[s][q] = nv; delta += nv - v; }
   for (const [k, v] of bal) { const d = Math.floor(k / 64), g = k % 64; const nv = st.balCost(d, g); st.balV[d][g] = nv; delta += nv - v; }
   for (const [k, v] of rem) { const d = Math.floor(k / 64), w = k % 64; const nv = st.remCost(d, w); st.remV[d][w] = nv; delta += nv - v; }
+  for (const [k, v] of tt) { const d = Math.floor(k / 64), w = k % 64; const nv = st.ttCost(d, w); st.ttV[d][w] = nv; delta += nv - v; }
   const sciOld = new Map();
   for (const w of sciW) { sciOld.set(w, st.sciV[w]); const nv = st.sciCost(w); delta += nv - st.sciV[w]; st.sciV[w] = nv; }
   const undo = () => {
@@ -372,6 +478,7 @@ function applyMove(st, changes) {
     for (const [k, v] of cov) st.covV[Math.floor(k / 64)][k % 64] = v;
     for (const [k, v] of bal) st.balV[Math.floor(k / 64)][k % 64] = v;
     for (const [k, v] of rem) st.remV[Math.floor(k / 64)][k % 64] = v;
+    for (const [k, v] of tt) st.ttV[Math.floor(k / 64)][k % 64] = v;
     for (const [w, v] of sciOld) st.sciV[w] = v;
   };
   for (const [d, s] of changes) if (!hardOK(st, d, s)) { undo(); return null; }
@@ -389,8 +496,9 @@ function proposeChange(st, d, s, p, rng) {
   const pr = st.pr;
   const changes = [[d, s, p]];
   const old = st.a[d][s];
-  if (p >= 0 && st.cnt[s][p] >= pr.po[p].need) {
-    const occ = st.occ[s][p].filter((o) => pr.fixed[o][s] === -2);
+  const sameBase = old >= 0 && p >= 0 && pr.pBase[old] === pr.pBase[p];   // ex. scanner sur site -> scanner en télétravail
+  if (p >= 0 && !sameBase && st.cnt[s][pr.pBase[p]] >= pr.po[p].need) {
+    const occ = st.occ[s][pr.pBase[p]].filter((o) => pr.fixed[o][s] === -2);
     if (!occ.length) return null;
     const o = occ[Math.floor(rng() * occ.length)];
     changes.push([o, s, old >= 0 && pr.choices[o][s].includes(old) ? old : -1]);
@@ -410,6 +518,7 @@ async function solve(pr, timeLimitSec, onProgress, seed = 12345) {
     for (let d = 0; d < D; d++) for (let g = 0; g < pr.groups.length; g++) st.balV[d][g] = st.balCost(d, g);
     for (let d = 0; d < D; d++) for (let w = 0; w < pr.weeks.length; w++) st.remV[d][w] = st.remCost(d, w);
     for (let w = 0; w < pr.weeks.length; w++) st.sciV[w] = st.sciCost(w);
+    for (let d = 0; d < D; d++) for (let w = 0; w < pr.weeks.length; w++) st.ttV[d][w] = st.ttCost(d, w);
   };
   recompute();
   const free = [];
@@ -421,7 +530,7 @@ async function solve(pr, timeLimitSec, onProgress, seed = 12345) {
   });
   // créneaux-postes à pourvoir
   const openSP = [];
-  for (let s = 0; s < S; s++) for (let p = 0; p < pr.NP; p++) if (pr.open[s][p]) openSP.push([s, p]);
+  for (let s = 0; s < S; s++) for (let p = 0; p < pr.NP; p++) if (pr.open[s][p]) openSP.push([s, p]);  // jumeaux compris
   const docsFor = openSP.map(([s, p]) => { const r = []; for (let d = 0; d < D; d++) if (pr.choices[d][s].includes(p) && pr.fixed[d][s] === -2) r.push(d); return r; });
 
   let cur = st.total();
@@ -451,7 +560,7 @@ async function solve(pr, timeLimitSec, onProgress, seed = 12345) {
       } else if (r < 0.75) {
         const i = Math.floor(rng() * openSP.length);
         const [s, p] = openSP[i];
-        if (st.cnt[s][p] >= pr.po[p].need && rng() < 0.7) continue;
+        if (st.cnt[s][pr.pBase[p]] >= pr.po[p].need && rng() < 0.7) continue;
         const cand = docsFor[i];
         if (!cand.length) continue;
         const d = pick(cand);
@@ -511,7 +620,8 @@ function checks(pr, R) {
       seen.set(k, [...(seen.get(k) || []), p]);
       if (d < 0) { unknown.add(ini); continue; }
       if (pr.status[d][s] !== "") out.push(["Erreur", `${ini} affecté alors qu'indisponible le ${fmtDay(sl.d, false)} ${HALF_LABEL[sl.h]}`]);
-      if (!pr.elig[d][p]) out.push(["Erreur", `${ini} affecté hors compétence (${code}) le ${fmtDay(sl.d, false)}`]);
+      if (pr.pTT[p] && !pr.choices[d][s].includes(p) && pr.status[d][s] === "") out.push(["Erreur", `${ini} en télétravail (${po[p].base}) le ${fmtDay(sl.d, false)} ${HALF_LABEL[sl.h]} alors que ce n'est pas prévu pour ce médecin ou ce poste`]);
+      else if (!pr.elig[d][p]) out.push(["Erreur", `${ini} affecté hors compétence (${code}) le ${fmtDay(sl.d, false)}`]);
     }
   }));
   for (const [k, ps] of seen) if (ps.length > 1) {
@@ -524,11 +634,33 @@ function checks(pr, R) {
     for (const s of pr.slotsOfDay[di]) for (const p of seen.get(ini + "|" + s) || []) sites.add(pr.pSite[p]);
     if (sites.size > 1) out.push(["Erreur", `${ini} sur deux sites le ${fmtDay(d, false)}`]);
   }));
+  // nombre de médecins sur un poste, télétravail compris
+  const getAll = (s, p) => get(s, p).concat(pr.postes.flatMap((c, q) => (pr.pTT[q] && pr.pBase[q] === p ? get(s, q) : [])));
   const scan = pr.pIdx["SCAN"];
   if (scan !== undefined) slots.forEach((sl, s) => {
-    if (pr.open[s][scan] && get(s, scan).length < po[scan].min)
-      out.push(["Alerte", `Scanner à ${get(s, scan).length} médecin(s) le ${fmtDay(sl.d, false)} ${HALF_LABEL[sl.h]}`]);
+    if (pr.open[s][scan] && getAll(s, scan).length < po[scan].min)
+      out.push(["Alerte", `Scanner à ${getAll(s, scan).length} médecin(s) le ${fmtDay(sl.d, false)} ${HALF_LABEL[sl.h]}`]);
   });
+  if (P.tt) {
+    const ttOf = (ini, s) => (seen.get(ini + "|" + s) || []).some((p) => pr.pTT[p]);
+    slots.forEach((sl, s) => {
+      const n = docs.filter((ini) => ttOf(ini, s)).length + [...unknown].filter((ini) => ttOf(ini, s)).length;
+      if (P.ttMaxSlot > 0 && n > P.ttMaxSlot) out.push(["Alerte", `${n} médecins en télétravail le ${fmtDay(sl.d, false)} ${HALF_LABEL[sl.h]} (maximum ${P.ttMaxSlot})`]);
+    });
+    docs.forEach((ini, d) => {
+      days.forEach((dd, di) => {
+        const [s1, s2] = pr.slotsOfDay[di];
+        const ps = [...(seen.get(ini + "|" + s1) || []), ...(seen.get(ini + "|" + s2) || [])];
+        if (ps.some((p) => pr.pTT[p]) && ps.some((p) => !pr.pTT[p])) out.push(["Erreur", `${ini} en télétravail et sur site le même jour (${fmtDay(dd, false)})`]);
+      });
+      weeks.forEach((w, wi) => {
+        if (!pr.ttPossible[d][wi]) return;
+        const n = pr.daysOfWeek[wi].filter((di) => pr.slotsOfDay[di].some((s) => ttOf(ini, s))).length;
+        if (n > P.ttMax) out.push(["Alerte", `${ini} : ${n} jours de télétravail la semaine du ${fmtDay(w, false)} (maximum ${P.ttMax})`]);
+        else if (n < P.ttTarget) out.push(["Info", `${ini} : pas de télétravail la semaine du ${fmtDay(w, false)}`]);
+      });
+    });
+  }
   const JC = ["lun", "mar", "mer", "jeu", "ven"];
   if (pr.sci !== undefined) weeks.forEach((w, wi) => {
     const ss = pr.sciSlots[wi];
@@ -551,14 +683,21 @@ function checks(pr, R) {
     else if (nd < P.remoteTarget && pr.availDays[d][wi] >= 3) out.push(["Info", `${ini} : pas de déplacement hors ${P.mainSite} la semaine du ${fmtDay(w, false)}`]);
   }));
   const items = pr.warnings.map((w) => ["Alerte", w]).concat(out);
-  if (!items.some((i) => i[0] === "Erreur")) items.unshift(["OK", "Aucune erreur : compétences, indisponibilités, un poste par demi-journée, un site par jour, maximum de déplacements respectés."]);
+  if (!items.some((i) => i[0] === "Erreur")) items.unshift(["OK", "Aucune erreur : compétences, indisponibilités, un poste par demi-journée, un site par jour, maximum de déplacements respectés" + (P.tt ? ", télétravail conforme" : "") + "."]);
   return items;
 }
 
 function coverage(pr, R) {
+  // le télétravail compte pour le poste d'origine (pas de ligne séparée)
   return pr.postes.map((code, p) => {
-    let opened = 0, filled = 0;
-    pr.slots.forEach((_, s) => { if (pr.open[s][p]) { opened += pr.po[p].need; filled += Math.min((R.assign.get(s + "|" + p) || []).length, pr.po[p].need); } });
-    return { code, label: pr.po[p].label, site: pr.po[p].site, opened, filled };
-  });
+    if (pr.pTT[p]) return null;
+    let opened = 0, filled = 0, tt = 0;
+    pr.slots.forEach((_, s) => {
+      if (!pr.open[s][p]) return;
+      let n = (R.assign.get(s + "|" + p) || []).length;
+      pr.postes.forEach((c, q) => { if (pr.pTT[q] && pr.pBase[q] === p) { const k = (R.assign.get(s + "|" + q) || []).length; n += k; tt += k; } });
+      opened += pr.po[p].need; filled += Math.min(n, pr.po[p].need);
+    });
+    return { code, label: pr.po[p].label, site: pr.po[p].site, opened, filled, tt };
+  }).filter(Boolean);
 }

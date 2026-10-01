@@ -83,11 +83,14 @@ Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par perso
   - un seul site par jour (paramètre) ;
   - maximum de jours hors site principal par semaine ;
   - scanner interventionnel : un référent au plus 1 vacation par semaine, 2 si l'autre référent est absent ;
-  - affectations imposées fixées.
+  - affectations imposées fixées ;
+  - postes fermés sur une période (onglet Fermetures) ;
+  - télétravail : un jour de télétravail ne se mélange pas avec une présence sur site, maximum de jours par semaine et de médecins par demi-journée (paramètres).
+- **Télétravail** : chaque poste « Télétravail possible » a un jumeau `<CODE>-TT` (site virtuel `TT_SITE` = « Télétravail »), créé par `readParams`. Le jumeau partage les compteurs et la couverture du poste d'origine (`pBase`, `cnt`/`occ` rangés sous l'origine) ; il ne compte pas comme déplacement (`pRemote`). Médecin : colonne Télétravail = Oui (n'importe quel jour), Non / vide (jamais) ou « Jeu AM » (seulement ces demi-journées). Sans colonne Télétravail : aucun jumeau, fonctionnement inchangé. Côté site, le jumeau est un poste ordinaire du planning publié (site « Télétravail », pastille bleue).
 - **Objectif** (à minimiser, poids `W` en tête de fichier) :
   - couverture des postes pondérée par la priorité (`wPrio`), avec un niveau « jusqu'au minimum » et un niveau « au-delà » ;
   - bonus pour un poste « Préféré » ;
-  - pénalités : scanner interventionnel sous le minimum hebdomadaire, référent sans sa vacation, médecin sans déplacement hors site principal dans la semaine, déplacements au-delà de la cible ;
+  - pénalités : scanner interventionnel sous le minimum hebdomadaire, référent sans sa vacation, médecin sans déplacement hors site principal dans la semaine, déplacements au-delà de la cible, médecin autorisé sans son jour de télétravail (`ttShort`), jour de télétravail à moitié vide (`ttHalf`) ;
   - équilibrage convexe par groupe de modalité, normalisé par la disponibilité.
 - La classe `State` maintient l'objectif **de façon incrémentale**. Tout nouveau terme doit avoir sa fonction de coût, sa mise à jour dans `applyMove` et son initialisation dans `recompute`.
 - **Ajouter une règle** :
@@ -102,11 +105,14 @@ Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par perso
 Onglets :
 - **Paramètres** : clé / valeur à partir de la ligne 5 ;
 - **Sites** : horaires M / AM ;
-- **Postes** : code, libellé, site, groupe, nombre souhaité et minimum, priorités, X par demi-journée « Lun M » … « Ven AM » ;
-- **Médecins** : initiales, quotité, off semaine A / B, indisponibilités fixes « Jeu M », actif, puis une colonne par code poste (Oui / Préféré) ;
+- **Postes** : code, libellé, site, groupe, nombre souhaité et minimum, priorités, X par demi-journée « Lun M » … « Ven AM », puis (facultatif) « Télétravail possible » (Oui) ;
+- **Médecins** : initiales, quotité, off semaine A / B, indisponibilités fixes « Jeu M », actif, puis une colonne par code poste (Oui / Préféré), puis (facultatif) « Télétravail » ;
 - **Absences** ;
 - **Imposées** ;
+- **Fermetures** (facultatif) : code poste, du, au, période, motif ;
 - **Fériés**.
+
+Les colonnes sont repérées par leur en-tête (sauf les 9 premières des onglets Postes et Médecins, à position fixe).
 
 En-têtes en ligne 4, données à partir de la ligne 5. Semaines A / B : alternance calculée depuis le « Lundi de référence semaine A ».
 
@@ -126,4 +132,6 @@ Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`,
 - Calendriers iPhone : abonnement (mise à jour automatique, délai = passage horaire de GitHub + fréquence de rafraîchissement du téléphone) ou import ponctuel d'un .ics.
 - Avec les comptes (transition désactivée), chacun ne peut créer ou supprimer que ses propres absences. En transition, l'accès par code d'équipe garde l'ancien fonctionnement (code partagé).
 - Fonctions ajoutées depuis la première version : comptes individuels validés par l'admin, « Qui est posté ? », PDF de la semaine, relance des dates limites ; abonnement calendrier mis à jour automatiquement ; application installable « Planning radio » avec ouverture hors connexion ; verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
+- Import d'un planning Excel (Admin → « Importer un planning Excel ») : fichier produit par le bouton Excel du site, éventuellement retouché (`draftFromPlanningXlsx` dans `export.js`). Les postes et horaires viennent de l'onglet Config du fichier : un planning peut contenir des postes absents des paramètres actuels.
+- Internes : pas encore gérés (le service les ajoutera peut-être). Les départs et arrivées de médecins se font dans le classeur (onglet Médecins).
 - Pistes envisagées : onglet « Quotas » générique (min / max par médecin, poste et période). **Échanges de vacations : refusés par le service, ne pas les ajouter.**

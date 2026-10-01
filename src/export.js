@@ -284,7 +284,7 @@ async function exportPlanning(pr, R, items, opts = {}) {
   hdr.forEach((h, i) => { sy.cell(4, i + 1, h, { ...H, border: "thin" }); sy.width(i + 1, i === 0 ? 11 : i === 1 ? 8 : 10); });
   sy.height(4, 54);
   const pm = "'Planning par médecin'!";
-  const remoteCodes = postes.filter((p) => P.postes[p].site !== P.mainSite);
+  const remoteCodes = postes.filter((p) => P.postes[p].site !== P.mainSite && !P.postes[p].tt);
   for (let i = 0; i < ndoc; i++) {
     const row = 5 + i, mc = numToCol(4 + i);
     const colr = `${pm}$${mc}$${FIRST_ROW}:$${mc}$${lastRow}`;
@@ -501,4 +501,59 @@ function eventsFromPlanning(S) {
   }
   if (!ev.size) throw new Error("Aucune affectation trouvée dans l'onglet « Planning par poste ».");
   return { ev, postes, title: norm(ws.get(1, 1)) || "Planning radiologie" };
+}
+
+// Planning Excel produit par le site (éventuellement retouché, ou converti d'un ancien planning)
+// -> brouillon au format en ligne. Les postes et horaires viennent de l'onglet Config du fichier ;
+// les paramètres actuels (P, facultatif) donnent l'ordre des sites et l'alternance des semaines.
+function draftFromPlanningXlsx(S, P) {
+  const ws = S["Planning par poste"], cf = S["Config"];
+  if (!ws || !cf) throw new Error("Ce fichier n'est pas un planning produit par le site (onglets « Planning par poste » / « Config » absents).");
+  const postes = {}, ordre = [], medecins = [];
+  let r = 4;
+  for (; cf.get(r, 1) !== null; r++) {
+    const code = String(cf.get(r, 1)).trim().toUpperCase();
+    postes[code] = {
+      label: norm(cf.get(r, 2)) || code, site: norm(cf.get(r, 3)), adresse: norm(cf.get(r, 4)),
+      M: [asMinutes(cf.get(r, 5), 510), asMinutes(cf.get(r, 6), 780)], AM: [asMinutes(cf.get(r, 7), 810), asMinutes(cf.get(r, 8), 1080)],
+    };
+    ordre.push(code);
+  }
+  for (; r <= cf.maxRow; r++) if (norm(cf.get(r, 1)) === "Médecin") break;
+  for (r++; r <= cf.maxRow; r++) { const ini = norm(cf.get(r, 1)).toUpperCase(); if (ini) medecins.push(ini); }
+  const sites = [];
+  for (const s of (P ? P.siteList : [])) if (ordre.some((c) => postes[c].site === s)) sites.push(s);
+  for (const c of ordre) if (!sites.includes(postes[c].site)) sites.push(postes[c].site);
+  const codes = {};
+  for (let c = 4; c <= ws.maxCol; c++) if (ws.get(6, c) !== null && postes[String(ws.get(6, c)).toUpperCase()]) codes[c] = String(ws.get(6, c)).toUpperCase();
+  const st = S["Statuts"], stDocs = {};
+  if (st) for (let c = 4; c <= st.maxCol; c++) if (st.get(5, c) !== null) stDocs[c] = norm(st.get(5, c)).toUpperCase();
+  const cases = {}, statuts = {}, jours = new Set();
+  for (let rr = 7; rr <= ws.maxRow; rr++) {
+    const dv = ws.get(rr, 1);
+    if (typeof dv !== "number") continue;
+    const d = dayFromExcel(dv), h = low(ws.get(rr, 3)).startsWith("a") ? "AM" : "M";
+    jours.add(d);
+    for (const [c, code] of Object.entries(codes)) {
+      const v = norm(ws.get(rr, +c));
+      if (!v || v === "—") continue;                     // poste non ouvert
+      const inis = /^FERM/i.test(v) ? [] : v.split("/").map((x) => x.trim().toUpperCase()).filter(Boolean);
+      cases[`${d}_${h}_${code}`] = inis.join(" / ");
+      for (const ini of inis) if (!medecins.includes(ini)) medecins.push(ini);
+    }
+    if (st) for (const [c, ini] of Object.entries(stDocs)) {
+      const v = norm(st.get(rr, +c)).toUpperCase();
+      if (v === "OFF" || v === "ABS" || v === "INDISPO") (statuts[ini] = statuts[ini] || {})[`${d}_${h}`] = v;
+    }
+  }
+  if (!jours.size) throw new Error("Aucune date trouvée dans l'onglet « Planning par poste ».");
+  const js = [...jours].sort((a, b) => a - b);
+  const lundis = [...new Set(js.map(mondayOf))];
+  const refA = P ? P.refA : lundis[0];
+  const titre = norm(ws.get(1, 1)) || "Planning du service de radiologie";
+  return {
+    version: 1, titre, start: js[0], end: js[js.length - 1], genereLe: Date.now(), ordre, postes, sites, mainSite: sites[0],
+    jours: js, semaines: lundis.map((w) => ({ lundi: w, type: Math.floor((w - refA) / 7) % 2 === 0 ? "A" : "B" })),
+    medecins, cases, statuts,
+  };
 }

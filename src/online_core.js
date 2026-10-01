@@ -39,7 +39,9 @@ function draftFromResult(pr, R) {
 function assignFromDraft(pr, draft) {
   const assign = new Map();
   pr.slots.forEach((sl, s) => pr.postes.forEach((code, p) => {
-    const inis = splitInis(draft.cases[caseKey(sl.d, sl.h, code)]);
+    let inis = splitInis(draft.cases[caseKey(sl.d, sl.h, code)]);
+    // planning avec télétravail contrôlé avec des paramètres sans télétravail : compté sur le poste d'origine
+    if (pr.pIdx[code + TT_SUFFIX] === undefined) inis = inis.concat(splitInis(draft.cases[caseKey(sl.d, sl.h, code + TT_SUFFIX)]));
     if (inis.length) assign.set(s + "|" + p, inis);
   }));
   return assign;

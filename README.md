@@ -63,6 +63,8 @@ La configuration Firebase est publique par nature. En revanche, le **code d'équ
 1. Les médecins déclarent leurs absences sur le site.
 2. **Admin** → période → **Générer** → vérifiez « Contrôle des règles » et « Couverture » → retouchez si besoin → **Publier**.
 3. Si les règles ou l'équipe changent : **Télécharger le classeur**, modifiez-le dans Excel, puis **Remplacer par un classeur mis à jour**.
+4. Télétravail : colonne « Télétravail possible » (onglet Postes) et colonne « Télétravail » (onglet Médecins : Oui, Non ou « Jeu AM »). Fermeture d'un poste sur une période (travaux, remplacement de machine) : onglet Fermetures.
+5. Un planning fait ailleurs peut être publié : téléchargez-le au format du site (bouton **Excel**), retouchez-le, puis **Admin → Importer un planning Excel → Publier**.
 
 ## Faire évoluer l'outil avec Claude Code
 
