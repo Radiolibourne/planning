@@ -18,7 +18,7 @@ PWA = os.path.join(SRC, "pwa")
 MANIFESTE = {
     "name": "Planning radiologie", "short_name": "Planning radio", "lang": "fr",
     "start_url": "./", "scope": "./", "display": "standalone",
-    "background_color": "#f3f4f7", "theme_color": "#1f3864",
+    "background_color": "#f4f6f5", "theme_color": "#0e5a63",
     "icons": [
         {"src": "icone-192.png", "sizes": "192x192", "type": "image/png"},
         {"src": "icone-512.png", "sizes": "512x512", "type": "image/png"},

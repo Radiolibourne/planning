@@ -5,24 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Planning radio">
-<meta name="theme-color" content="#1f3864">
+<meta name="theme-color" content="#0e5a63">
 <title>Planning radiologie</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <link rel="icon" type="image/png" href="favicon-32.png">
 <style>
 :root {
-  --bg: #f3f4f7; --panel: #ffffff; --ink: #1b2330; --muted: #5d6675; --line: #dde1e8; --soft: #eef1f6;
-  --accent: #1f3864; --accent-2: #2f5597; --accent-ink: #ffffff; --ok: #3f7d2a; --warn: #b3541e; --err: #b42318;
-  --closed-bg: #fbe3dc; --closed-ink: #b42318; --part-bg: #fce9d9; --s1: #2f5597; --s2: #548235; --s3: #9a7300;
-  --rem1: #e2efda; --rem2: #fdf1cc; --off: #e6e8ec; --today: #fff6d6; --focus: #2f5597; --shadow: 0 1px 2px rgba(16,24,40,.06);
+  --bg: #f4f6f5; --panel: #ffffff; --ink: #13201f; --muted: #5e6b6a; --line: #e2e7e6; --soft: #edf1f0;
+  --accent: #0e5a63; --accent-2: #0e5a63; --accent-ink: #ffffff; --ok: #2f7d3a; --warn: #b3541e; --err: #b42318;
+  --closed-bg: #fbe3dc; --closed-ink: #b42318; --part-bg: #fce9d9; --s1: #0e7c86; --s2: #6a4bc4; --s3: #e46a1c;
+  --rem1: #ece6fb; --rem2: #fde7d7; --off: #e8eceb; --today: #fff4cf; --focus: #0e7c86; --shadow: 0 1px 0 rgba(0,0,0,.04);
+  /* couleur de chaque site : principal, 2e, 3e (même ordre que l'onglet Sites du classeur) */
+  --site0: #0e7c86; --site1: #6a4bc4; --site2: #e46a1c; --head: #0e5a63; --head-ink: #ffffff; --head-mark: #ffd34d;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #11151c; --panel: #1a1f28; --ink: #e6e9ef; --muted: #9aa3b2; --line: #2c3340; --soft: #222935;
-    --accent: #7fa3e6; --accent-2: #9db9ee; --accent-ink: #0f1520; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
-    --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --s1: #7fa3e6; --s2: #8cc47a; --s3: #e0bf5c;
-    --rem1: #24402a; --rem2: #4a4020; --off: #262c36; --today: #3a3420; --focus: #9db9ee; --shadow: none;
+    --bg: #111817; --panel: #1a2322; --ink: #e6eeed; --muted: #97a6a4; --line: #2a3634; --soft: #23302e;
+    --accent: #5cc6cf; --accent-2: #5cc6cf; --accent-ink: #0b1716; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
+    --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --s1: #2f9aa3; --s2: #8a6fe0; --s3: #e8833f;
+    --rem1: #2e2748; --rem2: #4a2f1e; --off: #222c2b; --today: #3a3420; --focus: #5cc6cf; --shadow: none;
+    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;
   }
 }
 * { box-sizing: border-box; }
@@ -103,7 +106,6 @@ table.pl th, table.pl td { border-bottom: 1px solid var(--line); border-right: 1
 table.pl thead th { position: sticky; top: 0; background: var(--accent); color: var(--accent-ink); z-index: 3; font-weight: 600; }
 table.pl thead tr:nth-child(2) th { top: 28px; }
 table.pl th.s1 { background: var(--s1); color: #fff; } table.pl th.s2 { background: var(--s2); color: #fff; } table.pl th.s3 { background: var(--s3); color: #fff; }
-@media (prefers-color-scheme: dark) { table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #10151d; } }
 table.pl td.lead { position: sticky; left: 0; background: var(--panel); z-index: 2; text-align: left; font-weight: 700; }
 table.pl thead th.lead { left: 0; z-index: 4; }
 table.pl tr.m td { border-top: 2px solid var(--muted); }
@@ -162,6 +164,40 @@ details > summary { cursor: pointer; font-weight: 600; }
 ol.steps { padding-left: 20px; margin: 8px 0; }
 ol.steps li { margin-bottom: 8px; }
 code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+/* ---- Style « couleurs des sites » : bandeau, pastilles de date colorées selon le site ---- */
+header.top { background: var(--head); color: var(--head-ink); border-bottom: 0; }
+.bar h1 { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+.pill { background: rgba(255,255,255,.14); border: 0; color: var(--head-ink); }
+.pill.admin { background: #fff; color: var(--head); border-color: #fff; }
+nav.tabs a { color: rgba(255,255,255,.72); }
+nav.tabs a[aria-current=page] { color: #fff; border-bottom-color: var(--head-mark); }
+main { padding-top: 22px; }
+.card { border: 0; border-radius: 16px; }
+.card h2 { font-size: 19px; font-weight: 800; }
+@media (prefers-color-scheme: dark) { .card { border: 1px solid var(--line); } }
+button.b, a.b, label.b { border-radius: 999px; }
+input[type=date], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea { border-radius: 12px; }
+textarea { border-radius: 10px; }
+.seg { border-radius: 999px; }
+.who button { border-radius: 14px; }
+.banner { border-radius: 12px; }
+.week-h { color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 17px; font-weight: 800; margin: 26px 2px 10px; }
+.day { border: 0; border-radius: 16px; grid-template-columns: 54px 1fr; gap: 14px; padding: 12px; margin-bottom: 8px; box-shadow: var(--shadow); }
+@media (prefers-color-scheme: dark) { .day { border: 1px solid var(--line); } }
+.day .date { background: var(--soft); border-radius: 12px; text-align: center; padding: 6px 0 7px; font-size: 12px; font-weight: 700; color: var(--muted); align-self: start; }
+.day:has(.slot:not(.off)) .date { background: var(--site0); color: rgba(255,255,255,.88); }
+.day:has(.site.r1) .date { background: var(--site1); }
+.day:has(.site.r2) .date { background: var(--site2); }
+.day .date span { font-size: 16px; font-weight: 800; color: inherit; font-variant-numeric: tabular-nums; }
+.day:has(.slot:not(.off)) .date span { color: #fff; }
+.slot .p { font-size: 16px; font-weight: 700; }
+.slot .site { border-radius: 999px; padding: 2px 10px; font-weight: 700; color: #fff; }
+.slot .site.r1 { background: var(--site1); } .slot .site.r2 { background: var(--site2); }
+.tablewrap { border-radius: 12px; }
+table.pl thead th { background: var(--head); color: #fff; }
+table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #fff; }
+table.pl tr.week td { color: var(--accent); }
+table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
 [hidden] { display: none !important; }
 </style>
 </head>
@@ -174,7 +210,7 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
   <div id="offlineBanner" class="offline" hidden><div class="wrap"><b>Hors connexion</b> — affichage de la dernière version enregistrée sur cet appareil. Les modifications seront possibles au retour du réseau.</div></div>
   <div class="wrap">
     <div class="bar">
-      <h1>Planning radiologie</h1>
+      <h1>Planning radio</h1>
       <button class="pill" id="meBtn" hidden></button>
       <button class="pill" id="adminBtn" hidden>Admin</button>
     </div>
