@@ -77,6 +77,7 @@ with sync_playwright() as pw:
     B.ok(pg.evaluate("document.querySelector('link[rel=manifest]') !== null"), "manifeste d'application déclaré")
     man = json.load(open(os.path.join(DIST, "manifest.webmanifest"), encoding="utf-8"))
     B.ok(man["short_name"] == "Planning radio" and len(man["icons"]) == 3, "manifeste : nom « Planning radio » et icônes")
+    pg.wait_for_selector("#vAuth:not([hidden])"); pg.click("#authCode")
     pg.wait_for_selector("#vCode:not([hidden])")
     pg.fill("#codeInput", TEAM); pg.click("#codeForm button")
     pg.wait_for_selector("#vMon:not([hidden])")

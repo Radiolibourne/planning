@@ -43,7 +43,7 @@ def bibliotheques(fichiers):
 
 def page_en_ligne(config, params_b64):
     tpl = lire("online.html")
-    out = tpl.replace("/*__LIBS__*/", bibliotheques(["zip.js", "engine.js", "export.js", "online_core.js"]), 1)
+    out = tpl.replace("/*__LIBS__*/", bibliotheques(["zip.js", "engine.js", "export.js", "online_core.js", "pdf.js"]), 1)
     out = out.replace('"/*__PARAMS__*/"', json.dumps(params_b64), 1)
     if config:
         out = out.replace("window.FIREBASE_CONFIG = null;", "window.FIREBASE_CONFIG = " + json.dumps(config, ensure_ascii=False) + ";", 1)

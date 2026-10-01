@@ -10,6 +10,7 @@ etapes = [
     ("Construction", [sys.executable, os.path.join(RACINE, "outils", "construire.py")]),
     ("Démonstration", [sys.executable, os.path.join(ICI, "test_demo.py")]),
     ("Firebase simulé", [sys.executable, os.path.join(ICI, "test_firebase.py")]),
+    ("Comptes", [sys.executable, os.path.join(ICI, "test_comptes.py")]),
     ("Hors connexion", [sys.executable, os.path.join(ICI, "test_hors_connexion.py")]),
     ("Hors ligne", [sys.executable, os.path.join(ICI, "test_hors_ligne.py")]),
 ]

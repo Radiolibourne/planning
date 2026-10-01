@@ -35,7 +35,13 @@ La configuration Firebase est publique par nature. En revanche, le **code d'équ
 2. Name : `CODE_EQUIPE` ; Secret : votre code d'équipe (celui des règles de sécurité, `RADIO-…`) → **Add secret**.
 3. Après la prochaine publication (au plus une heure), chaque médecin voit dans « Mon planning » un bouton **S'abonner (mise à jour automatique)**.
 
-### 4. Démarrage
+### 4. Comptes individuels
+1. **Admin → Règles de sécurité à jour** : laissez cochée « Accès provisoire par code d'équipe », copiez les règles, collez-les dans Firestore → Règles → **Publier**.
+2. Demandez aux médecins d'ouvrir le site et de cliquer **Créer un compte** (e-mail, mot de passe de leur choix, initiales, nom).
+3. **Admin → Comptes** : validez chaque demande (vérifiez les initiales).
+4. Quand tout le monde a un compte : décochez « Accès provisoire par code d'équipe », recopiez les règles et **republiez-les**. Le code d'équipe seul ne donne alors plus accès (il reste nécessaire au secret GitHub `CODE_EQUIPE`).
+
+### 5. Démarrage
 1. Ouvrez le site, saisissez le code d'équipe, puis **Admin** → connectez-vous → **Remplacer par un classeur mis à jour** : déposez votre vrai classeur de paramètres.
 2. Générez et publiez un planning d'essai. Vérifiez sur votre iPhone et depuis un poste de l'hôpital.
 3. Envoyez l'adresse du site et le code d'équipe aux médecins. Pour installer l'application « Planning radio » :

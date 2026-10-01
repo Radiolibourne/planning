@@ -1,0 +1,214 @@
+# -*- coding: utf-8 -*-
+"""
+Comptes individuels (accès provisoire par code DÉSACTIVÉ) contre un Firebase simulé appliquant la même logique
+que les règles générées : inscription → validation par l'admin → droits limités à ses propres absences →
+code seul refusé → relance des dates limites et « aucune absence » → retrait d'accès.
+Utilise la page configurée produite par test_demo.py.
+"""
+import copy, datetime as dt, itertools, json, os, re, time, urllib.parse
+from playwright.sync_api import sync_playwright
+from commun import Bilan, EXEMPLE, SORTIE, chromium, mois_suivant, numero_jour
+
+B = Bilan("Comptes individuels")
+html = open(os.path.join(SORTIE, "index_configure.html"), encoding="utf-8").read()
+regles0 = open(os.path.join(SORTIE, "regles.txt"), encoding="utf-8").read()
+TEAM = re.search(r"return code == '([^']+)'", regles0).group(1)
+ADMIN_UID = re.findall(r"'([A-Za-z0-9]{20,})'", regles0.split("request.auth.uid in [")[1].split("]")[0])[0]
+src_fb = open(os.path.join(os.path.dirname(__file__), "test_firebase.py"), encoding="utf-8").read()
+FS = re.search(r'FS = r"""(.*?)"""', src_fb, re.S).group(1)
+AUTH = r"""
+const L = new Set(); let user = null;
+const call = async (op, a) => JSON.parse(await window.__fb(op, JSON.stringify(a)));
+const fail = (c) => { const e = new Error(c); e.code = c; throw e; };
+const login = (o) => { user = { uid: o.uid, email: o.email }; globalThis.__uid = o.uid; L.forEach((f) => f(user)); return { user }; };
+export function getAuth(){ return {}; }
+export async function signInWithEmailAndPassword(a, email, pw){ const o = await call('signin', { email, pw }); if (o.error) fail(o.error); return login(o); }
+export async function createUserWithEmailAndPassword(a, email, pw){ const o = await call('signup', { email, pw }); if (o.error) fail(o.error); return login(o); }
+export async function sendPasswordResetEmail(a, email){ await call('reset', { email }); }
+export async function signOut(){ user = null; globalThis.__uid = null; L.forEach((f) => f(null)); }
+export function onAuthStateChanged(a, cb){ L.add(cb); setTimeout(() => cb(user), 0); return () => L.delete(cb); }
+"""
+APP = "export function initializeApp(cfg){ return {cfg}; }"
+MODS = {"firebase-app.js": APP, "firebase-firestore.js": FS.replace("export function getFirestore(app){ return { app }; }",
+        "export function getFirestore(app){ return { app }; }\nexport function persistentMultipleTabManager(){ return {}; }\n"
+        "export function persistentLocalCache(o){ return {}; }\nexport function initializeFirestore(app, s){ return { app }; }") if "initializeFirestore" not in FS else FS,
+        "firebase-auth.js": AUTH}
+
+# ------------------------------------------------------------------ serveur simulé (même logique que les règles)
+USERS = {"admin@chl.fr": ("secret", ADMIN_UID)}
+DB, ver, ids, regles = {}, [0], itertools.count(1), {"transition": True}
+def bump(): ver[0] += 1
+def email_of(uid): return next((e for e, (p, u) in USERS.items() if u == uid), None)
+def is_admin(uid): return uid == ADMIN_UID
+def membre(uid): return uid is not None and f"membres/{uid}" in DB
+def moi(uid): return DB.get(f"membres/{uid}") or {}
+def lecteur(code, uid): return code == TEAM and (is_admin(uid) or membre(uid) or regles["transition"])
+def auteur(ini, uid): return (ini == moi(uid).get("ini")) if membre(uid) else regles["transition"]
+def ouvert(d1, d2):
+    pub = DB.get(f"espaces/{TEAM}/planning/publie")
+    if pub and d1 <= pub["end"]: return False
+    sa = DB.get(f"espaces/{TEAM}/config/saisie") or {}
+    now = time.time() * 1000
+    return all(now <= c["finMs"] or d2 < c["du"] or d1 > c["au"] for c in sa.get("clotures", [])[:5])
+def valid_indispo(d):
+    return (set(d) == {"ini", "d1", "d2", "periode", "motif", "creeLe"} and isinstance(d["ini"], str) and len(d["ini"]) <= 10
+            and d["d2"] >= d["d1"] and d["d2"] - d["d1"] <= 366 and d["periode"] in ("Journée", "Matin", "Après-midi"))
+def peut_lire(path, uid):
+    s = path.split("/")
+    if s[0] == "espaces":
+        if s[2:4] == ["planning", "publie"] and s[1] == TEAM: return True
+        return lecteur(s[1], uid)
+    if s[0] in ("membres", "demandes", "declarations"):
+        return is_admin(uid) or (len(s) == 2 and uid == s[1])
+    return False
+def peut_ecrire(op, path, uid, data):
+    s = path.split("/"); old = DB.get(path)
+    if s[0] == "espaces":
+        if s[1] != TEAM: return False
+        if len(s) >= 3 and s[2] == "indispos":
+            if op == "del": return is_admin(uid) or (old is not None and auteur(old["ini"], uid) and ouvert(old["d1"], old["d2"]))
+            return valid_indispo(data) and (is_admin(uid) or (auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"])))
+        return is_admin(uid)
+    if s[0] == "membres": return is_admin(uid)
+    if s[0] == "demandes":
+        if op == "del": return is_admin(uid) or uid == s[1]
+        return (uid == s[1] and set(data) == {"email", "ini", "nom", "creeLe"} and data["email"] == email_of(uid)
+                and len(data["ini"]) <= 10 and len(data["nom"]) <= 60)
+    if s[0] == "declarations":
+        return is_admin(uid) or (uid == s[1] and membre(uid) and set(data) <= {"ini", "aucune", "majLe"} and data.get("ini") == moi(uid).get("ini"))
+    return False
+def server(op, a):
+    uid = a.get("uid"); p = a.get("path")
+    if op == "poll": return {"v": ver[0]}
+    if op == "signin":
+        u = USERS.get(a["email"])
+        return {"uid": u[1], "email": a["email"]} if u and u[0] == a["pw"] else {"error": "auth/invalid-credential"}
+    if op == "signup":
+        if a["email"] in USERS: return {"error": "auth/email-already-in-use"}
+        if len(a["pw"]) < 6: return {"error": "auth/weak-password"}
+        u = f"uid{next(ids):04d}xxxxxxxxxxxxxxxx"; USERS[a["email"]] = (a["pw"], u); return {"uid": u, "email": a["email"]}
+    if op == "reset": return {}
+    if op == "get":
+        return {"data": copy.deepcopy(DB.get(p))} if peut_lire(p, uid) else {"error": "permission-denied"}
+    if op == "list":
+        if not peut_lire(p, uid) or (p.split("/")[0] in ("membres", "demandes", "declarations") and not is_admin(uid)):
+            return {"error": "permission-denied"}
+        n = len(p.split("/")) + 1
+        return {"docs": [dict(id=k.split("/")[-1], **v) for k, v in DB.items() if k.startswith(p + "/") and len(k.split("/")) == n]}
+    if op == "add":
+        p = p + "/" + f"id{next(ids)}"
+    if not peut_ecrire(op, p, uid, a.get("data")): return {"error": "permission-denied"}
+    if op == "del": DB.pop(p, None)
+    else: DB[p] = copy.deepcopy(a["data"])
+    bump()
+    return {"id": p.split("/")[-1]}
+
+def route(r):
+    u = r.request.url
+    if u.startswith("https://planning.test/"):
+        if "/cal/" in u or u.endswith(".png") or u.endswith(".js") and "sw.js" in u: return r.fulfill(status=404, body="")
+        return r.fulfill(status=200, body=html, headers={"content-type": "text/html; charset=utf-8"})
+    m = re.match(r"https://www\.gstatic\.com/firebasejs/10\.14\.1/(firebase-[a-z]+\.js)$", u)
+    if m: return r.fulfill(status=200, body=MODS[m.group(1)], headers={"content-type": "application/javascript", "access-control-allow-origin": "*"})
+    r.abort()
+
+ok = B.ok
+erreurs = []
+d1, d2 = mois_suivant()
+m2 = d2 + dt.timedelta(days=1)                     # mois d'après : période de la date limite
+m2_fin = (m2.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+with sync_playwright() as pw:
+    b = chromium(pw)
+    def page():
+        ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True)
+        ctx.route("**/*", route)
+        pg = ctx.new_page()
+        pg.expose_function("__fb", lambda op, a: json.dumps(server(op, json.loads(a))))
+        pg.on("pageerror", lambda e: erreurs.append(str(e))); pg.on("dialog", lambda d: d.accept())
+        return pg
+    # ---------------- administrateur : connexion par compte, code saisi une fois, paramètres
+    adm = page()
+    adm.goto("https://planning.test/")
+    adm.wait_for_selector("#vAuth:not([hidden])")
+    adm.fill("#aEmail", "admin@chl.fr"); adm.fill("#aPw", "secret"); adm.click("#aSubmit")
+    adm.wait_for_selector("#vCode:not([hidden])")
+    ok("Administrateur" in adm.inner_text("#codeSub"), "admin : code d'équipe demandé une seule fois")
+    adm.fill("#codeInput", TEAM); adm.click("#codeForm button")
+    adm.wait_for_selector("#vMon:not([hidden])")
+    adm.wait_for_function("1", timeout=2000)
+    ok(f"membres/{ADMIN_UID}" in DB and DB[f"membres/{ADMIN_UID}"]["espace"] == TEAM, "admin : fiche de compte créée (code mémorisé côté serveur)")
+    adm.goto("https://planning.test/#admin"); adm.wait_for_selector("#adminBody:not([hidden])")
+    adm.set_input_files("#upParams", EXEMPLE)
+    adm.wait_for_function("document.querySelector('#paramInfo').innerText.includes('11 médecins')", timeout=10000)
+    ok(not adm.is_hidden("#accCard"), "admin : carte « Comptes » visible")
+    # règles : accès provisoire désactivé
+    adm.click("#rulesCard summary"); adm.uncheck("#rTrans")
+    texte = adm.input_value("#rText")
+    ok("function codeSeul() { return false; }" in texte and "match /membres/{uid}" in texte, "règles générées : comptes, accès par code désactivé")
+    regles["transition"] = False; bump()
+    # ---------------- médecin : inscription
+    doc = page()
+    doc.goto("https://planning.test/")
+    doc.wait_for_selector("#vAuth:not([hidden])")
+    doc.click("#authToggle")
+    doc.fill("#aEmail", "da@chl.fr"); doc.fill("#aPw", "motdepasse1"); doc.fill("#aPw2", "motdepasse1")
+    doc.fill("#aIni", "da"); doc.fill("#aNom", "Dr A")
+    doc.click("#aSubmit")
+    doc.wait_for_selector("#authPending:not([hidden])", timeout=8000)
+    ok("DA" in doc.inner_text("#authPendingTxt"), "médecin : demande envoyée, en attente de validation")
+    uid_da = USERS["da@chl.fr"][1]
+    ok(DB.get(f"demandes/{uid_da}", {}).get("ini") == "DA", "demande enregistrée avec les initiales")
+    # tentative de lecture du planning sans validation
+    r = doc.evaluate("async (t) => JSON.parse(await window.__fb('get', JSON.stringify({path: 'espaces/' + t + '/config/parametres', uid: globalThis.__uid}))).error || 'lu'", TEAM)
+    ok(r == "permission-denied", "compte non validé : aucun accès aux données")
+    # ---------------- administrateur : validation
+    adm.wait_for_selector(f'#accPend li[data-uid="{uid_da}"]', timeout=8000)
+    adm.select_option(f'#accPend li[data-uid="{uid_da}"] [data-ini]', "DA")
+    adm.click(f'#accPend li[data-uid="{uid_da}"] [data-valider]')
+    adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('validé')", timeout=8000)
+    ok(DB.get(f"membres/{uid_da}", {}).get("ini") == "DA" and f"demandes/{uid_da}" not in DB, "admin : compte validé, demande retirée")
+    # ---------------- médecin : la page s'ouvre toute seule
+    doc.wait_for_selector("#vMon:not([hidden])", timeout=10000)
+    ok(doc.inner_text("#meBtn") == "Vous : DA", "médecin : connecté avec ses initiales (sans les choisir)")
+    doc.click("#meBtn")
+    ok(doc.is_visible("#whoAccount") and doc.is_hidden("#whoPick"), "médecin : fenêtre compte, pas de choix d'initiales")
+    doc.click("#whoClose")
+    ok(doc.is_hidden("#adminBtn"), "médecin : pas de bouton Admin")
+    # absences : les siennes uniquement
+    x = m2_fin + dt.timedelta(days=20)
+    doc.click("a[data-tab=indispos]")
+    doc.fill("#indD1", x.isoformat()); doc.fill("#indD2", x.isoformat()); doc.click("#indSubmit")
+    doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')", timeout=8000)
+    ok(any(v.get("ini") == "DA" for k, v in DB.items() if "/indispos/" in k), "médecin : absence enregistrée à son nom")
+    r = doc.evaluate("""async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos', uid: globalThis.__uid,
+        data: {ini: 'DB', d1: j, d2: j, periode: 'Journée', motif: 'test', creeLe: 1}}))).error || 'accepté'""", [TEAM, numero_jour(x)])
+    ok(r == "permission-denied", "serveur : impossible de déclarer une absence au nom d'un collègue")
+    # ---------------- accès par simple code : refusé
+    anon = page()
+    anon.goto("https://planning.test/"); anon.wait_for_selector("#vAuth:not([hidden])"); anon.click("#authCode")
+    anon.fill("#codeInput", TEAM); anon.click("#codeForm button")
+    anon.wait_for_function("document.querySelector('#codeMsg').innerText.includes('refusé')", timeout=8000)
+    ok(True, "code d'équipe seul : refusé (accès provisoire désactivé)")
+    # ---------------- relance : date limite sur le mois d'après, ouverte jusqu'à demain
+    demain = dt.date.today() + dt.timedelta(days=1)
+    adm.fill("#cDu", m2.isoformat()); adm.fill("#cAu", m2_fin.isoformat()); adm.fill("#cLim", demain.isoformat()); adm.click("#cAdd")
+    adm.wait_for_function("document.querySelector('#cloList').innerText.includes('Rien déclaré')", timeout=8000)
+    lien = adm.get_attribute("#cloList a.b", "href") or ""
+    ok("DA" in adm.inner_text("#cloList") and "da%40chl.fr" in lien, "relance : DA listé, e-mail de relance prérempli à son adresse")
+    ok("Sans compte" in adm.inner_text("#cloList"), "relance : médecins sans compte signalés")
+    doc.click("a[data-tab=mon]")
+    doc.wait_for_function("document.querySelector('#vMon').innerText.includes('à déclarer avant')", timeout=10000)
+    ok(True, "médecin : rappel de la date limite dans l'appli")
+    doc.click("#vMon [data-aucune]")
+    adm.wait_for_function("!document.querySelector('#cloList').innerText.match(/Rien déclaré : [^·\\n]*\\bDA\\b/)", timeout=8000)
+    ok("aucune absence » : DA" in adm.inner_text("#cloList"), "« aucune absence » : DA retiré de la relance")
+    doc.wait_for_function("!document.querySelector('#vMon [data-aucune]')", timeout=8000)
+    ok(True, "médecin : rappel disparu après sa déclaration")
+    # ---------------- retrait d'accès
+    adm.click(f'#accList li[data-uid="{uid_da}"] [data-retirer]')
+    adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('retiré')", timeout=8000)
+    doc.wait_for_selector("#vAuth:not([hidden])", timeout=10000)
+    ok("retiré" in doc.inner_text("#authMsg") or doc.is_visible("#authComplete") or doc.is_visible("#authMain"), "médecin : accès coupé immédiatement")
+    b.close()
+ok(not erreurs, "aucune erreur JavaScript" + (f" : {erreurs[:3]}" if erreurs else ""))
+raise SystemExit(0 if B.fin() else 1)

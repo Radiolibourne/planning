@@ -23,7 +23,7 @@ python outils/creer_parametres_exemple.py   # régénère exemple/parametres_exe
 python outils/construire.py                 # construit dist/ (lit config/firebase.json s'il existe)
 python tests/lancer_tests.py                # construit puis lance tous les tests (~1 min)
 ```
-Si Chromium est déjà installé ailleurs, définir `CHROMIUM_PATH`. Les tests n'accèdent jamais au réseau : Firebase y est **simulé** (`tests/test_firebase.py`), avec une doublure des modules SDK et un faux serveur qui applique la logique des règles de sécurité.
+Si Chromium est déjà installé ailleurs, définir `CHROMIUM_PATH`. Les tests n'accèdent jamais au réseau : Firebase y est **simulé** (`tests/test_firebase.py` en mode code d'équipe, `tests/test_comptes.py` en mode comptes avec accès par code désactivé), avec une doublure des modules SDK et un faux serveur qui applique la logique des règles de sécurité. **Toute modification de `firestoreRules()` doit être reportée dans ces faux serveurs.**
 
 ## Publication
 `.github/workflows/publication.yml` : à chaque push, tests ; sur `main`, si les tests passent, construction puis déploiement sur GitHub Pages (Settings → Pages → Source : GitHub Actions). Une copie de secours du workflow se trouve dans `outils/publication.yml` : si `.github/workflows/publication.yml` manque (dossier caché non envoyé depuis un Mac), la recopier à cet emplacement.
@@ -37,9 +37,27 @@ Toutes les pages sont des **fichiers HTML uniques**, sans dépendance externe, �
 | `engine.js` | Lecture du classeur (`readParams`), modèle (`buildProblem`), **optimisation par recuit simulé** (`solve`), contrôles (`checks`), couverture |
 | `export.js` | Écriture XLSX avec formules et mises en forme (`exportPlanning`), calendriers .ics (`buildIcs`), lecture d'un planning retouché |
 | `online_core.js` | Format du planning publié, stockage Firebase / démonstration, règles Firestore, conflits absences ↔ planning |
-| `online.html` | Interface du site (onglets Mon planning, Général, Absences, Admin, assistant de mise en ligne) |
+| `online.html` | Interface du site (connexion/inscription, onglets Mon planning, Général, Qui est posté, Absences, Admin, assistant de mise en ligne) |
+| `pdf.js` | Écriture PDF sans dépendance (Helvetica, accents WinAnsi) et `weekPdf` : PDF de la semaine (page par poste, page par médecin) |
 | `app.html` | Interface du générateur hors ligne |
 | `pwa/` | Application installable : `sw.js` (service worker), icônes PNG (dessinées par `outils/creer_icones.py`, commitées). Le manifeste est écrit par `construire.py` |
+
+### Comptes individuels (mode en ligne)
+- Chaque médecin crée son compte (e-mail + mot de passe, Firebase Authentication) → document `demandes/{uid}` `{email, ini, nom, creeLe}`. Aucun e-mail n'est envoyé (sauf « Mot de passe oublié ? », géré par Firebase).
+- L'admin valide dans Admin → Comptes : `membres/{uid}` `{email, ini, nom, espace (code d'équipe), role, valideLe, validePar}`. Retirer l'accès = supprimer ce document (effet immédiat).
+- À la connexion (`resolveAccount`) : fiche `membres` → espace + initiales fixées ; administrateur détecté par une lecture-sonde `membres/_sonde_admin` (autorisée aux seuls admins) ; sinon écran « demande en attente » (la page s'ouvre seule à la validation).
+- L'admin saisit le code d'équipe une fois ; sa propre fiche `membres` (role admin) est alors créée.
+- **Règles d'avant les comptes** (lecture de sa propre fiche refusée) : `S.legacy` → ancien fonctionnement (connexion = admin), inscriptions bloquées avec un message.
+- **Transition** : option des règles `codeSeul()` (case « Accès provisoire par code d'équipe » dans la carte des règles). Tant qu'elle est vraie, l'accès sans compte (code d'équipe + « Qui êtes-vous ? ») reste possible.
+- Toujours lisible avec le seul code : `planning/publie` (calendriers d'abonnement produits par GitHub, sans compte).
+- `declarations/{uid}` `{ini, aucune: {"<du>_<au>": true}, majLe}` : « Je n'ai aucune absence sur cette période » (relance).
+- Démo : pas de comptes (fonctionnement par « Qui êtes-vous ? »).
+
+### Relance des dates limites
+`relanceInfo(c)` : médecins sans absence ni déclaration « aucune absence » sur la période. Admin : liste + lien `mailto:` (destinataires en copie cachée, adresses des comptes validés). Médecin : bandeau dans Mon planning et Absences tant que la date limite est ouverte.
+
+### Qui est posté ? / PDF de la semaine
+Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par personne, filtre texte. Onglet Général → « PDF de la semaine » (semaine choisie, ou semaine en cours) : 2 pages A4 paysage.
 
 ### Abonnement calendrier (webcal)
 - `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore (sans compte, grâce au code d'équipe) et écrit `dist/cal/<jeton>.ics` par médecin.
@@ -106,6 +124,6 @@ Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`,
 - Le moteur est heuristique (recuit simulé) : il se situe à environ 0,05 % de l'optimum exact sur octobre 2026 (données réelles, vérifié avec un solveur exact).
 - Capacité insuffisante à ce jour. Avec les priorités actuelles, ferment d'abord l'échographie 2, puis l'IRM 2 (ostéo-articulaire), puis la mammographie de Blaye. C'est un choix du service, réglable via les priorités du classeur.
 - Calendriers iPhone : abonnement (mise à jour automatique, délai = passage horaire de GitHub + fréquence de rafraîchissement du téléphone) ou import ponctuel d'un .ics.
-- Code d'équipe = mot de passe partagé ; un médecin peut supprimer l'absence d'un collègue. Le reste (paramètres, publication) est réservé aux administrateurs authentifiés.
-- Fonctions ajoutées depuis la première version : abonnement calendrier mis à jour automatiquement ; application installable « Planning radio » avec ouverture hors connexion ; verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
-- Pistes demandées ou envisagées : onglet « Quotas » générique (min / max par médecin, poste et période) ; échanges de vacations entre médecins.
+- Avec les comptes (transition désactivée), chacun ne peut créer ou supprimer que ses propres absences. En transition, l'accès par code d'équipe garde l'ancien fonctionnement (code partagé).
+- Fonctions ajoutées depuis la première version : comptes individuels validés par l'admin, « Qui est posté ? », PDF de la semaine, relance des dates limites ; abonnement calendrier mis à jour automatiquement ; application installable « Planning radio » avec ouverture hors connexion ; verrouillage des absences (période publiée + dates limites de dépôt), bouton « Télécharger en Excel » du planning publié dans l'onglet Général (tous les médecins).
+- Pistes envisagées : onglet « Quotas » générique (min / max par médecin, poste et période). **Échanges de vacations : refusés par le service, ne pas les ajouter.**

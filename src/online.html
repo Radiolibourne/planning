@@ -53,7 +53,7 @@ main { padding: 18px 0 70px; }
 .small { font-size: 13px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); flex: 1 1 140px; min-width: 0; }
-input[type=date], input[type=text], input[type=email], input[type=password], select, textarea {
+input[type=date], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea {
   width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px; font-size: 16px; min-height: 44px;
 }
 textarea { min-height: 90px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
@@ -124,6 +124,18 @@ table.edit td input { width: 110px; min-height: 30px; padding: 3px 6px; font-siz
 .seg button { border: 0; background: var(--panel); padding: 8px 12px; font-weight: 600; cursor: pointer; min-height: 38px; }
 .seg button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); }
 .toolbar select { width: auto; min-height: 38px; padding: 6px 10px; font-size: 14px; }
+/* qui est posté */
+.quinav { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.quinav input[type=date] { flex: 1; min-width: 0; }
+.quinav .b { min-height: 44px; padding: 6px 14px; }
+table.qui { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.qui th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+table.qui td { padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.qui td:first-child { font-weight: 700; }
+table.qui tr.site td { background: var(--soft); color: var(--accent-2); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; padding: 6px 6px; }
+table.qui .fe { color: var(--closed-ink); font-weight: 700; font-size: 12px; }
+table.qui .st { color: var(--muted); font-size: 12px; }
+table.qui tr.me td { background: var(--today); }
 /* listes */
 ul.list { list-style: none; margin: 0; padding: 0; }
 ul.list li { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -169,6 +181,7 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
     <nav class="tabs" id="tabs" hidden>
       <a href="#mon" data-tab="mon">Mon planning</a>
       <a href="#general" data-tab="general">Général</a>
+      <a href="#qui" data-tab="qui">Qui est posté</a>
       <a href="#indispos" data-tab="indispos">Absences</a>
       <a href="#admin" data-tab="admin" id="tabAdmin" hidden>Admin</a>
     </nav>
@@ -180,12 +193,58 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
   <section id="vCode" hidden>
     <div class="card center">
       <h2>Accès au planning</h2>
-      <p class="sub">Saisissez le code d'équipe communiqué par l'administrateur. Il sera mémorisé sur cet appareil.</p>
+      <p class="sub" id="codeSub">Saisissez le code d'équipe communiqué par l'administrateur. Il sera mémorisé sur cet appareil.</p>
       <form id="codeForm">
         <label class="f">Code d'équipe<input type="text" id="codeInput" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label>
         <div class="row" style="margin-top:12px"><button class="b primary" type="submit">Entrer</button></div>
         <div class="msg" id="codeMsg" role="status"></div>
       </form>
+      <p class="small muted" id="codeBack" hidden style="margin:12px 0 0"><button class="x" id="codeToAuth" type="button" style="padding:0">← Se connecter avec un compte</button></p>
+    </div>
+  </section>
+
+  <!-- Connexion / inscription (comptes individuels) -->
+  <section id="vAuth" hidden>
+    <div class="card center">
+      <div id="authMain">
+        <h2 id="authTitle">Connexion</h2>
+        <p class="sub" id="authSub">Connectez-vous avec votre compte personnel.</p>
+        <form id="authForm" novalidate>
+          <label class="f">Adresse e-mail<input type="email" id="aEmail" autocomplete="username" required></label>
+          <label class="f" style="margin-top:10px">Mot de passe<input type="password" id="aPw" autocomplete="current-password" required></label>
+          <div id="aSignup" hidden>
+            <label class="f" style="margin-top:10px">Confirmez le mot de passe<input type="password" id="aPw2" autocomplete="new-password"></label>
+            <div class="row" style="margin-top:10px">
+              <label class="f">Initiales (ex. KS)<input type="text" id="aIni" maxlength="10" autocapitalize="characters" spellcheck="false"></label>
+              <label class="f" style="flex:2 1 160px">Prénom et nom<input type="text" id="aNom" maxlength="60" autocomplete="name"></label>
+            </div>
+            <p class="small muted" style="margin:8px 0 0">Votre compte sera actif après validation par l'administrateur. Aucun e-mail ne vous sera envoyé.</p>
+          </div>
+          <div class="row" style="margin-top:14px"><button class="b primary" type="submit" id="aSubmit">Se connecter</button></div>
+          <div class="msg" id="authMsg" role="status"></div>
+        </form>
+        <div class="row" style="margin-top:6px;justify-content:space-between">
+          <button class="x" id="authToggle" type="button">Pas encore de compte ? Créer un compte</button>
+          <button class="x" id="authForgot" type="button">Mot de passe oublié ?</button>
+        </div>
+        <p class="small muted" style="margin:14px 0 0"><button class="x" id="authCode" type="button" style="padding:0">Accès provisoire avec le code d'équipe</button></p>
+      </div>
+      <div id="authPending" hidden>
+        <h2>Demande envoyée</h2>
+        <p class="sub" id="authPendingTxt"></p>
+        <p class="small muted">Cette page s'ouvrira automatiquement dès la validation.</p>
+        <div class="row"><button class="b" id="authLogout1" type="button">Se déconnecter</button></div>
+      </div>
+      <div id="authComplete" hidden>
+        <h2>Finaliser votre demande</h2>
+        <p class="sub">Indiquez vos initiales et votre nom : l'administrateur validera votre compte.</p>
+        <div class="row">
+          <label class="f">Initiales<input type="text" id="cIni" maxlength="10" autocapitalize="characters" spellcheck="false"></label>
+          <label class="f" style="flex:2 1 160px">Prénom et nom<input type="text" id="cNom" maxlength="60"></label>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="b primary" id="cSend" type="button">Envoyer la demande</button><button class="b" id="authLogout2" type="button">Se déconnecter</button></div>
+        <div class="msg" id="cMsg" role="status"></div>
+      </div>
     </div>
   </section>
 
@@ -203,12 +262,22 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
     </div>
   </section>
 
+  <!-- Qui est posté ? -->
+  <section id="vQui" hidden>
+    <div class="card">
+      <h2>Qui est posté ?</h2>
+      <p class="sub" id="quiSub">Choisissez un jour, puis cherchez par poste ou par personne.</p>
+      <div id="quiBody"></div>
+    </div>
+  </section>
+
   <!-- Indisponibilités -->
   <section id="vIndispos" hidden>
     <div class="card">
       <h2>Signaler une indisponibilité</h2>
       <p class="sub">Congés, formation, congrès… L'administrateur en tient compte à la prochaine génération du planning.</p>
       <div id="indLock" class="banner info small" hidden></div>
+      <div id="indRelance"></div>
       <form id="indForm" novalidate>
         <div class="row">
           <label class="f">Du<input type="date" id="indD1" required></label>
@@ -313,6 +382,18 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
         <ul class="list" id="admInd"></ul>
       </div>
 
+      <div class="card" id="accCard" hidden>
+        <h2>Comptes</h2>
+        <p class="sub">Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
+        <div id="accWarn" class="banner warn small" hidden></div>
+        <h3 style="margin-top:6px">Demandes en attente <span class="tag" id="accPendN">0</span></h3>
+        <ul class="list" id="accPend"></ul>
+        <h3>Comptes actifs <span class="tag" id="accN">0</span></h3>
+        <ul class="list" id="accList"></ul>
+        <p class="small muted" id="accSans" style="margin-bottom:0"></p>
+        <div class="msg" id="accMsg" role="status"></div>
+      </div>
+
       <div class="card">
         <h2>Dates limites de dépôt des absences</h2>
         <p class="sub">Après la date limite, les médecins ne peuvent plus déclarer d'absence sur la période concernée (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus.</p>
@@ -330,6 +411,8 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
         <details>
           <summary>Règles de sécurité à jour</summary>
           <p class="small muted">Après une évolution du site touchant aux données, les règles de sécurité Firebase doivent être republiées : Firestore → Règles → remplacer tout le texte par celui-ci → Publier. Elles reprennent votre code d'équipe et votre identifiant administrateur.</p>
+          <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 10px;font-size:14px"><input type="checkbox" id="rTrans" checked style="margin-top:3px">
+            <span><b>Accès provisoire par code d'équipe</b> (sans compte) encore autorisé. Décochez quand tous les médecins ont un compte validé, puis republiez les règles.</span></label>
           <label class="f">UID des autres administrateurs (facultatif, un par ligne)<textarea id="rUids" style="min-height:50px"></textarea></label>
           <textarea id="rText" readonly style="min-height:200px;margin-top:10px"></textarea>
           <div class="row" style="margin-top:8px"><button class="b" id="rCopy" type="button">Copier les règles</button></div>
@@ -400,9 +483,16 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
 
 <div class="overlay" id="whoOverlay" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="whoTitle">
-    <h2 id="whoTitle" style="margin:0 0 4px;font-size:17px">Qui êtes-vous ?</h2>
-    <p class="sub">Choisissez vos initiales. Ce choix est mémorisé sur cet appareil.</p>
-    <div class="who" id="whoGrid"></div>
+    <div id="whoAccount" hidden style="margin-bottom:14px">
+      <h2 style="margin:0 0 4px;font-size:17px">Mon compte</h2>
+      <p class="sub" id="whoAccTxt" style="margin-bottom:8px"></p>
+      <button class="b" id="whoLogout" type="button">Se déconnecter</button>
+    </div>
+    <div id="whoPick">
+      <h2 id="whoTitle" style="margin:0 0 4px;font-size:17px">Qui êtes-vous ?</h2>
+      <p class="sub" id="whoSub">Choisissez vos initiales. Ce choix est mémorisé sur cet appareil.</p>
+      <div class="who" id="whoGrid"></div>
+    </div>
     <div class="row" style="margin-top:14px"><button class="b" id="whoClose">Fermer</button></div>
   </div>
 </div>
@@ -441,7 +531,9 @@ const setMsg = (el, text, cls = "") => { el.className = "msg " + cls; el.textCon
 
 // ------------------------------------------------------------ état
 const S = {
-  store: null, code: null, me: ls.get("planning-radio-me") || "", user: null,
+  store: null, code: null, me: ls.get("planning-radio-me") || "",
+  auth: null, admin: false, membre: null, entry: "auth", legacy: false,
+  membres: [], demandes: [], declarations: [], accErr: "", adminUnsub: [],
   params: null, P: null, paramsErr: "", published: null, indispos: [], saisie: null,
   draft: null, draftPr: null, draftSource: "", genView: { week: "cur", mode: "poste" }, draftWeek: "all",
   unsub: [],
@@ -465,13 +557,20 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 }
 
 // ------------------------------------------------------------ navigation
-const TABS = { mon: "vMon", general: "vGeneral", indispos: "vIndispos", admin: "vAdmin" };
+const TABS = { mon: "vMon", general: "vGeneral", qui: "vQui", indispos: "vIndispos", admin: "vAdmin" };
 function currentTab() { const h = location.hash.slice(1); return TABS[h] ? h : "mon"; }
 function show(view) {
-  for (const id of ["vCode", "vLoading", ...Object.values(TABS)]) $(id).hidden = id !== view;
+  for (const id of ["vCode", "vAuth", "vLoading", ...Object.values(TABS)]) $(id).hidden = id !== view;
 }
+const comptesActifs = () => S.store && S.store.mode === "firebase";
 function route() {
-  if (!S.code) { show("vCode"); $("tabs").hidden = true; return; }
+  if (!S.code) {
+    $("tabs").hidden = true;
+    if (comptesActifs() && S.entry !== "code") { show("vAuth"); renderAuth(); }
+    else { show("vCode"); $("codeBack").hidden = !comptesActifs(); }
+    updateHeader();
+    return;
+  }
   const t = currentTab();
   $("tabs").hidden = false;
   document.querySelectorAll("#tabs a").forEach((a) => {
@@ -492,18 +591,100 @@ async function connect() {
     $("demoBanner").hidden = false;
   }
   updateOnline();
-  S.store.onAuth((u) => { S.user = u; updateHeader(); if (currentTab() === "admin") render(); });
-  const saved = S.store.mode === "demo" ? "demo" : ls.get("planning-radio-code");
-  if (saved) await enter(saved, true);
-  else route();
+  if (S.store.mode === "demo") {
+    S.store.onAuth((u) => { S.auth = u; S.admin = !!u; updateHeader(); if (currentTab() === "admin") render(); });
+    await enter("demo", true);
+    return;
+  }
+  // En ligne : un premier appel indique si quelqu'un est déjà connecté sur cet appareil
+  S.store.onAuth((u) => { S.auth = u; resolveAccount().catch((e) => console.error(e)); });
+}
+
+// Détermine qui est connecté : compte validé, administrateur, demande en attente, ou personne.
+let resolving = 0;
+async function resolveAccount() {
+  const tour = ++resolving;
+  S.adminUnsub.forEach((f) => f()); S.adminUnsub = [];
+  if (!S.auth) {
+    S.admin = false; S.membre = null; S.legacy = false;
+    const saved = ls.get("planning-radio-code");
+    if (saved && ls.get("planning-radio-acces") === "code") { S.entry = "code"; await enter(saved, true); }
+    else { S.entry = "auth"; leaveSpace(); S.authView = "login"; route(); }
+    return;
+  }
+  const uid = S.auth.uid;
+  let membre = null, membreErr = null;
+  try { membre = await S.store.get(`membres/${uid}`); } catch (e) { membreErr = e; }
+  if (membreErr && membreErr.code === "network") {   // hors connexion : dernier compte connu sur l'appareil
+    try { membre = JSON.parse(ls.get("planning-radio-membre") || "null"); } catch (e) { membre = null; }
+    if (membre && membre.uid !== uid) membre = null;
+  }
+  let admin = false;
+  try { await S.store.get("membres/_sonde_admin"); admin = true; } catch (e) { admin = false; }
+  if (tour !== resolving) return;
+  // Règles de sécurité d'avant les comptes : même lecture de son propre compte refusée
+  S.legacy = !!(membreErr && membreErr.code === "permission-denied");
+  if (S.legacy && S.pendingDemande) {      // inscription alors que les règles n'ont pas été mises à jour
+    S.pendingDemande = null; S.legacy = false;
+    try { await S.store.signOut(); } catch (e) { /* ignoré */ }
+    S.signup = false; S.authView = "login"; route();
+    setMsg($("authMsg"), "Les inscriptions ne sont pas encore ouvertes : l'administrateur doit d'abord mettre à jour les règles de sécurité.", "err");
+    return;
+  }
+  if (S.legacy) admin = true;              // ancien fonctionnement : connexion = espace administrateur
+  S.admin = admin;
+  if (membre) {
+    S.membre = { ...membre, uid };
+    ls.set("planning-radio-membre", JSON.stringify(S.membre));
+    ls.set("planning-radio-acces", "compte");
+    if (membre.ini) { S.me = membre.ini; ls.set("planning-radio-me", S.me); }
+    S.entry = "auth";
+    await enter(membre.espace, true);
+  } else if (admin) {
+    S.membre = null;
+    const saved = ls.get("planning-radio-code");
+    if (saved) await enter(saved, true);
+    else { S.entry = "code"; route(); setMsg($("codeMsg"), ""); $("codeSub").textContent = "Administrateur : saisissez une fois le code d'équipe (il sera ensuite associé à votre compte)."; }
+  } else {
+    S.membre = null; leaveSpace();
+    let demande = null;
+    try { demande = await S.store.get(`demandes/${uid}`); } catch (e) { demande = null; }
+    if (tour !== resolving) return;
+    S.authView = demande ? "pending" : "complete";
+    S.demande = demande;
+    S.entry = "auth";
+    route();
+    // validation par l'administrateur : la page s'ouvre toute seule
+    S.adminUnsub.push(S.store.watchDoc(`membres/${uid}`, (d) => { if (d && tour === resolving) resolveAccount(); }, () => {}));
+  }
+  if (S.admin && !S.legacy) watchAdminCollections();
+  updateHeader();
+}
+
+function watchAdminCollections() {
+  const err = (e) => {
+    S.accErr = e && e.code === "permission-denied"
+      ? "Comptes inactifs : republiez les règles de sécurité (carte « Règles de sécurité à jour » ci-dessous) pour les activer."
+      : (e && e.message) || "";
+    render();
+  };
+  S.adminUnsub.push(S.store.watchColl("membres", (l) => { S.membres = l; S.accErr = ""; render(); }, err));
+  S.adminUnsub.push(S.store.watchColl("demandes", (l) => { S.demandes = l; render(); }, err));
+  S.adminUnsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, err));
+}
+
+function leaveSpace() {
+  S.unsub.forEach((f) => f()); S.unsub = [];
+  S.code = null; S.params = S.P = S.published = S.saisie = null; S.indispos = []; paramsSig = "";
 }
 
 function forgetCode(message) {
-  S.unsub.forEach((f) => f()); S.unsub = [];
-  S.code = null; S.params = S.P = S.published = S.saisie = null; S.indispos = [];
+  leaveSpace();
   ls.set("planning-radio-code", null);
+  ls.set("planning-radio-acces", null);
+  if (comptesActifs()) { S.entry = "auth"; S.authView = S.auth ? S.authView : "login"; }
   route();
-  setMsg($("codeMsg"), message || "", message ? "err" : "");
+  setMsg(comptesActifs() && S.entry === "auth" ? $("authMsg") : $("codeMsg"), message || "", message ? "err" : "");
 }
 async function enter(code, silent) {
   const msg = $("codeMsg");
@@ -515,23 +696,37 @@ async function enter(code, silent) {
     await S.store.get(PATHS.params());
   } catch (e) {
     S.code = null;
-    if (!silent) setMsg(msg, e.code === "permission-denied" ? "Code d'équipe incorrect." : e.message, "err");
+    if (!silent) setMsg(msg, e.code === "permission-denied" ? (comptesActifs() ? "Code refusé : code incorrect, ou accès par code désactivé (connectez-vous avec un compte)." : "Code d'équipe incorrect.") : e.message, "err");
     else setMsg(msg, "");
     ls.set("planning-radio-code", null);
     route();
     return;
   }
   setMsg(msg, "");
-  if (S.store.mode !== "demo") ls.set("planning-radio-code", code);
+  if (S.store.mode !== "demo") {
+    ls.set("planning-radio-code", code);
+    if (!S.auth) ls.set("planning-radio-acces", "code");
+  }
+  // administrateur sans fiche de compte : la créer (le code n'aura plus à être saisi sur ses autres appareils)
+  if (S.admin && !S.legacy && S.auth && !S.membre && S.store.mode === "firebase") {
+    const fiche = { email: S.auth.email || "", ini: "", nom: "", espace: code, role: "admin", valideLe: Date.now(), validePar: S.auth.email || "" };
+    S.store.set(`membres/${S.auth.uid}`, fiche).then(() => { S.membre = { ...fiche, uid: S.auth.uid }; ls.set("planning-radio-membre", JSON.stringify(S.membre)); }).catch(() => {});
+  }
   S.unsub.forEach((f) => f()); S.unsub = [];
   const onErr = (e) => {
     console.error(e);
-    if (e && e.code === "permission-denied" && S.code) forgetCode("Code d'équipe refusé : il a peut-être changé. Saisissez le nouveau code.");
+    if (e && e.code === "permission-denied" && S.code) {
+      if (S.membre && !S.admin) forgetCode("Votre accès a été retiré ou n'est plus valide. Contactez l'administrateur.");
+      else forgetCode(S.auth ? "Accès refusé à cet espace." : "Accès refusé : code d'équipe changé, ou accès par code désactivé (créez un compte).");
+    }
   };
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => { S.saisie = d; render(); }, onErr));
+  // déclarations « aucune absence » : toutes en démonstration (et pour l'admin, via ses abonnements), la sienne sinon
+  if (S.store.mode === "demo") S.unsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, () => {}));
+  else if (S.auth && S.membre && !S.admin) S.unsub.push(S.store.watchDoc(`declarations/${S.auth.uid}`, (d) => { S.declarations = d ? [d] : []; render(); }, () => {}));
   route();
 }
 $("codeForm").addEventListener("submit", (e) => {
@@ -539,12 +734,95 @@ $("codeForm").addEventListener("submit", (e) => {
   const c = $("codeInput").value.trim();
   if (c) enter(c, false);
 });
+$("codeToAuth").addEventListener("click", () => { S.entry = "auth"; S.authView = "login"; route(); });
 
+// ------------------------------------------------------------ écran de connexion / inscription
+S.authView = "login"; S.signup = false;
+function renderAuth() {
+  $("authMain").hidden = !(S.authView === "login");
+  $("authPending").hidden = S.authView !== "pending";
+  $("authComplete").hidden = S.authView !== "complete";
+  $("aSignup").hidden = !S.signup;
+  $("authTitle").textContent = S.signup ? "Créer mon compte" : "Connexion";
+  $("authSub").textContent = S.signup ? "Choisissez votre mot de passe. L'administrateur validera votre compte." : "Connectez-vous avec votre compte personnel.";
+  $("aSubmit").textContent = S.signup ? "Créer mon compte" : "Se connecter";
+  $("authToggle").textContent = S.signup ? "J'ai déjà un compte : me connecter" : "Pas encore de compte ? Créer un compte";
+  $("aPw").autocomplete = S.signup ? "new-password" : "current-password";
+  $("authForgot").hidden = S.signup;
+  if (S.authView === "complete" && S.pendingDemande) {
+    const d = S.pendingDemande; S.pendingDemande = null;
+    $("cIni").value = d.ini; $("cNom").value = d.nom;
+    sendDemande(d.ini, d.nom, $("cMsg"));
+  }
+  if (S.authView === "pending" && S.demande) {
+    $("authPendingTxt").innerHTML = `Votre compte <b>${esc(S.demande.email)}</b> (initiales <b>${esc(S.demande.ini)}</b>) attend la validation de l'administrateur.`;
+  }
+}
+$("authToggle").addEventListener("click", () => { S.signup = !S.signup; setMsg($("authMsg"), ""); renderAuth(); });
+$("authCode").addEventListener("click", () => { S.entry = "code"; $("codeSub").textContent = "Accès provisoire : saisissez le code d'équipe communiqué par l'administrateur."; route(); });
+["authLogout1", "authLogout2"].forEach((id) => $(id).addEventListener("click", () => logout()));
+async function logout() {
+  ls.set("planning-radio-membre", null); ls.set("planning-radio-code", null); ls.set("planning-radio-acces", null);
+  S.membre = null; S.signup = false;
+  leaveSpace();
+  try { await S.store.signOut(); } catch (e) { /* hors connexion */ }
+  S.entry = "auth"; S.authView = "login"; route();
+}
+$("authForgot").addEventListener("click", async () => {
+  const msg = $("authMsg"), email = $("aEmail").value.trim();
+  if (!email) return setMsg(msg, "Saisissez d'abord votre adresse e-mail ci-dessus.", "err");
+  try { await S.store.resetPassword(email); setMsg(msg, "Si un compte existe, un e-mail de réinitialisation vient d'être envoyé par Firebase (vérifiez les indésirables).", "ok"); }
+  catch (e) { setMsg(msg, e.message, "err"); }
+});
+$("authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("authMsg");
+  const email = $("aEmail").value.trim(), pw = $("aPw").value;
+  if (!email || !pw) return setMsg(msg, "Saisissez votre e-mail et votre mot de passe.", "err");
+  if (!needOnline(msg)) return;
+  if (!S.signup) {
+    setMsg(msg, "Connexion…");
+    try { await S.store.signIn(email, pw); setMsg(msg, ""); $("aPw").value = ""; }
+    catch (err) { setMsg(msg, err.message, "err"); }
+    return;
+  }
+  const ini = $("aIni").value.trim().toUpperCase(), nom = $("aNom").value.trim();
+  if (pw.length < 6) return setMsg(msg, "Mot de passe trop court : 6 caractères au minimum.", "err");
+  if (pw !== $("aPw2").value) return setMsg(msg, "Les deux mots de passe ne correspondent pas.", "err");
+  if (!/^[A-Z0-9]{1,10}$/.test(ini)) return setMsg(msg, "Initiales : lettres ou chiffres, sans espace (ex. KS).", "err");
+  if (!nom) return setMsg(msg, "Indiquez votre prénom et votre nom.", "err");
+  setMsg(msg, "Création du compte…");
+  S.pendingDemande = { ini, nom };
+  try { await S.store.createAccount(email, pw); $("aPw").value = $("aPw2").value = ""; }
+  catch (err) { S.pendingDemande = null; setMsg(msg, err.message, "err"); }
+});
+// une fois le compte créé (et connecté), la demande est envoyée par sendDemande (via resolveAccount → écran « complete »)
+async function sendDemande(ini, nom, msgEl) {
+  if (!S.auth) return;
+  try {
+    await S.store.set(`demandes/${S.auth.uid}`, { email: S.auth.email, ini, nom, creeLe: Date.now() });
+    S.pendingDemande = null; S.signup = false;
+    await resolveAccount();
+  } catch (e) {
+    setMsg(msgEl, e.code === "permission-denied" ? "Demande refusée : l'administrateur doit d'abord mettre à jour les règles de sécurité." : e.message, "err");
+  }
+}
+$("cSend").addEventListener("click", () => {
+  const ini = $("cIni").value.trim().toUpperCase(), nom = $("cNom").value.trim();
+  if (!/^[A-Z0-9]{1,10}$/.test(ini) || !nom) return setMsg($("cMsg"), "Indiquez vos initiales (sans espace) et votre nom.", "err");
+  sendDemande(ini, nom, $("cMsg"));
+});
+
+// Relit le classeur seulement s'il a changé ; l'ancienne version reste en place pendant la lecture
+// (évite que la liste des médecins soit momentanément vide).
+let paramsSig = "";
 async function parseParams() {
-  S.P = null; S.paramsErr = "";
-  if (!S.params || !S.params.xlsx) return;
-  try { S.P = readParams(await readXlsx(b64ToBytes(S.params.xlsx).buffer)); }
-  catch (e) { S.paramsErr = e.message; }
+  if (!S.params || !S.params.xlsx) { S.P = null; S.paramsErr = ""; paramsSig = ""; return; }
+  const sig = `${S.params.majLe}|${S.params.xlsx.length}|${S.params.xlsx.slice(-64)}`;
+  if (sig === paramsSig) return;
+  paramsSig = sig;
+  try { const P = readParams(await readXlsx(b64ToBytes(S.params.xlsx).buffer)); if (sig === paramsSig) { S.P = P; S.paramsErr = ""; } }
+  catch (e) { if (sig === paramsSig) { S.P = null; S.paramsErr = e.message; } }
   updateHeader(); render();
 }
 
@@ -555,14 +833,16 @@ function doctorList() {
   if (S.published) S.published.medecins.forEach((d) => set.add(d));
   return [...set];
 }
+const choixLibre = () => !S.membre || S.admin;   // compte validé : initiales fixées (sauf administrateur)
 function updateHeader() {
   const hasCode = !!S.code;
   $("meBtn").hidden = !hasCode;
-  $("meBtn").textContent = S.me ? `Vous : ${S.me}` : "Qui êtes-vous ?";
-  $("adminBtn").hidden = !hasCode;
-  $("adminBtn").textContent = S.user ? "Admin ✓" : "Admin";
-  $("adminBtn").classList.toggle("admin", !!S.user);
-  $("tabAdmin").hidden = !S.user && currentTab() !== "admin";
+  $("meBtn").textContent = S.me ? `Vous : ${S.me}` : (choixLibre() ? "Qui êtes-vous ?" : "Mon compte");
+  // bouton Admin : administrateur, ou accès par code / démonstration (connexion administrateur possible)
+  $("adminBtn").hidden = !hasCode || (comptesActifs() && S.entry !== "code" && !S.admin);
+  $("adminBtn").textContent = S.admin ? "Admin ✓" : "Admin";
+  $("adminBtn").classList.toggle("admin", !!S.admin);
+  $("tabAdmin").hidden = !S.admin && currentTab() !== "admin";
   if (!$("whoOverlay").hidden) renderWho(); // la liste se complète si les paramètres arrivent pendant que la fenêtre est ouverte
 }
 function renderWho() {
@@ -571,12 +851,18 @@ function renderWho() {
     : `<p class="muted small">Aucun médecin : l'administrateur n'a pas encore chargé les paramètres.</p>`;
 }
 function openWho() {
+  $("whoAccount").hidden = !S.auth || S.store.mode === "demo";
+  if (S.auth) $("whoAccTxt").innerHTML = `Connecté : <b>${esc(S.auth.email || "")}</b>${S.membre && S.membre.ini ? ` · initiales <b>${esc(S.membre.ini)}</b>` : ""}${S.admin ? " · administrateur" : ""}`;
+  $("whoPick").hidden = !choixLibre();
+  $("whoTitle").textContent = S.admin && S.membre ? "Agir pour un médecin" : "Qui êtes-vous ?";
+  $("whoSub").textContent = S.admin && S.membre ? "Administrateur : choisissez les initiales pour lesquelles déclarer une absence." : "Choisissez vos initiales. Ce choix est mémorisé sur cet appareil.";
   renderWho();
   $("whoOverlay").hidden = false;
   const first = $("whoGrid").querySelector("button"); if (first) first.focus();
 }
 $("meBtn").addEventListener("click", openWho);
 $("whoClose").addEventListener("click", () => { $("whoOverlay").hidden = true; });
+$("whoLogout").addEventListener("click", () => { $("whoOverlay").hidden = true; logout(); });
 $("whoOverlay").addEventListener("click", (e) => { if (e.target === $("whoOverlay")) $("whoOverlay").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("whoOverlay").hidden = true; });
 $("whoGrid").addEventListener("click", (e) => {
@@ -592,6 +878,7 @@ function render() {
   const t = currentTab();
   if (t === "mon") renderMon();
   else if (t === "general") renderGeneral();
+  else if (t === "qui") renderQui();
   else if (t === "indispos") renderIndispos();
   else if (t === "admin") renderAdmin();
 }
@@ -618,7 +905,7 @@ function renderMon() {
     v.innerHTML = `<div class="card empty"><p>Choisissez vos initiales pour afficher votre planning.</p><button class="b primary" id="monWho">Qui êtes-vous ?</button></div>`;
     $("monWho").onclick = openWho; return;
   }
-  if (!pub) { v.innerHTML = `<div class="card empty"><p><b>Aucun planning publié pour l'instant.</b></p><p class="small">Vous pouvez déjà signaler vos indisponibilités.</p><a class="b" href="#indispos">Mes indisponibilités</a></div>`; return; }
+  if (!pub) { v.innerHTML = relanceBanner() + `<div class="card empty"><p><b>Aucun planning publié pour l'instant.</b></p><p class="small">Vous pouvez déjà signaler vos indisponibilités.</p><a class="b" href="#indispos">Mes indisponibilités</a></div>`; return; }
   const me = S.me;
   const pd = perDoctor(pub)[me] || {};
   const myConf = conflicts(pub, S.indispos.filter((x) => String(x.ini).toUpperCase() === me));
@@ -635,6 +922,7 @@ function renderMon() {
       <li>Un import ne se met pas à jour : si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import. L'abonnement ci-dessus évite cette manipulation.</li></ol>
     </details>` : `<p class="muted">Aucune vacation pour vous dans ce planning.</p>`}
   </div>`;
+  html += relanceBanner();
   if (myConf.length) {
     html += `<div class="banner warn">Vous avez signalé une indisponibilité sur ${myConf.reduce((a, c) => a + c.hits.length, 0)} demi-journée(s) où vous êtes affecté(e). L'administrateur est averti et ajustera le planning.</div>`;
   }
@@ -770,11 +1058,20 @@ function renderGeneral() {
   $("genBody").innerHTML = `<div class="toolbar">
       <div class="seg" role="group" aria-label="Vue"><button data-mode="poste" aria-pressed="${S.genView.mode === "poste"}">Par poste</button><button data-mode="medecin" aria-pressed="${S.genView.mode === "medecin"}">Par médecin</button></div>
       <select id="genWeek" aria-label="Semaine">${weekOptions(pub, week)}</select>
-      ${S.P ? `<button class="b" id="genXlsx" type="button" style="min-height:38px;padding:6px 12px">Télécharger en Excel</button>` : ""}
+      <button class="b" id="genPdf" type="button" style="min-height:38px;padding:6px 12px">PDF de la semaine</button>
+      ${S.P ? `<button class="b" id="genXlsx" type="button" style="min-height:38px;padding:6px 12px">Excel</button>` : ""}
     </div><div class="msg" id="genMsg" role="status"></div>` + planningTable(pub, { mode: S.genView.mode, week, editable: false, highlight: S.me });
   $("genBody").querySelectorAll(".seg button").forEach((b) => b.onclick = () => { S.genView.mode = b.dataset.mode; renderGeneral(); });
   $("genWeek").onchange = (e) => { S.genView.week = e.target.value; renderGeneral(); };
   if ($("genXlsx")) $("genXlsx").onclick = () => downloadPublishedXlsx($("genMsg"));
+  $("genPdf").onclick = () => {
+    const lundi = week === "all" ? resolveWeek(pub, "cur") : week;
+    try {
+      const bytes = weekPdf(pub, lundi);
+      saveFile(bytes, `planning_semaine_${toInput(lundi)}.pdf`, "application/pdf");
+      setMsg($("genMsg"), week === "all" ? `PDF de la semaine du ${fmtDay(lundi, false)} (choisissez une semaine dans la liste pour une autre).` : "");
+    } catch (e) { console.error(e); setMsg($("genMsg"), "PDF impossible : " + e.message, "err"); }
+  };
 }
 async function downloadPublishedXlsx(msgEl) {
   const pub = S.published;
@@ -790,6 +1087,72 @@ async function downloadPublishedXlsx(msgEl) {
   } catch (e) { console.error(e); setMsg(msgEl, "Export impossible : " + e.message, "err"); }
 }
 
+// ------------------------------------------------------------ qui est posté ?
+S.qui = { day: null, mode: "poste", q: "" };
+function renderQui() {
+  const pub = S.published, body = $("quiBody");
+  if (!pub) { body.innerHTML = `<div class="empty">Aucun planning publié pour l'instant.</div>`; return; }
+  const today = todayDay();
+  if (S.qui.day === null) S.qui.day = pub.jours.includes(today) ? today : (pub.jours.find((d) => d >= today) ?? pub.jours[0]);
+  const d = S.qui.day;
+  const ouvre = pub.jours.includes(d);
+  const prev = [...pub.jours].reverse().find((x) => x < d), next = pub.jours.find((x) => x > d);
+  let html = `<div class="quinav">
+      <button class="b" id="quiPrev" aria-label="Jour précédent" ${prev === undefined ? "disabled" : ""}>‹</button>
+      <input type="date" id="quiDate" value="${toInput(d)}" aria-label="Jour">
+      <button class="b" id="quiNext" aria-label="Jour suivant" ${next === undefined ? "disabled" : ""}>›</button>
+    </div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Recherche"><button data-qm="poste" aria-pressed="${S.qui.mode === "poste"}">Par poste</button><button data-qm="personne" aria-pressed="${S.qui.mode === "personne"}">Par personne</button></div>
+      ${d !== today && pub.jours.includes(today) ? `<button class="x" id="quiToday">Aujourd'hui</button>` : ""}
+    </div>
+    <input type="search" id="quiQ" placeholder="${S.qui.mode === "poste" ? "Filtrer : poste ou site (ex. IRM, Blaye)" : "Filtrer : initiales"}" value="${esc(S.qui.q)}" style="margin-bottom:8px">
+    <h3 style="margin:6px 0 8px">${JOURS[weekday(d)]} ${fmtDay(d)}</h3>`;
+  const q = S.qui.q.trim().toLowerCase();
+  const match = (t) => !q || t.toLowerCase().includes(q);
+  if (!ouvre) {
+    html += `<div class="empty">${d < pub.start || d > pub.end ? "Ce jour est en dehors du planning publié." : "Pas de vacation ce jour-là (week-end ou jour férié)."}</div>`;
+  } else if (S.qui.mode === "poste") {
+    let rows = "";
+    for (const site of pub.sites) {
+      const codes = pub.ordre.filter((c) => pub.postes[c] && pub.postes[c].site === site);
+      const lignes = codes.filter((c) => match(pub.postes[c].label + " " + site + " " + c)).map((c) => {
+        const cell = (h) => {
+          const k = caseKey(d, h, c);
+          if (!(k in pub.cases)) return `<span class="st">—</span>`;
+          const inis = splitInis(pub.cases[k]);
+          return inis.length ? esc(joinInis(inis)) : `<span class="fe">fermé</span>`;
+        };
+        const mine = S.me && [caseKey(d, "M", c), caseKey(d, "AM", c)].some((k) => splitInis(pub.cases[k]).includes(S.me));
+        return `<tr class="${mine ? "me" : ""}"><td>${esc(pub.postes[c].label)}</td><td>${cell("M")}</td><td>${cell("AM")}</td></tr>`;
+      });
+      if (lignes.length) rows += `<tr class="site"><td colspan="3">${esc(site)}</td></tr>` + lignes.join("");
+    }
+    html += rows ? `<table class="qui"><thead><tr><th>Poste</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">Aucun poste ne correspond.</div>`;
+  } else {
+    const pd = perDoctor(pub);
+    const ST = { OFF: "repos", ABS: "absent", INDISPO: "indisponible" };
+    const cell = (v) => v && v.code ? esc((pub.postes[v.code] || { label: v.code }).label) + (pub.postes[v.code] && pub.sites.indexOf(pub.postes[v.code].site) > 0 ? ` <span class="st">(${esc(pub.postes[v.code].site)})</span>` : "")
+      : v && v.statut ? `<span class="st">${ST[v.statut] || v.statut}</span>` : `<span class="st">sans poste</span>`;
+    const lignes = Object.keys(pd).filter((ini) => match(ini)).map((ini) =>
+      `<tr class="${ini === S.me ? "me" : ""}"><td>${esc(ini)}</td><td>${cell(pd[ini][`${d}_M`])}</td><td>${cell(pd[ini][`${d}_AM`])}</td></tr>`);
+    html += lignes.length ? `<table class="qui"><thead><tr><th>Médecin</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${lignes.join("")}</tbody></table>` : `<div class="empty">Personne ne correspond.</div>`;
+  }
+  body.innerHTML = html;
+  const go = (x) => { if (x !== undefined) { S.qui.day = x; renderQui(); } };
+  $("quiPrev").onclick = () => go(prev);
+  $("quiNext").onclick = () => go(next);
+  if ($("quiToday")) $("quiToday").onclick = () => go(today);
+  $("quiDate").onchange = (e) => { const x = fromInput(e.target.value); if (x !== null) go(x); };
+  body.querySelectorAll("[data-qm]").forEach((b) => b.onclick = () => { S.qui.mode = b.dataset.qm; S.qui.q = ""; renderQui(); });
+  $("quiQ").oninput = (e) => {
+    S.qui.q = e.target.value;
+    const pos = e.target.selectionStart;
+    renderQui();
+    const i = $("quiQ"); i.focus(); try { i.setSelectionRange(pos, pos); } catch (x) { /* ignoré */ }
+  };
+}
+
 // ------------------------------------------------------------ indisponibilités
 function indLine(x, canDelete, showIni) {
   const same = x.d1 === x.d2;
@@ -797,10 +1160,44 @@ function indLine(x, canDelete, showIni) {
   return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}</div><div class="small muted">${esc(x.motif)}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">Supprimer</button>` : ""}</li>`;
 }
 const lockOf = (x) => lockReason(x.d1, x.d2, S.published, S.saisie);
+
+// Relance des dates limites : qui n'a rien déclaré (ni absence, ni « aucune absence ») sur la période ?
+const cloKey = (c) => `${c.du}_${c.au}`;
+function relanceInfo(c) {
+  const key = cloKey(c);
+  const avec = new Set(S.indispos.filter((x) => x.d2 >= c.du && x.d1 <= c.au).map((x) => String(x.ini).toUpperCase()));
+  const aucune = new Set(S.declarations.filter((d) => d.aucune && d.aucune[key]).map((d) => String(d.ini).toUpperCase()));
+  const manquants = doctorList().filter((i) => !avec.has(i) && !aucune.has(i));
+  return { key, avec, aucune, manquants };
+}
+// Rappels pour le médecin : dates limites ouvertes pour lesquelles il n'a rien déclaré
+function mesRelances() {
+  if (!S.me) return [];
+  const now = Date.now(), today = todayDay();
+  return ((S.saisie && S.saisie.clotures) || []).filter((c) => now <= c.finMs && c.au >= today && relanceInfo(c).manquants.includes(S.me));
+}
+const peutDeclarer = () => S.store.mode === "demo" || (S.auth && S.membre && S.membre.ini === S.me);
+function relanceBanner() {
+  const rs = mesRelances();
+  if (!rs.length) return "";
+  return rs.map((c) => `<div class="banner warn">Absences du <b>${fmtDay(c.du, false)} au ${fmtDay(c.au)}</b> à déclarer avant le <b>${fmtDay(c.limite)}</b>.
+      ${peutDeclarer() ? `<div class="row" style="margin-top:8px"><a class="b" href="#indispos" style="min-height:36px;padding:5px 12px">Déclarer une absence</a><button class="b" type="button" data-aucune="${cloKey(c)}" style="min-height:36px;padding:5px 12px">Je n'ai aucune absence sur cette période</button></div>` : ""}</div>`).join("");
+}
+async function declarerAucune(key, msgEl) {
+  if (!needOnline(msgEl || $("indMsg"))) return;
+  const path = S.store.mode === "demo" ? `declarations/demo-${S.me}` : `declarations/${S.auth.uid}`;
+  const prev = S.declarations.find((d) => String(d.ini).toUpperCase() === S.me) || {};
+  try { await S.store.set(path, { ini: S.me, aucune: { ...(prev.aucune || {}), [key]: true }, majLe: Date.now() }); }
+  catch (e) { if (msgEl) setMsg(msgEl, e.message, "err"); }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-aucune]");
+  if (b) { b.disabled = true; declarerAucune(b.dataset.aucune, $("indMsg")); }
+});
 function renderIndispos() {
   const today = todayDay();
-  const first = S.published && !S.user ? Math.max(today, S.published.end + 1) : today;
-  $("indD1").min = S.user ? "" : toInput(first);
+  const first = S.published && !S.admin ? Math.max(today, S.published.end + 1) : today;
+  $("indD1").min = S.admin ? "" : toInput(first);
   // valeur par défaut seulement si le champ est vide : ne jamais remplacer une date saisie
   if (!$("indD1").value) { $("indD1").value = toInput(first); $("indD2").value = toInput(first); }
   // informations de verrouillage
@@ -813,13 +1210,14 @@ function renderIndispos() {
   }
   $("indLock").hidden = !infos.length;
   $("indLock").innerHTML = infos.join("<br>");
+  $("indRelance").innerHTML = relanceBanner();
   $("indSubmit").disabled = !S.me;
   if (!S.me) setMsg($("indMsg"), "Choisissez d'abord vos initiales (bouton « Qui êtes-vous ? » en haut).", "err");
   else if ($("indMsg").classList.contains("err") && $("indMsg").textContent.startsWith("Choisissez")) setMsg($("indMsg"), "");
   $("myIndTitle").textContent = S.me ? `Mes indisponibilités (${S.me})` : "Mes indisponibilités";
   const sorted = S.indispos.slice().sort((a, b) => a.d1 - b.d1 || String(a.ini).localeCompare(b.ini));
   const mine = sorted.filter((x) => String(x.ini).toUpperCase() === S.me && x.d2 >= today);
-  $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, !!S.user || !lockOf(x), false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
+  $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, !!S.admin || !lockOf(x), false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
   const team = sorted.filter((x) => x.d2 >= today);
   $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
 }
@@ -827,14 +1225,14 @@ $("indD1").addEventListener("change", () => { if (!$("indD2").value || $("indD2"
 $("indForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = $("indMsg");
-  if (!S.me) { openWho(); return; }
+  if (!S.me) { if (choixLibre()) openWho(); else setMsg(msg, "Votre compte n'a pas encore d'initiales : contactez l'administrateur.", "err"); return; }
   const d1 = fromInput($("indD1").value), d2 = fromInput($("indD2").value);
   if (d1 === null || d2 === null) return setMsg(msg, "Dates invalides.", "err");
   if (d2 < d1) return setMsg(msg, "La date de fin est avant la date de début.", "err");
   if (d2 - d1 > 366) return setMsg(msg, "Période trop longue (un an maximum).", "err");
   if (!needOnline(msg)) return;
   const verrou = lockReason(d1, d2, S.published, S.saisie);
-  if (verrou && !S.user) return setMsg(msg, verrou, "err");
+  if (verrou && !S.admin) return setMsg(msg, verrou, "err");
   if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
   const prec = $("indPrec").value.trim().slice(0, 60);
   const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: $("indMotif").value + (prec ? ` — ${prec}` : ""), creeLe: Date.now() };
@@ -866,10 +1264,10 @@ $("logoutBtn").addEventListener("click", () => S.store.signOut());
 
 function renderAdmin() {
   updateHeader();
-  $("loginCard").hidden = !!S.user;
-  $("adminBody").hidden = !S.user;
+  $("loginCard").hidden = !!S.admin;
+  $("adminBody").hidden = !S.admin;
   if (S.store.mode === "demo") $("loginSub").textContent = "Démonstration : saisissez n'importe quelle adresse et n'importe quel mot de passe.";
-  if (!S.user) return;
+  if (!S.admin) return;
   // paramètres
   const p = S.params;
   $("useDefault").hidden = !!p || !window.DEFAULT_PARAMS_B64 || window.DEFAULT_PARAMS_B64.startsWith("/*");
@@ -901,9 +1299,27 @@ function renderAdmin() {
   // dates limites de dépôt
   const clos = ((S.saisie && S.saisie.clotures) || []).slice().sort((a, b) => a.du - b.du);
   const nowMs = Date.now();
-  $("cloList").innerHTML = clos.length ? clos.map((c, i) => `<li><div class="grow"><b>Du ${fmtDay(c.du, false)} au ${fmtDay(c.au)}</b>
-      <div class="small muted">Dépôt jusqu'au ${fmtDay(c.limite)} · ${nowMs > c.finMs ? "clos" : "ouvert"}</div></div>
-      <button class="x" data-clo="${c.du}_${c.au}_${c.limite}">Supprimer</button></li>`).join("") : `<li class="muted small">Aucune date limite définie.</li>`;
+  const today0 = todayDay();
+  $("cloList").innerHTML = clos.length ? clos.map((c, i) => {
+    let relance = "";
+    if (c.au >= today0) {
+      const r = relanceInfo(c);
+      const mails = S.membres.filter((m) => m.email && r.manquants.includes(String(m.ini).toUpperCase())).map((m) => m.email);
+      const sansMail = r.manquants.filter((ini) => !S.membres.some((m) => String(m.ini).toUpperCase() === ini && m.email));
+      const sujet = `Planning radiologie : absences du ${fmtDay(c.du, false)} au ${fmtDay(c.au)}`;
+      const corps = `Bonjour,\n\nPensez à déclarer vos absences (congés, formations…) du ${fmtDay(c.du)} au ${fmtDay(c.au)} sur le site du planning avant le ${fmtDay(c.limite)} : ${location.origin + location.pathname}\n\nSi vous n'avez aucune absence sur cette période, indiquez-le d'un clic (« Je n'ai aucune absence sur cette période ») pour ne plus être relancé.\n\nMerci.`;
+      const lien = `mailto:${encodeURIComponent((S.auth && S.auth.email) || "")}?bcc=${encodeURIComponent(mails.join(","))}&subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
+      relance = r.manquants.length
+        ? `<div class="small" style="margin-top:4px">Rien déclaré : <b>${r.manquants.map(esc).join(", ")}</b>${r.aucune.size ? ` · « aucune absence » : ${[...r.aucune].map(esc).join(", ")}` : ""}</div>
+           ${mails.length ? `<a class="b" href="${lien}" style="min-height:34px;padding:4px 10px;margin-top:6px">E-mail de relance (${mails.length})</a>` : ""}
+           ${sansMail.length ? `<div class="small muted">Sans compte (pas d'adresse connue) : ${sansMail.map(esc).join(", ")}</div>` : ""}`
+        : `<div class="small" style="margin-top:4px;color:var(--ok)">Tout le monde a déclaré.</div>`;
+    }
+    return `<li><div class="grow"><b>Du ${fmtDay(c.du, false)} au ${fmtDay(c.au)}</b>
+      <div class="small muted">Dépôt jusqu'au ${fmtDay(c.limite)} · ${nowMs > c.finMs ? "clos" : "ouvert"}</div>${relance}</div>
+      <button class="x" data-clo="${c.du}_${c.au}_${c.limite}">Supprimer</button></li>`;
+  }).join("") : `<li class="muted small">Aucune date limite définie.</li>`;
+  renderComptes();
   $("cAdd").disabled = clos.length >= MAX_CLOTURES;
   // règles de sécurité à jour (mode en ligne)
   $("rulesCard").hidden = S.store.mode === "demo";
@@ -911,6 +1327,66 @@ function renderAdmin() {
   // mise en ligne
   $("setupDetails").open = $("setupDetails").open || S.store.mode === "demo";
 }
+function renderComptes() {
+  $("accCard").hidden = !comptesActifs();
+  if (!comptesActifs()) return;
+  const warn = S.legacy ? "Comptes inactifs : republiez les règles de sécurité (carte « Règles de sécurité à jour » ci-dessous) pour les activer." : S.accErr;
+  $("accWarn").hidden = !warn; $("accWarn").textContent = warn || "";
+  const docs = doctorList();
+  const opts = (sel) => [...new Set([...docs, sel].filter(Boolean))].map((d) => `<option${d === sel ? " selected" : ""}>${esc(d)}</option>`).join("");
+  const dem = S.demandes.slice().sort((a, b) => a.creeLe - b.creeLe);
+  $("accPendN").textContent = dem.length;
+  $("accPend").innerHTML = dem.length ? dem.map((d) => `<li data-uid="${esc(d.id)}"><div class="grow"><b>${esc(d.nom)}</b> <span class="small muted">${esc(d.email)}</span>
+      <div class="small">Initiales demandées : <b>${esc(d.ini)}</b>${docs.length && !docs.includes(String(d.ini).toUpperCase()) ? ` <span class="tag err">absentes des paramètres</span>` : ""}</div></div>
+      <select data-ini aria-label="Initiales attribuées" style="width:auto;min-height:36px;padding:4px 8px">${opts(String(d.ini).toUpperCase())}</select>
+      <button class="b primary" data-valider style="min-height:36px;padding:4px 10px">Valider</button>
+      <button class="x" data-refuser>Refuser</button></li>`).join("") : `<li class="muted small">Aucune demande.</li>`;
+  const mem = S.membres.filter((m) => m.id !== "_sonde_admin").slice().sort((a, b) => String(a.ini).localeCompare(String(b.ini)));
+  $("accN").textContent = mem.length;
+  $("accList").innerHTML = mem.length ? mem.map((m) => {
+    const moi = S.auth && m.id === S.auth.uid;
+    return `<li data-uid="${esc(m.id)}"><div class="grow"><b>${esc(m.ini || "—")}</b> ${esc(m.nom || "")} <span class="small muted">${esc(m.email || "")}</span>
+      ${m.role === "admin" ? `<span class="tag">admin</span>` : ""}</div>
+      <select data-chg aria-label="Initiales" style="width:auto;min-height:36px;padding:4px 8px"><option value="">—</option>${opts(m.ini)}</select>
+      ${moi ? "" : `<button class="x" data-retirer>Retirer l'accès</button>`}</li>`;
+  }).join("") : `<li class="muted small">Aucun compte validé.</li>`;
+  const sans = docs.filter((d) => !mem.some((m) => String(m.ini).toUpperCase() === d));
+  $("accSans").textContent = sans.length ? `Médecins sans compte : ${sans.join(", ")}.` : (docs.length ? "Tous les médecins ont un compte." : "");
+}
+$("accPend").addEventListener("click", async (e) => {
+  const li = e.target.closest("li[data-uid]"); if (!li) return;
+  const uid = li.dataset.uid, d = S.demandes.find((x) => x.id === uid); if (!d) return;
+  const msg = $("accMsg");
+  if (!needOnline(msg)) return;
+  try {
+    if (e.target.closest("[data-valider]")) {
+      const ini = li.querySelector("[data-ini]").value;
+      await S.store.set(`membres/${uid}`, { email: d.email, ini, nom: d.nom, espace: S.code, role: "medecin", valideLe: Date.now(), validePar: (S.auth && S.auth.email) || "" });
+      await S.store.del(`demandes/${uid}`);
+      setMsg(msg, `Compte de ${d.nom} validé (${ini}).`, "ok");
+    } else if (e.target.closest("[data-refuser]")) {
+      if (!confirm(`Refuser la demande de ${d.nom} (${d.email}) ?`)) return;
+      await S.store.del(`demandes/${uid}`);
+      setMsg(msg, "Demande refusée.", "ok");
+    }
+  } catch (err) { setMsg(msg, err.message, "err"); }
+});
+$("accList").addEventListener("change", async (e) => {
+  const sel = e.target.closest("[data-chg]"); if (!sel) return;
+  const uid = sel.closest("li").dataset.uid, m = S.membres.find((x) => x.id === uid); if (!m) return;
+  if (!confirm(`Attribuer les initiales « ${sel.value || "—"} » à ${m.nom || m.email} ?`)) { renderComptes(); return; }
+  const { id, ...data } = m;
+  try { await S.store.set(`membres/${uid}`, { ...data, ini: sel.value }); setMsg($("accMsg"), "Initiales modifiées.", "ok"); }
+  catch (err) { setMsg($("accMsg"), err.message, "err"); }
+});
+$("accList").addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-retirer]")) return;
+  const uid = e.target.closest("li").dataset.uid, m = S.membres.find((x) => x.id === uid); if (!m) return;
+  if (!confirm(`Retirer l'accès de ${m.nom || m.email} (${m.ini || "—"}) ? Son compte ne pourra plus rien consulter ni déclarer.`)) return;
+  try { await S.store.del(`membres/${uid}`); setMsg($("accMsg"), "Accès retiré.", "ok"); }
+  catch (err) { setMsg($("accMsg"), err.message, "err"); }
+});
+
 async function saveClotures(list, msgEl) {
   if (!needOnline(msgEl)) return;
   try { await S.store.set(PATHS.saisie(), { clotures: list, majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok"); }
@@ -934,11 +1410,12 @@ $("cloList").addEventListener("click", (e) => {
   saveClotures(((S.saisie && S.saisie.clotures) || []).filter((c) => !(c.du === du && c.au === au && c.limite === lim)), $("cloMsg"));
 });
 function refreshRules() {
-  if (!S.user || !S.code) return;
+  if (!S.admin || !S.auth || !S.code) return;
   const extra = $("rUids").value.split(/[\s,;]+/).map((x) => x.trim()).filter((u) => /^[A-Za-z0-9]{10,64}$/.test(u));
-  $("rText").value = firestoreRules(S.code, [...new Set([S.user.uid, ...extra])]);
+  $("rText").value = firestoreRules(S.code, [...new Set([S.auth.uid, ...extra])], { transition: $("rTrans").checked });
 }
 $("rUids").addEventListener("input", refreshRules);
+$("rTrans").addEventListener("change", refreshRules);
 $("rCopy").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText($("rText").value); }
   catch (e) { $("rText").select(); document.execCommand("copy"); }
@@ -955,7 +1432,7 @@ async function saveParams(bytes, nom) {
   if (!needOnline(msg)) return;
   setMsg(msg, "Enregistrement…");
   try {
-    await S.store.set(PATHS.params(), { nom, majLe: Date.now(), par: (S.user && S.user.email) || "", xlsx: bytesToB64(bytes) });
+    await S.store.set(PATHS.params(), { nom, majLe: Date.now(), par: (S.auth && S.auth.email) || "", xlsx: bytesToB64(bytes) });
     setMsg(msg, "Paramètres enregistrés et partagés avec l'équipe.", "ok");
     $("gStart").value = ""; $("gEnd").value = "";
   } catch (e) { setMsg(msg, e.message, "err"); }
@@ -1090,7 +1567,7 @@ $("publishBtn").addEventListener("click", async () => {
     doc.statuts = st;
     doc.medecins = ctx.pr.docs.slice();
   }
-  doc.publieLe = Date.now(); doc.publiePar = (S.user && S.user.email) || "";
+  doc.publieLe = Date.now(); doc.publiePar = (S.auth && S.auth.email) || "";
   setMsg(msg, "Publication…");
   try {
     await S.store.set(PATHS.planning(), doc);

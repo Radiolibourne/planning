@@ -148,6 +148,9 @@ function frenchError(e) {
   if (c.includes("permission-denied")) return new StoreError("permission-denied", "Accès refusé : code d'équipe incorrect, ou action réservée à l'administrateur.");
   if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found") || c.includes("invalid-email"))
     return new StoreError("auth", "Adresse e-mail ou mot de passe incorrect.");
+  if (c.includes("email-already-in-use")) return new StoreError("auth", "Un compte existe déjà avec cette adresse : connectez-vous (ou « Mot de passe oublié ? »).");
+  if (c.includes("weak-password")) return new StoreError("auth", "Mot de passe trop court : 6 caractères au minimum.");
+  if (c.includes("missing-password")) return new StoreError("auth", "Saisissez un mot de passe.");
   if (c.includes("too-many-requests")) return new StoreError("auth", "Trop de tentatives. Réessayez dans quelques minutes.");
   if (c.includes("unavailable") || c.includes("network")) return new StoreError("network", "Connexion impossible. Vérifiez votre accès à internet.");
   if (c.includes("resource-exhausted")) return new StoreError("quota", "Quota de la base de données dépassé pour aujourd'hui.");
@@ -180,6 +183,8 @@ async function firebaseStore(cfg) {
     watchColl: (coll, cb, err) => F.onSnapshot(F.collection(fs, coll),
       (qs) => cb(qs.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => err && err(frenchError(e))),
     signIn: (email, pw) => wrap(() => U.signInWithEmailAndPassword(auth, email, pw)),
+    createAccount: (email, pw) => wrap(() => U.createUserWithEmailAndPassword(auth, email, pw)),
+    resetPassword: (email) => wrap(() => U.sendPasswordResetEmail(auth, email)),
     signOut: () => wrap(() => U.signOut(auth)),
     onAuth: (cb) => U.onAuthStateChanged(auth, (u) => cb(u ? { email: u.email, uid: u.uid } : null)),
   };
@@ -198,7 +203,7 @@ function demoStore() {
   const notify = () => setTimeout(() => listeners.forEach((l) => l()), 0);
   const collOf = (coll) => Object.keys(mem).filter((k) => k.startsWith(coll + "/") && !k.slice(coll.length + 1).includes("/"))
     .map((k) => ({ id: k.slice(coll.length + 1), ...clone(mem[k]) }));
-  const needAdmin = (path) => { if (!user && !path.includes("/indispos/")) throw new StoreError("permission-denied", "Action réservée à l'administrateur."); };
+  const needAdmin = (path) => { if (!user && !path.includes("/indispos/") && !path.startsWith("declarations/")) throw new StoreError("permission-denied", "Action réservée à l'administrateur."); };
   window.addEventListener("storage", (e) => {
     if (e.key !== KEY) return;
     try { mem = JSON.parse(e.newValue || "{}"); } catch (x) { mem = {}; }
@@ -226,18 +231,28 @@ function demoStore() {
 }
 
 // ================================================================ Règles de sécurité Firestore
-function firestoreRules(teamCode, adminUids) {
+// options.transition : true = l'accès par simple code d'équipe (sans compte) reste permis
+function firestoreRules(teamCode, adminUids, options = {}) {
+  const transition = options.transition === false ? "false" : "true";
   const uids = adminUids.map((u) => `'${u}'`).join(", ");
   const cl = [...Array(MAX_CLOTURES).keys()].map((i) => `(c.size() < ${i + 1} || cloture(c[${i}], d1, d2))`).join("\n        && ");
   return `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Code d'équipe : seul qui le connaît peut lire le planning.
+    // Code d'équipe : identifie l'espace du service.
     function equipe(code) { return code == '${teamCode}'; }
 
     // Administrateurs (identifiants des comptes créés dans Authentication).
     function admin() { return request.auth != null && request.auth.uid in [${uids}]; }
+
+    // Comptes individuels validés par un administrateur.
+    function membre() { return request.auth != null && exists(/databases/$(database)/documents/membres/$(request.auth.uid)); }
+    function moi() { return get(/databases/$(database)/documents/membres/$(request.auth.uid)).data; }
+
+    // Accès provisoire par simple code d'équipe (sans compte) : ${transition === "true" ? "AUTORISÉ (transition)" : "DÉSACTIVÉ"}.
+    function codeSeul() { return ${transition}; }
+    function lecteur(code) { return equipe(code) && (admin() || membre() || codeSeul()); }
 
     // Saisie des absences ouverte pour [d1, d2] : après la période publiée
     // et hors des périodes dont la date limite de dépôt est passée.
@@ -250,13 +265,20 @@ service cloud.firestore {
       return ${cl};
     }
     function ouvert(code, d1, d2) { return apresPublication(code, d1) && horsClotures(code, d1, d2); }
+    // Auteur légitime d'une absence : le médecin lui-même (compte) ou, en transition, quiconque a le code.
+    function auteur(ini) { return membre() ? ini == moi().ini : codeSeul(); }
 
     match /espaces/{code}/{document=**} {
-      allow read: if equipe(code);
+      allow read: if lecteur(code);
       allow write: if equipe(code) && admin();
     }
 
-    // Indisponibilités : saisies par chaque médecin, format contrôlé, période ouverte.
+    // Planning publié : lisible avec le seul code (calendriers d'abonnement produits par GitHub).
+    match /espaces/{code}/planning/publie {
+      allow read: if equipe(code);
+    }
+
+    // Indisponibilités : chacun les siennes, format contrôlé, période ouverte.
     match /espaces/{code}/indispos/{id} {
       allow create, update: if equipe(code)
         && request.resource.data.keys().hasAll(['ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'])
@@ -267,8 +289,35 @@ service cloud.firestore {
         && request.resource.data.d2 - request.resource.data.d1 <= 366
         && request.resource.data.periode in ['Journée', 'Matin', 'Après-midi']
         && request.resource.data.motif is string && request.resource.data.motif.size() <= 100
-        && (admin() || ouvert(code, request.resource.data.d1, request.resource.data.d2));
-      allow delete: if equipe(code) && (admin() || ouvert(code, resource.data.d1, resource.data.d2));
+        && (admin() || (auteur(request.resource.data.ini) && ouvert(code, request.resource.data.d1, request.resource.data.d2)));
+      allow delete: if equipe(code)
+        && (admin() || (auteur(resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
+    }
+
+    // Comptes validés : chacun lit le sien ; seuls les administrateurs les créent, modifient ou retirent.
+    match /membres/{uid} {
+      allow read: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if admin();
+    }
+
+    // Demandes de compte : créées par la personne elle-même, examinées par un administrateur.
+    match /demandes/{uid} {
+      allow read: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['email', 'ini', 'nom', 'creeLe'])
+        && request.resource.data.keys().hasOnly(['email', 'ini', 'nom', 'creeLe'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.ini is string && request.resource.data.ini.size() <= 10
+        && request.resource.data.nom is string && request.resource.data.nom.size() <= 60;
+      allow delete: if admin() || (request.auth != null && request.auth.uid == uid);
+    }
+
+    // « Je n'ai aucune absence sur cette période » (relance des dates limites).
+    match /declarations/{uid} {
+      allow read: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if admin() || (request.auth != null && request.auth.uid == uid && membre()
+        && request.resource.data.keys().hasOnly(['ini', 'aucune', 'majLe'])
+        && request.resource.data.ini == moi().ini);
     }
   }
 }
