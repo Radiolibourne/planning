@@ -52,6 +52,7 @@ main { padding: 18px 0 70px; }
 .card h2 { font-size: 16px; margin: 0 0 4px; }
 .card h3 { font-size: 15px; margin: 18px 0 8px; }
 .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+.card > .sub:last-child { margin-bottom: 0; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
@@ -1668,11 +1669,14 @@ $("publishBtn").addEventListener("click", async () => {
   if (nErr && !confirm(`${nErr} erreur(s) détectée(s) (voir « Contrôle des règles »). Publier quand même ?`)) return;
   if (!confirm("Publier ce planning ? Il remplacera la version actuelle pour toute l'équipe.")) return;
   const doc = JSON.parse(JSON.stringify(S.draft));
-  if (ctx) { // statuts et médecins à jour (absences saisies depuis)
-    const st = {};
-    ctx.pr.docs.forEach((ini, d) => { const m = {}; ctx.pr.slots.forEach((sl, s) => { if (ctx.pr.status[d][s]) m[`${sl.d}_${sl.h}`] = ctx.pr.status[d][s]; }); st[ini] = m; });
+  if (ctx) { // absences saisies depuis la génération ajoutées ; statuts et médecins du brouillon conservés (planning importé)
+    const st = doc.statuts || {};
+    ctx.pr.docs.forEach((ini, d) => {
+      const m = st[ini] || (st[ini] = {});
+      ctx.pr.slots.forEach((sl, s) => { const k = `${sl.d}_${sl.h}`; if (ctx.pr.status[d][s] === "ABS" || (!m[k] && ctx.pr.status[d][s] && !doc.importe)) m[k] = ctx.pr.status[d][s]; });
+    });
     doc.statuts = st;
-    doc.medecins = ctx.pr.docs.slice();
+    doc.medecins = [...new Set((doc.medecins || []).concat(ctx.pr.docs))];
   }
   doc.publieLe = Date.now(); doc.publiePar = (S.auth && S.auth.email) || "";
   setMsg(msg, "Publication…");

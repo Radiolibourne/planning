@@ -554,6 +554,6 @@ function draftFromPlanningXlsx(S, P) {
   return {
     version: 1, titre, start: js[0], end: js[js.length - 1], genereLe: Date.now(), ordre, postes, sites, mainSite: sites[0],
     jours: js, semaines: lundis.map((w) => ({ lundi: w, type: Math.floor((w - refA) / 7) % 2 === 0 ? "A" : "B" })),
-    medecins, cases, statuts,
+    medecins, cases, statuts, importe: true,  // repos / absences : ceux du fichier
   };
 }

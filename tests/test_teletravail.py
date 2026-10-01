@@ -140,6 +140,34 @@ with sync_playwright() as p:
       return { n: ttKeys.length, ok };
     }""", [avec_tt, sans_tt])
     B.ok(fold["n"] > 0 and fold["ok"], "planning avec télétravail contrôlé avec des paramètres sans télétravail : compté au scanner")
+    # parcours réel : Admin -> Importer un planning Excel -> Publier ; repos/absences et médecins du fichier conservés
+    x = pg.evaluate("""async (b64) => {
+      const P = readParams(await readXlsx(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer));
+      const pr = buildProblem(P), R = await solve(pr, 2);
+      const k = [...R.assign.keys()][0]; R.assign.get(k).push("ZZ");          // médecin absent des paramètres
+      let bin = ""; const u = new Uint8Array(await exportPlanning(pr, R, checks(pr, R)));
+      for (let i = 0; i < u.length; i++) bin += String.fromCharCode(u[i]);
+      return btoa(bin);
+    }""", avec_tt)
+    fx = os.path.join(SORTIE, "planning_a_importer.xlsx")
+    open(fx, "wb").write(base64.b64decode(x))
+    wbx = load_workbook(fx); stx = wbx["Statuts"]
+    col = next(c for c in range(4, stx.max_column + 1) if stx.cell(5, c).value == "SA")
+    lig = next(r for r in range(7, stx.max_row + 1) if stx.cell(r, col).value == "DISPO")
+    stx.cell(lig, col).value = "ABS"; wbx.save(fx)                         # absence propre au fichier
+    pg.on("dialog", lambda d: d.accept())
+    pg.goto("file://" + os.path.join(DIST, "demo.html") + "#admin")
+    pg.wait_for_selector("#loginCard:not([hidden])")
+    pg.fill("#loginEmail", "a@b.fr"); pg.fill("#loginPw", "x"); pg.click("#loginForm button[type=submit]")
+    pg.wait_for_selector("#adminBody:not([hidden])")
+    pg.click("#useDefault"); pg.wait_for_function("document.querySelector('#paramInfo').innerText.includes('médecins')")
+    pg.set_input_files("#upPlanning", fx)
+    pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
+    B.ok(pg.is_visible("#draftBody"), "Admin : planning Excel importé comme brouillon")
+    pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
+    pub = pg.evaluate("S.published")
+    B.ok("ZZ" in pub["medecins"], "publication : médecin du fichier absent des paramètres conservé")
+    B.ok("ABS" in pub["statuts"].get("SA", {}).values(), "publication : absence propre au fichier conservée")
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)
