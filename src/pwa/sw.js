@@ -18,7 +18,10 @@ self.addEventListener("activate", (e) => {
 });
 
 function reseauDAbord(req) {
-  return fetch(req).then((rep) => {
+  // « no-cache » : toujours demander au serveur si la page a changé (sinon le navigateur peut
+  // resservir pendant 10 minutes une ancienne version gardée dans son cache HTTP).
+  const essai = req.mode === "navigate" ? fetch(req.url, { cache: "no-cache", credentials: "same-origin" }) : fetch(req, { cache: "no-cache" });
+  return essai.then((rep) => {
     if (rep.ok) { const copie = rep.clone(); caches.open(CACHE).then((c) => c.put(req, copie)); }
     return rep;
   }).catch(() => caches.match(req, { ignoreSearch: true })

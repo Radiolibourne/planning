@@ -589,7 +589,26 @@ function needOnline(msgEl) {
   return true;
 }
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => { /* hors connexion indisponible */ }));
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").then((reg) => {
+    // Application épinglée sur l'iPhone : elle reste en mémoire et ne se recharge pas d'elle-même.
+    // À chaque retour au premier plan, on vérifie s'il existe une nouvelle version du site.
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+  }).catch(() => { /* hors connexion indisponible */ }));
+  // Nouvelle version installée : on recharge la page (sauf à la toute première installation),
+  // en attendant que personne ne soit en train de saisir quelque chose.
+  let dejaControle = !!navigator.serviceWorker.controller, rechargement = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!dejaControle) { dejaControle = true; return; }
+    const recharger = () => {
+      if (rechargement) return;
+      const champ = document.activeElement;
+      if (champ && /^(INPUT|TEXTAREA|SELECT)$/.test(champ.tagName) && document.visibilityState === "visible") {
+        document.addEventListener("visibilitychange", recharger, { once: true }); return;
+      }
+      rechargement = true; location.reload();
+    };
+    recharger();
+  });
 }
 
 // ------------------------------------------------------------ navigation

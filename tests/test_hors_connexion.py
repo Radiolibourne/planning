@@ -85,6 +85,20 @@ with sync_playwright() as pw:
     pg.reload(); pg.wait_for_function("navigator.serviceWorker.controller !== null", timeout=15000)
     B.ok(True, "service worker installé et actif")
     pg.wait_for_timeout(1000)
+    # nouvelle version publiée : l'application déjà ouverte (épinglée sur l'iPhone) doit se mettre à jour
+    # d'elle-même au retour au premier plan, sans que le médecin ait à la fermer
+    idx = os.path.join(RACINE_WEB, "index.html")
+    v2 = open(idx, encoding="utf-8").read().replace("<h1>Planning radio</h1>", "<h1>Planning radio v2</h1>")
+    open(idx, "w", encoding="utf-8").write(v2)
+    swp = os.path.join(RACINE_WEB, "sw.js")
+    sw2 = re.sub(r'const VERSION = "[^"]*"', 'const VERSION = "test-v2"', open(swp, encoding="utf-8").read())
+    open(swp, "w", encoding="utf-8").write(sw2)
+    pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    pg.wait_for_function("document.querySelector('.bar h1') && document.querySelector('.bar h1').innerText === 'Planning radio v2'", timeout=20000, polling=300)
+    B.ok(True, "nouvelle version du site chargée automatiquement au retour dans l'application")
+    pg.wait_for_selector("#vMon:not([hidden])", timeout=15000)
+    pg.wait_for_function("navigator.serviceWorker.controller !== null", timeout=15000)
+    pg.wait_for_timeout(1000)
     # coupure du réseau
     pg.evaluate("localStorage.setItem('planning-radio-me', 'DA')")   # initiales déjà choisies sur l'appareil
     srv.shutdown(); srv.server_close()          # le serveur n'existe plus : vraie coupure
