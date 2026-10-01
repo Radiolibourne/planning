@@ -35,13 +35,20 @@ La configuration Firebase est publique par nature. En revanche, le **code d'équ
 2. Name : `CODE_EQUIPE` ; Secret : votre code d'équipe (celui des règles de sécurité, `RADIO-…`) → **Add secret**.
 3. Après la prochaine publication (au plus une heure), chaque médecin voit dans « Mon planning » un bouton **S'abonner (mise à jour automatique)**.
 
-### 4. Comptes individuels
-1. **Admin → Règles de sécurité à jour** : laissez cochée « Accès provisoire par code d'équipe », copiez les règles, collez-les dans Firestore → Règles → **Publier**.
-2. Demandez aux médecins d'ouvrir le site et de cliquer **Créer un compte** (e-mail, mot de passe de leur choix, initiales, nom).
-3. **Admin → Comptes** : validez chaque demande (vérifiez les initiales).
-4. Quand tout le monde a un compte : décochez « Accès provisoire par code d'équipe », recopiez les règles et **republiez-les**. Le code d'équipe seul ne donne alors plus accès (il reste nécessaire au secret GitHub `CODE_EQUIPE`).
+### 4. Publication automatique des règles de sécurité (une seule fois)
+1. Firebase → **Paramètres du projet → Comptes de service → Générer une nouvelle clé privée** : un fichier `.json` se télécharge.
+2. GitHub → **Settings → Secrets and variables → Actions → New repository secret** :
+   - `FIREBASE_CLE` : tout le contenu du fichier `.json` (ouvrez-le avec le Bloc-notes, copiez tout) ;
+   - `ADMIN_UID` : votre UID administrateur (Firebase → Authentication → Utilisateurs).
+3. Supprimez ensuite le fichier `.json` de votre ordinateur : il donne un accès complet au projet Firebase.
+4. Onglet **Actions → Tests et publication → Run workflow** : l'étape « regles » publie les règles. Elles seront ensuite republiées automatiquement à chaque mise à jour du site.
 
-### 5. Démarrage
+### 5. Comptes individuels
+1. Demandez aux médecins d'ouvrir le site et de cliquer **Créer un compte** (e-mail, mot de passe de leur choix, initiales, nom).
+2. **Admin → Comptes** : validez chaque demande (vérifiez les initiales).
+3. Quand tout le monde a un compte : décochez **Accès provisoire par code d'équipe** (même carte). Effet immédiat : le code seul ne donne plus accès (il reste nécessaire au secret GitHub `CODE_EQUIPE`).
+
+### 6. Démarrage
 1. Ouvrez le site, saisissez le code d'équipe, puis **Admin** → connectez-vous → **Remplacer par un classeur mis à jour** : déposez votre vrai classeur de paramètres.
 2. Générez et publiez un planning d'essai. Vérifiez sur votre iPhone et depuis un poste de l'hôpital.
 3. Envoyez l'adresse du site et le code d'équipe aux médecins. Pour installer l'application « Planning radio » :

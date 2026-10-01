@@ -36,14 +36,17 @@ MODS = {"firebase-app.js": APP, "firebase-firestore.js": FS.replace("export func
 
 # ------------------------------------------------------------------ serveur simulé (même logique que les règles)
 USERS = {"admin@chl.fr": ("secret", ADMIN_UID)}
-DB, ver, ids, regles = {}, [0], itertools.count(1), {"transition": True}
+DB, ver, ids = {}, [0], itertools.count(1)
 def bump(): ver[0] += 1
 def email_of(uid): return next((e for e, (p, u) in USERS.items() if u == uid), None)
 def is_admin(uid): return uid == ADMIN_UID
 def membre(uid): return uid is not None and f"membres/{uid}" in DB
 def moi(uid): return DB.get(f"membres/{uid}") or {}
-def lecteur(code, uid): return code == TEAM and (is_admin(uid) or membre(uid) or regles["transition"])
-def auteur(ini, uid): return (ini == moi(uid).get("ini")) if membre(uid) else regles["transition"]
+def code_seul():
+    d = DB.get(f"espaces/{TEAM}/config/acces")
+    return d is None or d.get("codeSeul") is not False
+def lecteur(code, uid): return code == TEAM and (is_admin(uid) or membre(uid) or code_seul())
+def auteur(ini, uid): return (ini == moi(uid).get("ini")) if membre(uid) else code_seul()
 def ouvert(d1, d2):
     pub = DB.get(f"espaces/{TEAM}/planning/publie")
     if pub and d1 <= pub["end"]: return False
@@ -141,11 +144,20 @@ with sync_playwright() as pw:
     adm.set_input_files("#upParams", EXEMPLE)
     adm.wait_for_function("document.querySelector('#paramInfo').innerText.includes('11 médecins')", timeout=10000)
     ok(not adm.is_hidden("#accCard"), "admin : carte « Comptes » visible")
-    # règles : accès provisoire désactivé
-    adm.click("#rulesCard summary"); adm.uncheck("#rTrans")
+    # règles : celles de la page = celles que publie GitHub (même code source)
+    adm.click("#rulesCard summary")
     texte = adm.input_value("#rText")
-    ok("function codeSeul() { return false; }" in texte and "match /membres/{uid}" in texte, "règles générées : comptes, accès par code désactivé")
-    regles["transition"] = False; bump()
+    import subprocess, sys as _sys
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run([_sys.executable, os.path.join(racine, "outils", "publier_regles.py"), "--essai"], capture_output=True, text=True,
+                       env={**os.environ, "CODE_EQUIPE": TEAM, "ADMIN_UID": ADMIN_UID})
+    ok(r.returncode == 0 and r.stdout == texte, "règles : texte identique entre la page et la publication par GitHub")
+    ok("config/acces" in texte and "match /membres/{uid}" in texte, "règles : comptes et interrupteur d'accès provisoire")
+    # interrupteur : accès provisoire désactivé depuis Admin → Comptes
+    ok(adm.is_checked("#accCode"), "accès provisoire autorisé par défaut")
+    adm.uncheck("#accCode")
+    adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('désactivé')", timeout=8000)
+    ok(DB.get(f"espaces/{TEAM}/config/acces", {}).get("codeSeul") is False, "admin : accès par code désactivé d'un clic (sans republier les règles)")
     # ---------------- médecin : inscription
     doc = page()
     doc.goto("https://planning.test/")

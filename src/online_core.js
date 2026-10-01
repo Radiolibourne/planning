@@ -231,9 +231,8 @@ function demoStore() {
 }
 
 // ================================================================ Règles de sécurité Firestore
-// options.transition : true = l'accès par simple code d'équipe (sans compte) reste permis
-function firestoreRules(teamCode, adminUids, options = {}) {
-  const transition = options.transition === false ? "false" : "true";
+// L'accès provisoire par simple code d'équipe se règle dans le site (document config/acces), sans republier les règles.
+function firestoreRules(teamCode, adminUids) {
   const uids = adminUids.map((u) => `'${u}'`).join(", ");
   const cl = [...Array(MAX_CLOTURES).keys()].map((i) => `(c.size() < ${i + 1} || cloture(c[${i}], d1, d2))`).join("\n        && ");
   return `rules_version = '2';
@@ -250,9 +249,11 @@ service cloud.firestore {
     function membre() { return request.auth != null && exists(/databases/$(database)/documents/membres/$(request.auth.uid)); }
     function moi() { return get(/databases/$(database)/documents/membres/$(request.auth.uid)).data; }
 
-    // Accès provisoire par simple code d'équipe (sans compte) : ${transition === "true" ? "AUTORISÉ (transition)" : "DÉSACTIVÉ"}.
-    function codeSeul() { return ${transition}; }
-    function lecteur(code) { return equipe(code) && (admin() || membre() || codeSeul()); }
+    // Accès provisoire par simple code d'équipe (sans compte) : autorisé tant que l'administrateur
+    // ne l'a pas désactivé dans le site (Admin → Comptes), document espaces/{code}/config/acces.
+    function acces(code) { return /databases/$(database)/documents/espaces/$(code)/config/acces; }
+    function codeSeul(code) { return !exists(acces(code)) || get(acces(code)).data.codeSeul != false; }
+    function lecteur(code) { return equipe(code) && (admin() || membre() || codeSeul(code)); }
 
     // Saisie des absences ouverte pour [d1, d2] : après la période publiée
     // et hors des périodes dont la date limite de dépôt est passée.
@@ -266,7 +267,7 @@ service cloud.firestore {
     }
     function ouvert(code, d1, d2) { return apresPublication(code, d1) && horsClotures(code, d1, d2); }
     // Auteur légitime d'une absence : le médecin lui-même (compte) ou, en transition, quiconque a le code.
-    function auteur(ini) { return membre() ? ini == moi().ini : codeSeul(); }
+    function auteur(code, ini) { return membre() ? ini == moi().ini : codeSeul(code); }
 
     match /espaces/{code}/{document=**} {
       allow read: if lecteur(code);
@@ -289,9 +290,9 @@ service cloud.firestore {
         && request.resource.data.d2 - request.resource.data.d1 <= 366
         && request.resource.data.periode in ['Journée', 'Matin', 'Après-midi']
         && request.resource.data.motif is string && request.resource.data.motif.size() <= 100
-        && (admin() || (auteur(request.resource.data.ini) && ouvert(code, request.resource.data.d1, request.resource.data.d2)));
+        && (admin() || (auteur(code, request.resource.data.ini) && ouvert(code, request.resource.data.d1, request.resource.data.d2)));
       allow delete: if equipe(code)
-        && (admin() || (auteur(resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
+        && (admin() || (auteur(code, resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
     }
 
     // Comptes validés : chacun lit le sien ; seuls les administrateurs les créent, modifient ou retirent.

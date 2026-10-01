@@ -58,3 +58,22 @@ jobs:
           path: dist
       - id: deploiement
         uses: actions/deploy-pages@v5
+
+  # Règles de sécurité Firebase : publiées automatiquement à chaque modification validée (si les secrets existent).
+  regles:
+    needs: tests
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Outils
+        run: pip install google-auth requests
+      - name: Publication des règles de sécurité
+        env:
+          FIREBASE_CLE: ${{ secrets.FIREBASE_CLE }}
+          CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
+          ADMIN_UID: ${{ secrets.ADMIN_UID }}
+        run: python outils/publier_regles.py

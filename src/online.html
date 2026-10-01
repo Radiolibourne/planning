@@ -386,6 +386,8 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
         <h2>Comptes</h2>
         <p class="sub">Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
         <div id="accWarn" class="banner warn small" hidden></div>
+        <label style="display:flex;gap:10px;align-items:flex-start;margin:4px 0 6px;font-size:14px"><input type="checkbox" id="accCode" style="margin-top:3px;width:20px;height:20px">
+          <span><b>Accès provisoire par code d'équipe</b> (sans compte) autorisé.<br><span class="small muted">Décochez quand tous les médecins ont un compte validé : le code seul ne donnera plus accès. Effet immédiat.</span></span></label>
         <h3 style="margin-top:6px">Demandes en attente <span class="tag" id="accPendN">0</span></h3>
         <ul class="list" id="accPend"></ul>
         <h3>Comptes actifs <span class="tag" id="accN">0</span></h3>
@@ -410,9 +412,7 @@ code { background: var(--soft); border-radius: 5px; padding: 1px 5px; font-size:
       <div class="card" id="rulesCard" hidden>
         <details>
           <summary>Règles de sécurité à jour</summary>
-          <p class="small muted">Après une évolution du site touchant aux données, les règles de sécurité Firebase doivent être republiées : Firestore → Règles → remplacer tout le texte par celui-ci → Publier. Elles reprennent votre code d'équipe et votre identifiant administrateur.</p>
-          <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 10px;font-size:14px"><input type="checkbox" id="rTrans" checked style="margin-top:3px">
-            <span><b>Accès provisoire par code d'équipe</b> (sans compte) encore autorisé. Décochez quand tous les médecins ont un compte validé, puis republiez les règles.</span></label>
+          <p class="small muted">Si la publication automatique des règles par GitHub est en place (secrets <code>FIREBASE_CLE</code> et <code>ADMIN_UID</code>), il n'y a rien à faire ici. Sinon, après une évolution du site touchant aux données : Firestore → Règles → remplacer tout le texte par celui-ci → Publier.</p>
           <label class="f">UID des autres administrateurs (facultatif, un par ligne)<textarea id="rUids" style="min-height:50px"></textarea></label>
           <textarea id="rText" readonly style="min-height:200px;margin-top:10px"></textarea>
           <div class="row" style="margin-top:8px"><button class="b" id="rCopy" type="button">Copier les règles</button></div>
@@ -539,7 +539,7 @@ const S = {
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, acces: () => `${base()}/config/acces` };
 
 // ------------------------------------------------------------ hors connexion
 function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
@@ -724,6 +724,7 @@ async function enter(code, silent) {
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => { S.saisie = d; render(); }, onErr));
+  if (S.store.mode === "firebase") S.unsub.push(S.store.watchDoc(PATHS.acces(), (d) => { S.acces = d; render(); }, () => {}));
   // déclarations « aucune absence » : toutes en démonstration (et pour l'admin, via ses abonnements), la sienne sinon
   if (S.store.mode === "demo") S.unsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, () => {}));
   else if (S.auth && S.membre && !S.admin) S.unsub.push(S.store.watchDoc(`declarations/${S.auth.uid}`, (d) => { S.declarations = d ? [d] : []; render(); }, () => {}));
@@ -1332,6 +1333,7 @@ function renderComptes() {
   if (!comptesActifs()) return;
   const warn = S.legacy ? "Comptes inactifs : republiez les règles de sécurité (carte « Règles de sécurité à jour » ci-dessous) pour les activer." : S.accErr;
   $("accWarn").hidden = !warn; $("accWarn").textContent = warn || "";
+  $("accCode").checked = !(S.acces && S.acces.codeSeul === false);
   const docs = doctorList();
   const opts = (sel) => [...new Set([...docs, sel].filter(Boolean))].map((d) => `<option${d === sel ? " selected" : ""}>${esc(d)}</option>`).join("");
   const dem = S.demandes.slice().sort((a, b) => a.creeLe - b.creeLe);
@@ -1353,6 +1355,14 @@ function renderComptes() {
   const sans = docs.filter((d) => !mem.some((m) => String(m.ini).toUpperCase() === d));
   $("accSans").textContent = sans.length ? `Médecins sans compte : ${sans.join(", ")}.` : (docs.length ? "Tous les médecins ont un compte." : "");
 }
+$("accCode").addEventListener("change", async (e) => {
+  const on = e.target.checked, msg = $("accMsg");
+  const txt = on ? "Réautoriser l'accès par simple code d'équipe (sans compte) ?"
+    : "Désactiver l'accès par code d'équipe ? Seuls les comptes validés pourront consulter le planning et déclarer des absences.";
+  if (!needOnline(msg) || !confirm(txt)) { e.target.checked = !on; return; }
+  try { await S.store.set(PATHS.acces(), { codeSeul: on, majLe: Date.now(), par: (S.auth && S.auth.email) || "" }); setMsg(msg, on ? "Accès par code réautorisé." : "Accès par code désactivé.", "ok"); }
+  catch (err) { e.target.checked = !on; setMsg(msg, err.message, "err"); }
+});
 $("accPend").addEventListener("click", async (e) => {
   const li = e.target.closest("li[data-uid]"); if (!li) return;
   const uid = li.dataset.uid, d = S.demandes.find((x) => x.id === uid); if (!d) return;
@@ -1412,10 +1422,10 @@ $("cloList").addEventListener("click", (e) => {
 function refreshRules() {
   if (!S.admin || !S.auth || !S.code) return;
   const extra = $("rUids").value.split(/[\s,;]+/).map((x) => x.trim()).filter((u) => /^[A-Za-z0-9]{10,64}$/.test(u));
-  $("rText").value = firestoreRules(S.code, [...new Set([S.auth.uid, ...extra])], { transition: $("rTrans").checked });
+  $("rText").value = firestoreRules(S.code, [...new Set([S.auth.uid, ...extra])]);
 }
 $("rUids").addEventListener("input", refreshRules);
-$("rTrans").addEventListener("change", refreshRules);
+
 $("rCopy").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText($("rText").value); }
   catch (e) { $("rText").select(); document.execCommand("copy"); }

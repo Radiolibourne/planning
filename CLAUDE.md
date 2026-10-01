@@ -13,7 +13,7 @@
 2. **Le code d'équipe et les UID administrateurs ne vont jamais dans le dépôt.** Ils vivent uniquement dans les règles Firestore collées dans la console Firebase. `config/firebase.json` (clé API web, projectId…) est public par nature et peut être commité.
 3. **Tous les tests doivent passer** (`python tests/lancer_tests.py`) avant de proposer une modification. Toute nouvelle règle ou fonction s'accompagne d'un test.
 4. **Rester compatible avec les données déjà en ligne** : les plannings publiés (`planning/publie`) et les absences déjà saisies doivent rester lisibles après une mise à jour. Pour changer un format, ajouter des champs optionnels ; ne pas renommer ni supprimer.
-5. **Toute modification des chemins ou champs Firestore** impose de mettre à jour `firestoreRules()` (`src/online_core.js`), et de dire clairement à Ayoub de republier les règles. La carte **Admin → « Règles de sécurité à jour »** du site les génère toute prêtes (avec son code d'équipe et son UID) : Firestore → Règles → coller → Publier. Console Firebase du projet : `radiolib-5f387`.
+5. **Toute modification des chemins ou champs Firestore** impose de mettre à jour `firestoreRules()` (`src/online_core.js`, source unique). Les règles sont **publiées automatiquement** par le job `regles` du workflow (`outils/publier_regles.py` → `outils/regles_firestore.js`, API Firebase Rules, secrets `FIREBASE_CLE`, `CODE_EQUIPE`, `ADMIN_UID`) à chaque push sur `main`. Si ces secrets manquent, repli manuel : carte **Admin → « Règles de sécurité à jour »** → Firestore → Règles → coller → Publier. Projet Firebase : `radiolib-5f387`. Une erreur de syntaxe dans les règles fait échouer le job `regles` (Firebase les refuse) : la vérifier dans l'onglet Actions.
 6. Interface en **français**, pensée d'abord pour l'**iPhone** (Safari). Pas de défilement horizontal de page.
 
 ## Commandes
@@ -48,7 +48,7 @@ Toutes les pages sont des **fichiers HTML uniques**, sans dépendance externe, �
 - À la connexion (`resolveAccount`) : fiche `membres` → espace + initiales fixées ; administrateur détecté par une lecture-sonde `membres/_sonde_admin` (autorisée aux seuls admins) ; sinon écran « demande en attente » (la page s'ouvre seule à la validation).
 - L'admin saisit le code d'équipe une fois ; sa propre fiche `membres` (role admin) est alors créée.
 - **Règles d'avant les comptes** (lecture de sa propre fiche refusée) : `S.legacy` → ancien fonctionnement (connexion = admin), inscriptions bloquées avec un message.
-- **Transition** : option des règles `codeSeul()` (case « Accès provisoire par code d'équipe » dans la carte des règles). Tant qu'elle est vraie, l'accès sans compte (code d'équipe + « Qui êtes-vous ? ») reste possible.
+- **Transition** : `codeSeul(code)` dans les règles lit `espaces/{code}/config/acces` (`{codeSeul: bool}`) ; absent = autorisé. L'admin coche/décoche « Accès provisoire par code d'équipe » dans Admin → Comptes (effet immédiat, sans republier les règles). Autorisé : accès sans compte (code d'équipe + « Qui êtes-vous ? »).
 - Toujours lisible avec le seul code : `planning/publie` (calendriers d'abonnement produits par GitHub, sans compte).
 - `declarations/{uid}` `{ini, aucune: {"<du>_<au>": true}, majLe}` : « Je n'ai aucune absence sur cette période » (relance).
 - Démo : pas de comptes (fonctionnement par « Qui êtes-vous ? »).
