@@ -23,6 +23,8 @@ resultats = []
 for nom, cmd in etapes:
     r = subprocess.run(cmd, cwd=ICI)
     resultats.append((nom, r.returncode == 0))
+    if r.returncode and os.environ.get("GITHUB_ACTIONS"):
+        print(f"::error::Échec de l'étape « {nom} » (code {r.returncode})")
     if nom == "Construction" and r.returncode:
         break
 print("\n==================== BILAN ====================")

@@ -22,6 +22,8 @@ class Bilan:
         print(("  OK     " if cond else "  ÉCHEC  ") + libelle)
         if not cond:
             self.echecs.append(libelle)
+            if os.environ.get("GITHUB_ACTIONS"):     # visible dans le résumé de GitHub Actions
+                print(f"::error::{self.nom} : {libelle}")
 
     def fin(self):
         print(f"--- {self.nom} : " + ("tout est OK" if not self.echecs else f"{len(self.echecs)} échec(s)"))
