@@ -111,6 +111,7 @@ Rappel « écran d'accueil » (`installOverlay`, `maybeInstallPrompt`) : sur iPh
   Un classeur ancien, sans la nouvelle colonne, doit continuer à fonctionner, avec une valeur par défaut.
 
 ### Classeur de paramètres (format lu par `readParams`)
+Admin → Médecins : la fiche de chaque médecin se modifie dans le site (`renderMedecins`, `medOuvrir`, `medEcrire`). L'onglet Médecins du classeur est réécrit avec `rewriteSheet` (`zip.js`), qui conserve le reste du classeur (styles, listes déroulantes, autres onglets) ; colonnes manquantes (nouveaux postes, Télétravail) ajoutées à la fin.
 Onglets :
 - **Paramètres** : clé / valeur à partir de la ligne 5 ;
 - **Sites** : horaires M / AM ;

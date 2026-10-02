@@ -201,6 +201,14 @@ table.pl thead th { background: var(--head); color: #fff; }
 table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #fff; }
 table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
+/* fiche médecin */
+.chips.pick button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-weight: 600; cursor: pointer; min-height: 36px; }
+.chips.pick button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.comp-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.comp-row .grow { flex: 1; min-width: 0; font-size: 14px; }
+.comp-row .seg button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+.comp-row .seg button[data-v=non][aria-pressed=true] { background: var(--soft); color: var(--muted); }
+#medList .meta { font-size: 13px; color: var(--muted); }
 /* rappel d'installation sur l'écran d'accueil */
 .inst-head { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .inst-head img { border-radius: 12px; flex: 0 0 auto; }
@@ -386,6 +394,16 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         <div class="msg" id="paramMsg" role="status"></div>
       </div>
 
+      <div class="card" id="medCard" hidden>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h2 style="margin:0">Médecins</h2>
+          <button class="b primary" id="medAdd" type="button" style="min-height:38px;padding:6px 14px">Ajouter un médecin</button>
+        </div>
+        <p class="sub" style="margin-top:6px">Quotité, jours off, compétences, télétravail : modifié ici, enregistré directement dans le classeur de paramètres.</p>
+        <ul class="list" id="medList"></ul>
+        <div class="msg" id="medMsg" role="status"></div>
+      </div>
+
       <div class="card">
         <h2>Générer un planning</h2>
         <p class="sub">Les indisponibilités saisies en ligne sont ajoutées automatiquement à celles du classeur.</p>
@@ -560,6 +578,43 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
       <button class="b primary" id="instDone" type="button">C'est fait</button>
       <button class="b" id="instLater" type="button">Plus tard</button>
     </div>
+  </div>
+</div>
+
+<!-- Fiche médecin (administrateur) -->
+<div class="overlay" id="medOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="medTitle">
+    <h2 id="medTitle" style="margin:0 0 10px;font-size:18px">Médecin</h2>
+    <form id="medForm" novalidate>
+      <div class="row">
+        <label class="f" style="flex:1 1 90px">Initiales<input type="text" id="mIni" maxlength="10" autocapitalize="characters" spellcheck="false" required></label>
+        <label class="f" style="flex:2 1 160px">Nom (facultatif)<input type="text" id="mNom" maxlength="60"></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="f">Statut<input type="text" id="mStatut" list="mStatuts" maxlength="40"></label>
+        <label class="f">Quotité<select id="mQuot"></select></label>
+        <label class="f" style="flex:0 0 auto;flex-direction:row;align-items:center;gap:8px;padding-top:18px;color:var(--ink)"><input type="checkbox" id="mActif" style="width:20px;height:20px"> Actif</label>
+      </div>
+      <datalist id="mStatuts"><option>PH</option><option>Assistant(e)</option><option>Chef(fe) de service</option><option>Praticien attaché</option><option>Remplaçant(e)</option><option>Interne</option></datalist>
+      <h3>Jours off</h3>
+      <div class="small muted" style="margin-bottom:4px">Semaine A</div><div class="chips pick" id="mOffA"></div>
+      <div class="small muted" style="margin:8px 0 4px">Semaine B</div><div class="chips pick" id="mOffB"></div>
+      <h3>Indisponibilités fixes chaque semaine</h3>
+      <div class="chips pick" id="mIndispo"></div>
+      <h3>Compétences</h3>
+      <p class="small muted" style="margin:0 0 6px">Oui = peut tenir le poste · Préféré = affecté en priorité.</p>
+      <div id="mComp"></div>
+      <h3>Télétravail</h3>
+      <select id="mTT"><option value="Non">Non</option><option value="Oui">Oui : 1 jour par semaine, au choix du planning</option><option value="dj">Seulement certaines demi-journées</option></select>
+      <div class="chips pick" id="mTTj" style="margin-top:8px" hidden></div>
+      <label class="f" style="margin-top:12px">Surspécialités (facultatif)<input type="text" id="mSpec" maxlength="120"></label>
+      <div class="msg" id="mMsg" role="status"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="b primary" type="submit" id="mSave">Enregistrer</button>
+        <button class="b" type="button" id="mCancel">Annuler</button>
+        <button class="x" type="button" id="mDel" style="margin-left:auto">Supprimer du classeur</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -1572,6 +1627,7 @@ function renderAdmin() {
     if (!$("gStart").value) { $("gStart").value = toInput(P.start); $("gEnd").value = toInput(P.end); }
   }
   $("gBtn").disabled = !S.P;
+  renderMedecins();
   // brouillon
   if (!S.draft) {
     const saved = ls.get("planning-radio-draft");
@@ -1747,15 +1803,168 @@ async function saveParams(bytes, nom) {
   const msg = $("paramMsg");
   try {
     readParams(await readXlsx(bytes.buffer)); // validation avant envoi
-  } catch (e) { return setMsg(msg, `Classeur refusé : ${e.message}`, "err"); }
-  if (!needOnline(msg)) return;
+  } catch (e) { setMsg(msg, `Classeur refusé : ${e.message}`, "err"); return false; }
+  if (!needOnline(msg)) return false;
   setMsg(msg, "Enregistrement…");
   try {
     await S.store.set(PATHS.params(), { nom, majLe: Date.now(), par: (S.auth && S.auth.email) || "", xlsx: bytesToB64(bytes) });
     setMsg(msg, "Paramètres enregistrés et partagés avec l'équipe.", "ok");
     $("gStart").value = ""; $("gEnd").value = "";
-  } catch (e) { setMsg(msg, e.message, "err"); }
+    return true;
+  } catch (e) { setMsg(msg, e.message, "err"); return false; }
 }
+
+// ------------------------------------------------------------ Médecins : fiche modifiable depuis le site
+// Lecture / écriture de l'onglet Médecins du classeur (mêmes colonnes que dans Excel), le reste du classeur est conservé.
+const MED = { sig: "", hdr: [], rows: [], edit: -1 };
+const MC = { ini: 0, nom: 1, statut: 2, quot: 3, offA: 4, offB: 5, ind: 6, spec: 7, actif: 8 };
+const medPostes = () => (S.P ? S.P.posteOrder.filter((c) => !S.P.postes[c].tt) : []);
+const medCol = (code) => MED.hdr.findIndex((h, i) => i > MC.actif && String(h).trim().toUpperCase() === code);
+const medTTCol = () => MED.hdr.findIndex((h) => low(h).startsWith("teletravail"));
+async function medCharger() {
+  if (!S.params || !S.params.xlsx) { MED.hdr = []; MED.rows = []; return; }
+  const sig = paramsSig;
+  if (MED.sig === sig) return;
+  const ws = (await readXlsx(b64ToBytes(S.params.xlsx).buffer))["Médecins"];
+  if (!ws) return;
+  const hdr = [], rows = [];
+  for (let c = 1; c <= ws.maxCol; c++) hdr.push(ws.get(4, c) ?? "");
+  for (let r = 5; r <= ws.maxRow; r++) {
+    if (!norm(ws.get(r, 1))) continue;
+    const row = [];
+    for (let c = 1; c <= hdr.length; c++) row.push(ws.get(r, c));
+    rows.push(row);
+  }
+  MED.sig = sig; MED.hdr = hdr; MED.rows = rows;
+}
+const medQuot = (v) => { const n = typeof v === "number" ? v : parseFloat(String(v || "").replace("%", "").replace(",", ".")); return !n ? 1 : n > 1 ? n / 100 : n; };
+const medJours = (v) => norm(v).replace(/;/g, ",").split(",").map(low).map((x) => JOURS_LOW.indexOf(x)).filter((i) => i >= 0 && i < 5);
+const medDemi = (v) => { const out = []; for (const t of norm(v).replace(/,/g, ";").split(";")) { const p = t.trim().split(/\s+/); const j = JABR.findIndex((x) => low(x) === low(p[0]).slice(0, 3)); if (j < 0) continue; if (p.length >= 2) out.push(j + (p[1].toUpperCase() === "AM" ? "AM" : "M")); else out.push(j + "M", j + "AM"); } return out; };
+const DEMIS = [0, 1, 2, 3, 4].flatMap((j) => [j + "M", j + "AM"]);
+const demiLabel = (k) => `${JABR[+k[0]]} ${k.slice(1)}`;
+async function renderMedecins() {
+  const card = $("medCard");
+  card.hidden = !S.P;
+  if (!S.P) return;
+  try { await medCharger(); } catch (e) { $("medList").innerHTML = `<li class="small muted">Onglet Médecins illisible : ${esc(e.message)}</li>`; return; }
+  const tt = medTTCol();
+  $("medList").innerHTML = MED.rows.map((r, i) => {
+    const actif = !low(r[MC.actif]).startsWith("n");
+    const pref = medPostes().filter((c) => { const k = medCol(c); return k >= 0 && low(r[k]).startsWith("pr"); });
+    const oui = medPostes().filter((c) => { const k = medCol(c); return k >= 0 && (low(r[k]).startsWith("o") || low(r[k]) === "x"); });
+    const offA = medJours(r[MC.offA]).map((j) => JABR[j].toLowerCase()), offB = medJours(r[MC.offB]).map((j) => JABR[j].toLowerCase());
+    const off = offA.join("+") === offB.join("+") ? offA.join(", ") : `A : ${offA.join(", ") || "—"} · B : ${offB.join(", ") || "—"}`;
+    const ttv = tt >= 0 ? norm(r[tt]) : "";
+    return `<li data-i="${i}"><div class="grow"><b>${esc(r[MC.ini])}</b> ${esc(r[MC.nom] || "")} <span class="small muted">${esc(r[MC.statut] || "")} · ${Math.round(medQuot(r[MC.quot]) * 100)} %</span>${actif ? "" : ` <span class="tag">inactif</span>`}
+      <div class="meta">Off : ${esc(off || "aucun")} · ${pref.length + oui.length} poste(s)${pref.length ? ` (préféré : ${esc(pref.join(", "))})` : ""}${ttv && !low(ttv).startsWith("n") ? ` · télétravail ${low(ttv).startsWith("o") ? "" : esc(ttv)}` : ""}</div></div>
+      <button class="b" type="button" data-med style="min-height:36px;padding:4px 12px">Modifier</button></li>`;
+  }).join("") || `<li class="small muted">Aucun médecin dans le classeur.</li>`;
+}
+function medChips(el, items, label, sel) {
+  el.innerHTML = items.map((k) => `<button type="button" data-k="${k}" aria-pressed="${sel.includes(k)}">${label(k)}</button>`).join("");
+}
+const medSel = (el) => [...el.querySelectorAll("button[aria-pressed=true]")].map((b) => b.dataset.k);
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest(".chips.pick button");
+  if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true");
+  const sg = e.target.closest && e.target.closest("#mComp .seg button");
+  if (sg) sg.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === sg ? "true" : "false"));
+});
+function medOuvrir(i) {
+  MED.edit = i;
+  const r = i >= 0 ? MED.rows[i] : [];
+  $("medTitle").textContent = i >= 0 ? `Médecin ${r[MC.ini]}` : "Nouveau médecin";
+  $("mIni").value = i >= 0 ? norm(r[MC.ini]) : ""; $("mNom").value = norm(r[MC.nom]); $("mStatut").value = i >= 0 ? norm(r[MC.statut]) : "PH";
+  const q = Math.round(medQuot(i >= 0 ? r[MC.quot] : 1) * 100);
+  const qs = [...new Set([100, 90, 80, 70, 60, 50, 40, 30, 20, q])].sort((a, b) => b - a);
+  $("mQuot").innerHTML = qs.map((x) => `<option value="${x}"${x === q ? " selected" : ""}>${x} %</option>`).join("");
+  $("mActif").checked = i < 0 || !low(r[MC.actif]).startsWith("n");
+  const jours = ["0", "1", "2", "3", "4"];
+  medChips($("mOffA"), jours, (k) => JABR[+k], medJours(r[MC.offA]).map(String));
+  medChips($("mOffB"), jours, (k) => JABR[+k], medJours(r[MC.offB]).map(String));
+  medChips($("mIndispo"), DEMIS, demiLabel, medDemi(r[MC.ind]));
+  $("mComp").innerHTML = medPostes().map((c) => {
+    const k = medCol(c), v = k >= 0 ? low(r[k]) : "", cur = v.startsWith("pr") ? "pr" : (v.startsWith("o") || v === "x") ? "oui" : "non";
+    const p = S.P.postes[c];
+    return `<div class="comp-row" data-code="${esc(c)}"><div class="grow">${esc(p.label)} <span class="small muted">${p.site !== S.P.mainSite ? esc(p.site) : ""}</span></div>
+      <div class="seg" role="group">${[["non", "—"], ["oui", "Oui"], ["pr", "Préféré"]].map(([x, l]) => `<button type="button" data-v="${x}" aria-pressed="${x === cur}">${l}</button>`).join("")}</div></div>`;
+  }).join("");
+  const tk = medTTCol(), tv = tk >= 0 && i >= 0 ? norm(r[tk]) : "";
+  $("mTT").value = low(tv).startsWith("o") ? "Oui" : !tv || low(tv).startsWith("n") ? "Non" : "dj";
+  medChips($("mTTj"), DEMIS, demiLabel, $("mTT").value === "dj" ? medDemi(tv) : []);
+  $("mTTj").hidden = $("mTT").value !== "dj";
+  $("mSpec").value = norm(r[MC.spec]);
+  $("mDel").hidden = i < 0;
+  setMsg($("mMsg"), "");
+  $("medOverlay").hidden = false;
+}
+$("mTT").addEventListener("change", () => { $("mTTj").hidden = $("mTT").value !== "dj"; });
+$("mCancel").addEventListener("click", () => { $("medOverlay").hidden = true; });
+$("medAdd").addEventListener("click", async () => { await medCharger(); medOuvrir(-1); });
+$("medList").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-med]"); if (!b) return;
+  await medCharger(); medOuvrir(+b.closest("li").dataset.i);
+});
+async function medEcrire(rows, msgEl) {
+  // colonnes : celles du classeur, plus les postes et la colonne Télétravail si elles manquent
+  const hdr = MED.hdr.slice();
+  while (hdr.length < MC.actif + 1) hdr.push(["Initiales", "Nom (optionnel)", "Statut", "Quotité", "Off semaine A", "Off semaine B", "Indisponibilités fixes", "Surspécialités", "Actif"][hdr.length]);
+  for (const c of medPostes()) if (!hdr.some((h, i) => i > MC.actif && String(h).trim().toUpperCase() === c)) hdr.push(c);
+  if (!hdr.some((h) => low(h).startsWith("teletravail"))) hdr.push("Télétravail");
+  const vides = Array.from({ length: 8 }, () => []);
+  const lignes = [hdr, ...rows.map((r) => hdr.map((_, k) => (r[k] === undefined ? null : r[k]))), ...vides];
+  const bytes = await rewriteSheet(b64ToBytes(S.params.xlsx), "Médecins", 4, lignes, (i) => (i === 0 ? 4 : 5));
+  MED.hdr = hdr;
+  return saveParams(bytes, S.params.nom || "parametres_planning.xlsx");
+}
+$("medForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("mMsg");
+  const ini = $("mIni").value.trim().toUpperCase().replace(/\s+/g, "");
+  if (!ini) return setMsg(msg, "Indiquez les initiales.", "err");
+  if (!/^[A-Z0-9ÀÂÄÇÉÈÊËÎÏÔÖÙÛÜ-]{1,10}$/.test(ini)) return setMsg(msg, "Initiales : lettres et chiffres seulement (10 au plus).", "err");
+  if (MED.rows.some((r, i) => i !== MED.edit && norm(r[MC.ini]).toUpperCase() === ini)) return setMsg(msg, `Les initiales ${ini} existent déjà.`, "err");
+  const comp = {};
+  for (const row of $("mComp").querySelectorAll(".comp-row")) {
+    const v = (row.querySelector("button[aria-pressed=true]") || {}).dataset; comp[row.dataset.code] = v && v.v === "oui" ? "Oui" : v && v.v === "pr" ? "Préféré" : "";
+  }
+  if (!Object.values(comp).some(Boolean)) return setMsg(msg, "Cochez au moins une compétence (Oui ou Préféré).", "err");
+  const ttMode = $("mTT").value, ttj = medSel($("mTTj"));
+  if (ttMode === "dj" && !ttj.length) return setMsg(msg, "Télétravail : choisissez au moins une demi-journée.", "err");
+  // ligne complète (colonnes inconnues conservées)
+  const base = MED.edit >= 0 ? MED.rows[MED.edit].slice() : [];
+  const r = base;
+  r[MC.ini] = ini; r[MC.nom] = $("mNom").value.trim(); r[MC.statut] = $("mStatut").value.trim();
+  r[MC.quot] = +$("mQuot").value / 100;
+  r[MC.offA] = medSel($("mOffA")).map((k) => JOURS[+k]).join(", ");
+  r[MC.offB] = medSel($("mOffB")).map((k) => JOURS[+k]).join(", ");
+  r[MC.ind] = medSel($("mIndispo")).map(demiLabel).join("; ");
+  r[MC.spec] = $("mSpec").value.trim();
+  r[MC.actif] = $("mActif").checked ? "Oui" : "Non";
+  // colonnes postes / télétravail (créées si besoin, mêmes positions que dans medEcrire)
+  const hdr = MED.hdr.slice();
+  for (const c of medPostes()) if (!hdr.some((h, i) => i > MC.actif && String(h).trim().toUpperCase() === c)) hdr.push(c);
+  if (!hdr.some((h) => low(h).startsWith("teletravail"))) hdr.push("Télétravail");
+  for (const [c, v] of Object.entries(comp)) r[hdr.findIndex((h, i) => i > MC.actif && String(h).trim().toUpperCase() === c)] = v;
+  r[hdr.findIndex((h) => low(h).startsWith("teletravail"))] = ttMode === "dj" ? ttj.map(demiLabel).join("; ") : ttMode;
+  const rows = MED.rows.slice();
+  if (MED.edit >= 0) rows[MED.edit] = r; else rows.push(r);
+  $("mSave").disabled = true;
+  setMsg(msg, "Enregistrement…");
+  const ok = await medEcrire(rows, msg);
+  $("mSave").disabled = false;
+  if (ok) { $("medOverlay").hidden = true; setMsg($("medMsg"), `${ini} enregistré dans le classeur.`, "ok"); }
+  else setMsg(msg, $("paramMsg").textContent || "Enregistrement impossible.", "err");
+});
+$("mDel").addEventListener("click", async () => {
+  if (MED.edit < 0) return;
+  const ini = norm(MED.rows[MED.edit][MC.ini]);
+  if (!confirm(`Supprimer ${ini} du classeur ? (Pour un départ temporaire, décochez plutôt « Actif ».)`)) return;
+  const rows = MED.rows.filter((_, i) => i !== MED.edit);
+  const ok = await medEcrire(rows, $("mMsg"));
+  if (ok) { $("medOverlay").hidden = true; setMsg($("medMsg"), `${ini} supprimé du classeur.`, "ok"); }
+  else setMsg($("mMsg"), $("paramMsg").textContent || "Suppression impossible.", "err");
+});
 $("upParams").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (f) saveParams(new Uint8Array(await f.arrayBuffer()), f.name);

@@ -140,3 +140,61 @@ async function readXlsx(buffer) {
   }
   return sheets;
 }
+
+// ---------------------------------------------------------------- Réécriture d'un onglet d'un classeur existant
+// Remplace les lignes [depuis, fin] de l'onglet par `lignes` (tableaux de valeurs, colonne A = index 0),
+// en conservant tout le reste du classeur (autres onglets, styles, listes déroulantes, commentaires).
+// styleDe(i) : numéro de ligne existante dont on reprend le style des cellules pour la ligne i.
+async function rewriteSheet(bytes, nomOnglet, depuis, lignes, styleDe) {
+  const files = await readZip(bytes.buffer ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) : bytes);
+  const dec = new TextDecoder();
+  const xml = (n) => new DOMParser().parseFromString(dec.decode(files[n]), "application/xml");
+  const byTag = (node, tag) => Array.from(node.getElementsByTagNameNS("*", tag));
+  const target = {};
+  for (const r of byTag(xml("xl/_rels/workbook.xml.rels"), "Relationship")) target[r.getAttribute("Id")] = r.getAttribute("Target");
+  const sh = byTag(xml("xl/workbook.xml"), "sheet").find((s) => s.getAttribute("name") === nomOnglet);
+  if (!sh) throw new Error(`Onglet « ${nomOnglet} » introuvable.`);
+  const rid = sh.getAttribute("r:id") || sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+  let chemin = target[rid] || "";
+  chemin = chemin.startsWith("/") ? chemin.slice(1) : "xl/" + chemin.replace(/^\.\//, "");
+  let s = dec.decode(files[chemin]);
+  const debut = s.search(/<sheetData\s*\/>|<sheetData\b[^>]*>/);
+  if (debut < 0) throw new Error("Onglet illisible.");
+  const vide = /^<sheetData\s*\/>/.test(s.slice(debut));
+  const finOuv = s.indexOf(">", debut) + 1;
+  const fin = vide ? finOuv : s.indexOf("</sheetData>", debut);
+  const corps = vide ? "" : s.slice(finOuv, fin);
+  const rows = corps.match(/<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g) || [];
+  const numero = (r) => +(/\br="(\d+)"/.exec(r) || [0, 0])[1];
+  const styles = {};
+  for (const r of rows) {
+    const m = {};
+    for (const c of r.match(/<c\b[^>]*>/g) || []) {
+      const ref = /\br="([A-Z]+)\d+"/.exec(c), st = /\bs="(\d+)"/.exec(c);
+      if (ref && st) m[colToNum(ref[1])] = st[1];
+    }
+    styles[numero(r)] = m;
+  }
+  const gardees = rows.filter((r) => numero(r) < depuis);
+  const xe = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  let maxCol = 1;
+  const nouvelles = lignes.map((vals, i) => {
+    const r = depuis + i, st = styles[styleDe(i)] || {};
+    const n = Math.max(vals.length, ...Object.keys(st).map(Number), 0);
+    maxCol = Math.max(maxCol, n);
+    let cells = "";
+    for (let c = 1; c <= n; c++) {
+      const v = vals[c - 1], sa = st[c] ? ` s="${st[c]}"` : "", ref = numToCol(c) + r;
+      if (v === null || v === undefined || v === "") { if (sa) cells += `<c r="${ref}"${sa}/>`; }
+      else if (typeof v === "number" && isFinite(v)) cells += `<c r="${ref}"${sa}><v>${v}</v></c>`;
+      else cells += `<c r="${ref}"${sa} t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`;
+    }
+    return `<row r="${r}">${cells}</row>`;
+  });
+  const sd = `<sheetData>${gardees.join("")}${nouvelles.join("")}</sheetData>`;
+  s = s.slice(0, debut) + sd + s.slice(vide ? finOuv : fin + "</sheetData>".length);
+  const derniere = depuis + lignes.length - 1;
+  s = s.replace(/<dimension\s+ref="[^"]*"\s*\/>/, `<dimension ref="A1:${numToCol(maxCol)}${Math.max(derniere, depuis)}"/>`);
+  files[chemin] = new TextEncoder().encode(s);
+  return writeZip(Object.entries(files).map(([name, data]) => ({ name, data })));
+}
