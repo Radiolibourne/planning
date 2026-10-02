@@ -580,7 +580,7 @@ const setMsg = (el, text, cls = "") => { el.className = "msg " + cls; el.textCon
 const S = {
   store: null, code: null, me: ls.get("planning-radio-me") || "",
   auth: null, admin: false, membre: null, entry: "auth", legacy: false,
-  membres: [], demandes: [], declarations: [], accErr: "", adminUnsub: [],
+  membres: [], demandes: [], declarations: [], admins: [], accErr: "", adminUnsub: [],
   params: null, P: null, paramsErr: "", published: null, indispos: [], saisie: null,
   draft: null, draftPr: null, draftSource: "", genView: { week: "cur", mode: "poste" }, draftWeek: "all",
   unsub: [],
@@ -737,6 +737,7 @@ function watchAdminCollections() {
   S.adminUnsub.push(S.store.watchColl("membres", (l) => { S.membres = l; S.accErr = ""; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("demandes", (l) => { S.demandes = l; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, err));
+  S.adminUnsub.push(S.store.watchColl("admins", (l) => { S.admins = l; render(); }, () => { S.admins = []; }));
 }
 
 function leaveSpace() {
@@ -1431,9 +1432,13 @@ function renderComptes() {
   $("accN").textContent = mem.length;
   $("accList").innerHTML = mem.length ? mem.map((m) => {
     const moi = S.auth && m.id === S.auth.uid;
-    return `<li data-uid="${esc(m.id)}"><div class="grow"><b>${esc(m.ini || "—")}</b> ${esc(m.nom || "")} <span class="small muted">${esc(m.email || "")}</span>
-      ${m.role === "admin" ? `<span class="tag">admin</span>` : ""}</div>
+    const estAdmin = moi ? S.admin : (m.role === "admin" || S.admins.some((a) => a.id === m.id));
+    const ajoute = S.admins.some((a) => a.id === m.id);     // administrateur ajouté depuis le site (retirable ici)
+    return `<li data-uid="${esc(m.id)}" style="flex-wrap:wrap"><div class="grow"><b>${esc(m.ini || "—")}</b> ${esc(m.nom || "")} <span class="small muted">${esc(m.email || "")}</span>
+      ${estAdmin ? `<span class="tag">administrateur</span>` : ""}</div>
       <select data-chg aria-label="Initiales" style="width:auto;min-height:36px;padding:4px 8px"><option value="">—</option>${opts(m.ini)}</select>
+      ${moi ? "" : ajoute ? `<button class="x" data-admin-non>Retirer admin</button>`
+        : estAdmin ? "" : `<button class="b" data-admin-oui style="min-height:36px;padding:4px 10px">Rendre administrateur</button>`}
       ${moi ? "" : `<button class="x" data-retirer>Retirer l'accès</button>`}</li>`;
   }).join("") : `<li class="muted small">Aucun compte validé.</li>`;
   const sans = docs.filter((d) => !mem.some((m) => String(m.ini).toUpperCase() === d));
@@ -1474,11 +1479,26 @@ $("accList").addEventListener("change", async (e) => {
   catch (err) { setMsg($("accMsg"), err.message, "err"); }
 });
 $("accList").addEventListener("click", async (e) => {
-  if (!e.target.closest("[data-retirer]")) return;
-  const uid = e.target.closest("li").dataset.uid, m = S.membres.find((x) => x.id === uid); if (!m) return;
-  if (!confirm(`Retirer l'accès de ${m.nom || m.email} (${m.ini || "—"}) ? Son compte ne pourra plus rien consulter ni déclarer.`)) return;
-  try { await S.store.del(`membres/${uid}`); setMsg($("accMsg"), "Accès retiré.", "ok"); }
-  catch (err) { setMsg($("accMsg"), err.message, "err"); }
+  const li = e.target.closest("li[data-uid]"); if (!li) return;
+  const uid = li.dataset.uid, m = S.membres.find((x) => x.id === uid); if (!m) return;
+  const qui = `${m.nom || m.email} (${m.ini || "—"})`, msg = $("accMsg");
+  if (!needOnline(msg)) return;
+  try {
+    if (e.target.closest("[data-admin-oui]")) {
+      if (!confirm(`Rendre ${qui} administrateur ? Il pourra modifier les paramètres, générer et publier le planning, et gérer les comptes.`)) return;
+      await S.store.set(`admins/${uid}`, { email: m.email || "", ini: m.ini || "", ajouteLe: Date.now(), par: (S.auth && S.auth.email) || "" });
+      setMsg(msg, `${qui} est administrateur (effet à sa prochaine ouverture du site).`, "ok");
+    } else if (e.target.closest("[data-admin-non]")) {
+      if (!confirm(`Retirer les droits d'administrateur de ${qui} ? Son compte reste actif.`)) return;
+      await S.store.del(`admins/${uid}`);
+      setMsg(msg, `${qui} n'est plus administrateur.`, "ok");
+    } else if (e.target.closest("[data-retirer]")) {
+      if (!confirm(`Retirer l'accès de ${qui} ? Son compte ne pourra plus rien consulter ni déclarer.`)) return;
+      if (S.admins.some((a) => a.id === uid)) await S.store.del(`admins/${uid}`);
+      await S.store.del(`membres/${uid}`);
+      setMsg(msg, "Accès retiré.", "ok");
+    }
+  } catch (err) { setMsg(msg, err.message, "err"); }
 });
 
 async function saveClotures(list, msgEl) {

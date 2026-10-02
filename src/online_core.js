@@ -244,8 +244,10 @@ service cloud.firestore {
     // Code d'équipe : identifie l'espace du service.
     function equipe(code) { return code == '${teamCode}'; }
 
-    // Administrateurs (identifiants des comptes créés dans Authentication).
-    function admin() { return request.auth != null && request.auth.uid in [${uids}]; }
+    // Administrateurs : principaux (identifiants fixés ici, secret ADMIN_UID de GitHub)
+    // et ajoutés depuis le site (Admin → Comptes → « Rendre administrateur »), document admins/{uid}.
+    function admin() { return request.auth != null && (request.auth.uid in [${uids}]
+      || exists(/databases/$(database)/documents/admins/$(request.auth.uid))); }
 
     // Comptes individuels validés par un administrateur.
     function membre() { return request.auth != null && exists(/databases/$(database)/documents/membres/$(request.auth.uid)); }
@@ -301,6 +303,12 @@ service cloud.firestore {
     match /membres/{uid} {
       allow read: if admin() || (request.auth != null && request.auth.uid == uid);
       allow write: if admin();
+    }
+
+    // Administrateurs ajoutés depuis le site : un administrateur en ajoute ou en retire d'autres, jamais lui-même.
+    match /admins/{uid} {
+      allow read: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if admin() && request.auth.uid != uid;
     }
 
     // Demandes de compte : créées par la personne elle-même, examinées par un administrateur.

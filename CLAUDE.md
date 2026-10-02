@@ -43,6 +43,7 @@ Toutes les pages sont des **fichiers HTML uniques**, sans dépendance externe, �
 | `pwa/` | Application installable : `sw.js` (service worker), icônes PNG (dessinées par `outils/creer_icones.py`, commitées). Le manifeste est écrit par `construire.py` |
 
 ### Comptes individuels (mode en ligne)
+Administrateurs : principaux = UID du secret `ADMIN_UID` (inscrits dans les règles, impossibles à retirer depuis le site) ; ajoutés = documents `admins/{uid}` créés par un administrateur depuis Admin → Comptes (« Rendre administrateur » / « Retirer admin »). Un administrateur ne peut pas modifier ses propres droits. « Retirer l'accès » supprime aussi le document `admins/{uid}`.
 - Chaque médecin crée son compte (e-mail + mot de passe, Firebase Authentication) → document `demandes/{uid}` `{email, ini, nom, creeLe}`. Aucun e-mail n'est envoyé (sauf « Mot de passe oublié ? », géré par Firebase).
 - L'admin valide dans Admin → Comptes : `membres/{uid}` `{email, ini, nom, espace (code d'équipe), role, valideLe, validePar}`. Retirer l'accès = supprimer ce document (effet immédiat).
 - À la connexion (`resolveAccount`) : fiche `membres` → espace + initiales fixées ; administrateur détecté par une lecture-sonde `membres/_sonde_admin` (autorisée aux seuls admins) ; sinon écran « demande en attente » (la page s'ouvre seule à la validation).

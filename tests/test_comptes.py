@@ -39,7 +39,7 @@ USERS = {"admin@chl.fr": ("secret", ADMIN_UID)}
 DB, ver, ids = {}, [0], itertools.count(1)
 def bump(): ver[0] += 1
 def email_of(uid): return next((e for e, (p, u) in USERS.items() if u == uid), None)
-def is_admin(uid): return uid == ADMIN_UID
+def is_admin(uid): return uid is not None and (uid == ADMIN_UID or f"admins/{uid}" in DB)
 def membre(uid): return uid is not None and f"membres/{uid}" in DB
 def moi(uid): return DB.get(f"membres/{uid}") or {}
 def code_seul():
@@ -61,7 +61,7 @@ def peut_lire(path, uid):
     if s[0] == "espaces":
         if s[2:4] == ["planning", "publie"] and s[1] == TEAM: return True
         return lecteur(s[1], uid)
-    if s[0] in ("membres", "demandes", "declarations"):
+    if s[0] in ("membres", "demandes", "declarations", "admins"):
         return is_admin(uid) or (len(s) == 2 and uid == s[1])
     return False
 def peut_ecrire(op, path, uid, data):
@@ -73,6 +73,7 @@ def peut_ecrire(op, path, uid, data):
             return valid_indispo(data) and (is_admin(uid) or (auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"])))
         return is_admin(uid)
     if s[0] == "membres": return is_admin(uid)
+    if s[0] == "admins": return is_admin(uid) and uid != s[1]
     if s[0] == "demandes":
         if op == "del": return is_admin(uid) or uid == s[1]
         return (uid == s[1] and set(data) == {"email", "ini", "nom", "creeLe"} and data["email"] == email_of(uid)
@@ -94,7 +95,7 @@ def server(op, a):
     if op == "get":
         return {"data": copy.deepcopy(DB.get(p))} if peut_lire(p, uid) else {"error": "permission-denied"}
     if op == "list":
-        if not peut_lire(p, uid) or (p.split("/")[0] in ("membres", "demandes", "declarations") and not is_admin(uid)):
+        if not peut_lire(p, uid) or (p.split("/")[0] in ("membres", "demandes", "declarations", "admins") and not is_admin(uid)):
             return {"error": "permission-denied"}
         n = len(p.split("/")) + 1
         return {"docs": [dict(id=k.split("/")[-1], **v) for k, v in DB.items() if k.startswith(p + "/") and len(k.split("/")) == n]}
@@ -216,6 +217,24 @@ with sync_playwright() as pw:
     ok("aucune absence » : DA" in adm.inner_text("#cloList"), "« aucune absence » : DA retiré de la relance")
     doc.wait_for_function("!document.querySelector('#vMon [data-aucune]')", timeout=8000)
     ok(True, "médecin : rappel disparu après sa déclaration")
+    # ---------------- second administrateur, depuis Admin → Comptes
+    adm.click(f'#accList li[data-uid="{uid_da}"] [data-admin-oui]')
+    adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('est administrateur')", timeout=8000)
+    ok(f"admins/{uid_da}" in DB, "admin : DA rendu administrateur")
+    doc.reload(); doc.wait_for_selector("#vAuth:not([hidden])", timeout=10000)   # (connexion simulée non conservée au rechargement)
+    doc.fill("#aEmail", "da@chl.fr"); doc.fill("#aPw", "motdepasse1"); doc.click("#aSubmit")
+    doc.wait_for_selector("#adminBtn:not([hidden])", timeout=10000)
+    ok(True, "DA : bouton Admin après rechargement")
+    r = doc.evaluate("""async (u) => JSON.parse(await window.__fb('del', JSON.stringify({path: 'admins/' + u, uid: globalThis.__uid}))).error || 'accepté'""", uid_da)
+    ok(r == "permission-denied", "serveur : un administrateur ne peut pas modifier ses propres droits")
+    adm.wait_for_selector(f'#accList li[data-uid="{uid_da}"] [data-admin-non]', timeout=8000)
+    adm.click(f'#accList li[data-uid="{uid_da}"] [data-admin-non]')
+    adm.wait_for_function("document.querySelector('#accMsg').innerText.includes(\"n'est plus administrateur\")", timeout=8000)
+    ok(f"admins/{uid_da}" not in DB, "admin : droits de DA retirés")
+    doc.reload(); doc.wait_for_selector("#vAuth:not([hidden])", timeout=10000)   # (connexion simulée non conservée au rechargement)
+    doc.fill("#aEmail", "da@chl.fr"); doc.fill("#aPw", "motdepasse1"); doc.click("#aSubmit")
+    doc.wait_for_selector("#vMon:not([hidden])", timeout=10000)
+    ok(doc.is_hidden("#adminBtn"), "DA : plus de bouton Admin")
     # ---------------- retrait d'accès
     adm.click(f'#accList li[data-uid="{uid_da}"] [data-retirer]')
     adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('retiré')", timeout=8000)
