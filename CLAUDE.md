@@ -58,6 +58,9 @@ Administrateurs : principaux = UID du secret `ADMIN_UID` (inscrits dans les règ
 Onglet Absences : liste des périodes ouvertes avec l'état de ma déclaration (`periodesADeclarer`) ; « Je n'ai aucune absence » est annulable (`annulerAucune`).
 `relanceInfo(c)` : médecins sans absence ni déclaration « aucune absence » sur la période. Admin : liste + lien `mailto:` (destinataires en copie cachée, adresses des comptes validés). Médecin : bandeau dans Mon planning et Absences tant que la date limite est ouverte.
 
+### Excel des médecins / statistiques
+L'Excel téléchargé par les médecins (onglet Général) ne contient que le planning (`exportPlanning(..., {equipe: true})` : Planning par poste, Planning par médecin, Statuts masqué). Synthèse, contrôles des règles et couverture : réservés aux administrateurs (Admin → Statistiques, `renderStats`, bouton « Excel complet »). Choix du service : ne pas exposer les statistiques à l'équipe.
+
 ### Qui est posté ? / PDF de la semaine
 Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par personne, filtre texte. Onglet Général → « PDF de la semaine » (semaine choisie, ou semaine en cours) : 2 pages A4 paysage.
 

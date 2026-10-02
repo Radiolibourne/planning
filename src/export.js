@@ -391,6 +391,11 @@ async function exportPlanning(pr, R, items, opts = {}) {
   ];
   txt.forEach(([t, s], i) => lm.cell(i + 1, 1, t, s));
   wb.active = 1;
+  // version « équipe » : le planning seulement (ni synthèse, ni contrôles des règles, ni mode d'emploi)
+  if (opts.equipe) {
+    wb.sheets = wb.sheets.filter((s) => ["Planning par poste", "Planning par médecin", "Statuts"].includes(s.name));
+    wb.active = 0;
+  }
   return wb.build();
 }
 

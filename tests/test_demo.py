@@ -155,7 +155,17 @@ def main():
             doc.click("#genXlsx")
         d.value.save_as(os.path.join(SORTIE, "general.xlsx"))
         from openpyxl import load_workbook as _lw
-        B.ok("Planning par poste" in _lw(os.path.join(SORTIE, "general.xlsx")).sheetnames, "médecin : planning publié téléchargé en Excel")
+        _f = _lw(os.path.join(SORTIE, "general.xlsx"))
+        B.ok("Planning par poste" in _f.sheetnames, "médecin : planning publié téléchargé en Excel")
+        B.ok(not ({"Synthèse", "Contrôles", "Lisez-moi", "Fermetures"} & set(_f.sheetnames)), f"médecin : Excel sans statistiques ni contrôles des règles {_f.sheetnames}")
+        # administrateur : statistiques et Excel complet
+        adm.click("a[data-tab=admin]"); adm.wait_for_selector("#statCard:not([hidden]) #statTable table", timeout=5000)
+        B.ok(adm.locator("#statTable tbody tr").count() >= 8 and "Demi-j." in adm.inner_text("#statTable"), "administrateur : statistiques par médecin")
+        B.ok(adm.locator("#statChecks li").count() > 0 and adm.locator("#statCov .meter").count() > 0, "administrateur : couverture et contrôle des règles du planning publié")
+        with adm.expect_download() as d:
+            adm.click("#statXlsx")
+        d.value.save_as(os.path.join(SORTIE, "complet.xlsx"))
+        B.ok({"Synthèse", "Contrôles"} <= set(_lw(os.path.join(SORTIE, "complet.xlsx")).sheetnames), "administrateur : Excel complet avec synthèse et contrôles")
         # exports depuis la copie du planning publié
         adm.click("#editPublished"); adm.wait_for_selector("#draftBody:not([hidden])")
         with adm.expect_download() as d:

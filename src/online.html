@@ -461,6 +461,18 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         <div class="msg" id="admIndMsg" role="status"></div>
       </div>
 
+      <div class="card" id="statCard" hidden>
+        <h2>Statistiques</h2>
+        <p class="sub" id="statSub"></p>
+        <div class="row" style="margin-bottom:12px"><button class="b" type="button" id="statXlsx">Excel complet (avec synthèse et contrôles)</button></div>
+        <div class="tablewrap" id="statTable"></div>
+        <div class="grid2" style="margin-top:16px">
+          <div><h3 style="margin-top:0">Couverture des postes</h3><div class="cov" id="statCov"></div></div>
+          <div><h3 style="margin-top:0">Contrôle des règles</h3><ul class="checks" id="statChecks"></ul></div>
+        </div>
+        <div class="msg" id="statMsg" role="status"></div>
+      </div>
+
       <div class="card" id="accCard" hidden>
         <h2>Comptes</h2>
         <p class="sub">Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
@@ -1411,14 +1423,15 @@ function renderGeneral() {
     } catch (e) { console.error(e); setMsg($("genMsg"), "PDF impossible : " + e.message, "err"); }
   };
 }
-async function downloadPublishedXlsx(msgEl) {
+// Médecins : le planning seul. Administrateurs (onglet Statistiques) : version complète avec synthèse et contrôles.
+async function downloadPublishedXlsx(msgEl, complet = false) {
   const pub = S.published;
   if (!pub || !S.P) return;
   setMsg(msgEl, "Préparation du fichier…");
   try {
     const pr = problemFor(pub.start, pub.end);
     const R = { assign: assignFromDraft(pr, pub), iterations: 0 };
-    const bytes = await exportPlanning(pr, R, checks(pr, R), { icsHint: "Chaque médecin retrouve son planning et son calendrier iPhone sur le site du planning." });
+    const bytes = await exportPlanning(pr, R, checks(pr, R), { equipe: !complet, icsHint: "Chaque médecin retrouve son planning et son calendrier iPhone sur le site du planning." });
     const x = ymd(pub.start);
     saveFile(bytes, `planning_radiologie_${x.y}-${pad2(x.m)}.xlsx`, XLSX_TYPE);
     setMsg(msgEl, "");
@@ -1655,6 +1668,7 @@ function renderAdmin() {
   $("gBtn").disabled = !S.P;
   renderMedecins();
   renderRegCard();
+  renderStats();
   // brouillon
   if (!S.draft) {
     const saved = ls.get("planning-radio-draft");
@@ -2010,6 +2024,52 @@ $("medForm").addEventListener("submit", async (e) => {
   if (ok) { $("medOverlay").hidden = true; setMsg($("medMsg"), `${ini} enregistré dans le classeur.`, "ok"); }
   else setMsg(msg, $("paramMsg").textContent || "Enregistrement impossible.", "err");
 });
+// ------------------------------------------------------------ Statistiques (administrateurs seulement)
+// Calculées sur le planning publié : vacations par médecin et par groupe de postes, déplacements, télétravail.
+let statsSig = "";
+function renderStats() {
+  const pub = S.published;
+  $("statCard").hidden = !pub;
+  if (!pub) return;
+  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}`;
+  if (sig === statsSig) return;
+  statsSig = sig;
+  const P = S.P;
+  const groupe = (code) => { const base = String(code).replace(/-TT$/, ""); return (P && P.postes[base] && P.postes[base].group) || (pub.postes[code] && pub.postes[code].label) || code; };
+  const pd = perDoctor(pub), inis = [...new Set([...(pub.medecins || []), ...Object.keys(pd)])];
+  const groupes = [...new Set(pub.ordre.map(groupe))];
+  const lignes = inis.map((ini) => {
+    const m = pd[ini] || {};
+    const g = Object.fromEntries(groupes.map((x) => [x, 0]));
+    let total = 0, absent = 0, dispo = 0;
+    const horsSite = new Set(), tt = new Set();
+    for (const d of pub.jours) for (const h of HALVES) {
+      const c = m[`${d}_${h}`];
+      if (c && c.code) {
+        total++; g[groupe(c.code)]++;
+        const site = (pub.postes[c.code] || {}).site;
+        if (site === TT_SITE) tt.add(d); else if (site && site !== pub.mainSite) horsSite.add(d);
+      } else if (c && c.statut) absent++;
+      else dispo++;
+    }
+    const q = P && P.docs[ini] ? P.docs[ini].quotite : null;
+    return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo };
+  }).filter((l) => l.total || l.absent).sort((a, b) => a.ini.localeCompare(b.ini));
+  $("statSub").textContent = `${pub.titre.replace("Planning du service de radiologie — ", "Planning publié : ")} · ${lignes.length} médecins. Visible par les administrateurs uniquement ; l'Excel des médecins ne contient que le planning.`;
+  const th = (t) => `<th>${esc(t)}</th>`;
+  $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
+    ${lignes.map((l) => `<tr><td class="lead">${esc(l.ini)}</td><td>${l.q ? Math.round(l.q * 100) + " %" : "—"}</td><td><b>${l.total}</b></td>${groupes.map((x) => `<td>${l.g[x] || ""}</td>`).join("")}<td>${l.hors || ""}</td><td>${l.tt || ""}</td><td>${l.absent || ""}</td><td>${l.dispo || ""}</td></tr>`).join("")}</tbody></table>`;
+  if (P) {
+    try {
+      const pr = problemFor(pub.start, pub.end), R = { assign: assignFromDraft(pr, pub), iterations: 0 };
+      $("statCov").innerHTML = coverage(pr, R).map((c) => { const pct = c.opened ? Math.round(100 * c.filled / c.opened) : 100;
+        return `<div>${esc(c.label)}</div><div class="meter ${pct < 60 ? "low" : pct < 90 ? "mid" : ""}"><div style="width:${pct}%"></div></div><div class="pct">${pct} %</div>`; }).join("");
+      $("statChecks").innerHTML = checks(pr, R).map(([lv, t]) => `<li><span class="lvl ${lv}">${lv}</span><span>${esc(t)}</span></li>`).join("");
+    } catch (e) { $("statChecks").innerHTML = `<li>${esc(e.message)}</li>`; }
+  }
+}
+$("statXlsx").addEventListener("click", () => downloadPublishedXlsx($("statMsg"), true));
+
 // ------------------------------------------------------------ Règles et postes : autres onglets du classeur
 const REGLES = [
   { k: "Début de période", t: "date", aide: "Période proposée par défaut pour la prochaine génération." },
