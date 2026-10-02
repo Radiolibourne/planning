@@ -201,6 +201,17 @@ table.pl thead th { background: var(--head); color: #fff; }
 table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #fff; }
 table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
+/* Admin : cartes repliables, dans l'ordre d'usage */
+#adminBody:not([hidden]) { display: flex; flex-direction: column; }
+#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #cloCard { order: 4; } #accCard { order: 5; }
+#medCard { order: 6; } #regCard { order: 7; } #paramCard { order: 8; } #statCard { order: 9; } #rulesCard { order: 10; } #setupCard { order: 11; }
+.pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
+.pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
+.card.ferme .pli-tete::after { transform: rotate(-45deg); margin-top: -4px; }
+.card.pliable.ferme > :not(.pli-tete) { display: none !important; }
+.card.pliable.ferme { padding-top: 14px; padding-bottom: 14px; }
+.card.pliable.ferme .pli-tete, .card.pliable.ferme .pli-tete h2 { margin-bottom: 0; }
+@media (prefers-reduced-motion: reduce) { .pli-tete::after { transition: none; } }
 /* fiche médecin */
 .chips.pick button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-weight: 600; cursor: pointer; min-height: 36px; }
 .chips.pick button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -379,7 +390,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
     </div>
 
     <div id="adminBody" hidden>
-      <div class="card">
+      <div class="card" id="paramCard">
         <div class="row" style="justify-content:space-between;align-items:center">
           <h2 style="margin:0">Paramètres du service</h2>
           <button class="x" id="logoutBtn">Se déconnecter</button>
@@ -411,7 +422,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         <div class="msg" id="regMsg" role="status"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="genCard">
         <h2>Générer un planning</h2>
         <p class="sub">Les indisponibilités saisies en ligne sont ajoutées automatiquement à celles du classeur.</p>
         <div class="row">
@@ -454,8 +465,8 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         </div>
       </div>
 
-      <div class="card">
-        <h2>Absences : demandes à valider</h2>
+      <div class="card" id="indCard">
+        <h2>Absences : demandes à valider <span class="tag err" id="indHeadTag" hidden></span></h2>
         <p class="sub" id="admIndSub"></p>
         <ul class="list" id="admInd"></ul>
         <div class="msg" id="admIndMsg" role="status"></div>
@@ -474,7 +485,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
       </div>
 
       <div class="card" id="accCard" hidden>
-        <h2>Comptes</h2>
+        <h2>Comptes <span class="tag err" id="accHeadTag" hidden></span></h2>
         <p class="sub">Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
         <div id="accWarn" class="banner warn small" hidden></div>
         <label style="display:flex;gap:10px;align-items:flex-start;margin:4px 0 6px;font-size:14px"><input type="checkbox" id="accCode" style="margin-top:3px;width:20px;height:20px">
@@ -487,7 +498,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         <div class="msg" id="accMsg" role="status"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="cloCard">
         <h2>Dates limites de dépôt des absences</h2>
         <p class="sub">Après la date limite, les médecins ne peuvent plus déclarer d'absence sur la période concernée (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus.</p>
         <ul class="list" id="cloList"></ul>
@@ -1683,6 +1694,7 @@ function renderAdmin() {
   const future = list.filter((x) => x.d2 >= today);
   const attente = list.filter((x) => statutInd(x) === "attente");
   const autres = future.filter((x) => statutInd(x) !== "attente");
+  $("indHeadTag").hidden = !attente.length; $("indHeadTag").textContent = `${attente.length} à valider`;
   $("admIndSub").textContent = `${attente.length ? `${attente.length} demande(s) à valider · ` : ""}${autres.length} à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}. Seules les absences acceptées sont prises en compte à la génération.`;
   const ligne = (x) => indLine(x, true, true).replace("<div class=\"grow\">",
     `<div class="grow">${confIds.has(x.id) ? `<span class="tag err" style="float:right">affecté pendant l'absence</span>` : ""}`);
@@ -1731,6 +1743,7 @@ function renderComptes() {
   const opts = (sel) => [...new Set([...docs, sel].filter(Boolean))].map((d) => `<option${d === sel ? " selected" : ""}>${esc(d)}</option>`).join("");
   const dem = S.demandes.slice().sort((a, b) => a.creeLe - b.creeLe);
   $("accPendN").textContent = dem.length;
+  $("accHeadTag").hidden = !dem.length; $("accHeadTag").textContent = `${dem.length} en attente`;
   $("accPend").innerHTML = dem.length ? dem.map((d) => `<li data-uid="${esc(d.id)}"><div class="grow"><b>${esc(d.nom)}</b> <span class="small muted">${esc(d.email)}</span>
       <div class="small">Initiales demandées : <b>${esc(d.ini)}</b>${docs.length && !docs.includes(String(d.ini).toUpperCase()) ? ` <span class="tag err">absentes des paramètres</span>` : ""}</div></div>
       <select data-ini aria-label="Initiales attribuées" style="width:auto;min-height:36px;padding:4px 8px">${opts(String(d.ini).toUpperCase())}</select>
@@ -2024,6 +2037,32 @@ $("medForm").addEventListener("submit", async (e) => {
   if (ok) { $("medOverlay").hidden = true; setMsg($("medMsg"), `${ini} enregistré dans le classeur.`, "ok"); }
   else setMsg(msg, $("paramMsg").textContent || "Enregistrement impossible.", "err");
 });
+// ------------------------------------------------------------ Admin : cartes repliables (état mémorisé sur l'appareil)
+const PLIS_KEY = "planning-radio-plis";
+const PLIS_OUVERTES = ["genCard", "draftCard", "indCard"];   // ouvertes par défaut
+(function initPlis() {
+  const brut = ls.get(PLIS_KEY), tout = brut === "tout";
+  let etat = {};
+  try { etat = tout ? {} : JSON.parse(brut || "{}") || {}; } catch (e) { etat = {}; }
+  for (const card of document.querySelectorAll("#adminBody > .card")) {
+    const id = card.id; if (!id) continue;
+    const tete = card.querySelector(":scope > h2, :scope > .row:first-child");
+    if (!tete) continue;
+    tete.classList.add("pli-tete"); card.classList.add("pliable");
+    tete.setAttribute("role", "button"); tete.setAttribute("tabindex", "0");
+    const ouvert = tout || (id in etat ? etat[id] : PLIS_OUVERTES.includes(id));
+    card.classList.toggle("ferme", !ouvert);
+    tete.setAttribute("aria-expanded", String(ouvert));
+    const basculer = () => {
+      const ferme = card.classList.toggle("ferme");
+      tete.setAttribute("aria-expanded", String(!ferme));
+      if (!tout) { etat[id] = !ferme; ls.set(PLIS_KEY, JSON.stringify(etat)); }
+    };
+    tete.addEventListener("click", (e) => { if (!e.target.closest("button, a, input, label, select")) basculer(); });
+    tete.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === tete) { e.preventDefault(); basculer(); } });
+  }
+})();
+
 // ------------------------------------------------------------ Statistiques (administrateurs seulement)
 // Calculées sur le planning publié : vacations par médecin et par groupe de postes, déplacements, télétravail.
 let statsSig = "";

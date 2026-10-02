@@ -65,9 +65,19 @@ def numero_jour(d):
     return (d - dt.date(1970, 1, 1)).days
 
 
-def chromium(p):
+def chromium(p, plis=False):
+    """Navigateur de test. Par défaut, toutes les cartes repliables d'Admin sont ouvertes
+    (plis=True : comportement réel, cartes repliées sauf les principales)."""
     chemin = os.environ.get("CHROMIUM_PATH")
-    return p.chromium.launch(executable_path=chemin) if chemin else p.chromium.launch()
+    b = p.chromium.launch(executable_path=chemin) if chemin else p.chromium.launch()
+    if not plis:
+        origine = b.new_context
+        def new_context(*a, **k):
+            ctx = origine(*a, **k)
+            ctx.add_init_script("try { if (!localStorage.getItem('planning-radio-plis')) localStorage.setItem('planning-radio-plis', 'tout'); } catch (e) {}")
+            return ctx
+        b.new_context = new_context
+    return b
 
 
 def verifier_dist():
