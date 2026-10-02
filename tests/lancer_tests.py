@@ -21,10 +21,13 @@ etapes = [
 ]
 resultats = []
 for nom, cmd in etapes:
-    r = subprocess.run(cmd, cwd=ICI)
+    r = subprocess.run(cmd, cwd=ICI, stderr=subprocess.PIPE, text=True)
+    if r.stderr:
+        sys.stderr.write(r.stderr)
     resultats.append((nom, r.returncode == 0))
     if r.returncode and os.environ.get("GITHUB_ACTIONS"):
-        print(f"::error::Échec de l'étape « {nom} » (code {r.returncode})")
+        derniere = [l for l in r.stderr.strip().splitlines() if l.strip()][-3:] if r.stderr else []
+        print(f"::error::Échec de l'étape « {nom} » (code {r.returncode}) " + " | ".join(x.strip() for x in derniere)[:900])
     if nom == "Construction" and r.returncode:
         break
 print("\n==================== BILAN ====================")

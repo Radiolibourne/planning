@@ -175,6 +175,7 @@ with sync_playwright() as pw:
     adm.click('#admInd [data-accept]')
     adm.wait_for_function("document.querySelector('#admIndMsg').innerText.includes('acceptée')", timeout=5000)
     ok(DB[kd].get('statut') == 'acceptee' and DB[kd].get('decidePar') == 'admin@chl.fr', 'administrateur : demande acceptée (en base)')
+    adm.wait_for_function("S.indispos.some((x) => x.statut === 'acceptee')", timeout=10000)
     adm.fill('#gStart', d1.isoformat()); adm.fill('#gEnd', d2.isoformat())
     adm.select_option('#gQual', '10'); adm.click('#gBtn')
     adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning généré')", timeout=90000)
