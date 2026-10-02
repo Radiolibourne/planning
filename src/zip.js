@@ -198,3 +198,31 @@ async function rewriteSheet(bytes, nomOnglet, depuis, lignes, styleDe) {
   files[chemin] = new TextEncoder().encode(s);
   return writeZip(Object.entries(files).map(([name, data]) => ({ name, data })));
 }
+
+// Ajoute un onglet (vide, avec ses lignes d'en-tête) à un classeur existant. Sans effet si l'onglet existe déjà.
+async function addSheet(bytes, nomOnglet, lignes) {
+  const files = await readZip(bytes);
+  const dec = new TextDecoder(), enc = new TextEncoder();
+  let wbx = dec.decode(files["xl/workbook.xml"]);
+  const xe = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  if (wbx.includes(`name="${xe(nomOnglet)}"`)) return bytes;
+  let rels = dec.decode(files["xl/_rels/workbook.xml.rels"]);
+  let ct = dec.decode(files["[Content_Types].xml"]);
+  let n = 1; while (files[`xl/worksheets/sheet${n}.xml`]) n++;
+  let id = 1; while (rels.includes(`Id="rIdP${id}"`)) id++;
+  const sheetId = Math.max(0, ...[...wbx.matchAll(/sheetId="(\d+)"/g)].map((m) => +m[1])) + 1;
+  const R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  wbx = wbx.replace("</sheets>", `<sheet xmlns:r="${R}" name="${xe(nomOnglet)}" sheetId="${sheetId}" state="visible" r:id="rIdP${id}"/></sheets>`);
+  rels = rels.replace("</Relationships>", `<Relationship Id="rIdP${id}" Type="${R}/worksheet" Target="worksheets/sheet${n}.xml"/></Relationships>`);
+  ct = ct.replace("</Types>", `<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`);
+  const rows = lignes.map((vals, i) => `<row r="${i + 1}">${vals.map((v, c) => (v === null || v === undefined || v === "") ? ""
+    : `<c r="${numToCol(c + 1)}${i + 1}" t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`).join("")}</row>`).join("");
+  const largeur = Math.max(1, ...lignes.map((l) => l.length));
+  const cols = Array.from({ length: largeur }, (_, c) => `<col min="${c + 1}" max="${c + 1}" width="${c === largeur - 1 ? 40 : 16}" customWidth="1"/>`).join("");
+  files[`xl/worksheets/sheet${n}.xml`] = enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${numToCol(largeur)}${lignes.length}"/><cols>${cols}</cols><sheetData>${rows}</sheetData></worksheet>`);
+  files["xl/workbook.xml"] = enc.encode(wbx);
+  files["xl/_rels/workbook.xml.rels"] = enc.encode(rels);
+  files["[Content_Types].xml"] = enc.encode(ct);
+  return writeZip(Object.entries(files).map(([name, data]) => ({ name, data })));
+}

@@ -17,6 +17,7 @@ etapes = [
     ("Rappel écran d'accueil", [sys.executable, os.path.join(ICI, "test_installation.py")]),
     ("Notifications", [sys.executable, os.path.join(ICI, "test_notifications.py")]),
     ("Fiche médecin", [sys.executable, os.path.join(ICI, "test_medecins.py")]),
+    ("Règles et postes", [sys.executable, os.path.join(ICI, "test_reglages.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

@@ -111,6 +111,7 @@ Rappel « écran d'accueil » (`installOverlay`, `maybeInstallPrompt`) : sur iPh
   Un classeur ancien, sans la nouvelle colonne, doit continuer à fonctionner, avec une valeur par défaut.
 
 ### Classeur de paramètres (format lu par `readParams`)
+Admin → Règles et postes : onglets Paramètres, Postes, Sites, Fermetures, Imposées, Fériés modifiables dans le site (`REGLES`, `ONGLETS`, `regRegles`, `regListe`, `regFiche`). Dates et heures écrites en texte « JJ/MM/AAAA » / « HH:MM » (lues par `asDay` / `asMinutes`). Onglet absent (ex. Fermetures) : créé par `addSheet` (`zip.js`).
 Admin → Médecins : la fiche de chaque médecin se modifie dans le site (`renderMedecins`, `medOuvrir`, `medEcrire`). L'onglet Médecins du classeur est réécrit avec `rewriteSheet` (`zip.js`), qui conserve le reste du classeur (styles, listes déroulantes, autres onglets) ; colonnes manquantes (nouveaux postes, Télétravail) ajoutées à la fin.
 Onglets :
 - **Paramètres** : clé / valeur à partir de la ligne 5 ;

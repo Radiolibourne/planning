@@ -57,7 +57,7 @@ main { padding: 18px 0 70px; }
 .small { font-size: 13px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); flex: 1 1 140px; min-width: 0; }
-input[type=date], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea {
+input[type=date], input[type=time], input[type=number], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea {
   width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px; font-size: 16px; min-height: 44px;
 }
 textarea { min-height: 90px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
@@ -178,7 +178,7 @@ main { padding-top: 22px; }
 .card h2 { font-size: 19px; font-weight: 800; }
 @media (prefers-color-scheme: dark) { .card { border: 1px solid var(--line); } }
 button.b, a.b, label.b { border-radius: 999px; }
-input[type=date], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea { border-radius: 12px; }
+input[type=date], input[type=time], input[type=number], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea { border-radius: 12px; }
 textarea { border-radius: 10px; }
 .seg { border-radius: 999px; }
 .who button { border-radius: 14px; }
@@ -404,6 +404,13 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         <div class="msg" id="medMsg" role="status"></div>
       </div>
 
+      <div class="card" id="regCard" hidden>
+        <h2>Règles et postes</h2>
+        <p class="sub">Les autres réglages du classeur, modifiables ici. Chaque enregistrement met à jour le classeur partagé.</p>
+        <ul class="list" id="regList"></ul>
+        <div class="msg" id="regMsg" role="status"></div>
+      </div>
+
       <div class="card">
         <h2>Générer un planning</h2>
         <p class="sub">Les indisponibilités saisies en ligne sont ajoutées automatiquement à celles du classeur.</p>
@@ -615,6 +622,19 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
         <button class="x" type="button" id="mDel" style="margin-left:auto">Supprimer du classeur</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Réglages (administrateur) : règles, postes, sites, fermetures, imposées, fériés -->
+<div class="overlay" id="regOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="regTitle">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h2 id="regTitle" style="margin:0;font-size:18px">Réglages</h2>
+      <button class="x" type="button" id="regClose">Fermer</button>
+    </div>
+    <p class="sub" id="regSub" style="margin-bottom:10px"></p>
+    <div id="regBody"></div>
+    <div class="msg" id="regFormMsg" role="status"></div>
   </div>
 </div>
 
@@ -1628,6 +1648,7 @@ function renderAdmin() {
   }
   $("gBtn").disabled = !S.P;
   renderMedecins();
+  renderRegCard();
   // brouillon
   if (!S.draft) {
     const saved = ls.get("planning-radio-draft");
@@ -1956,6 +1977,254 @@ $("medForm").addEventListener("submit", async (e) => {
   if (ok) { $("medOverlay").hidden = true; setMsg($("medMsg"), `${ini} enregistré dans le classeur.`, "ok"); }
   else setMsg(msg, $("paramMsg").textContent || "Enregistrement impossible.", "err");
 });
+// ------------------------------------------------------------ Règles et postes : autres onglets du classeur
+const REGLES = [
+  { k: "Début de période", t: "date", aide: "Période proposée par défaut pour la prochaine génération." },
+  { k: "Fin de période", t: "date", aide: "" },
+  { k: "Lundi de référence semaine A", t: "date", aide: "Un lundi de semaine A : les semaines alternent A / B à partir de lui (jours off des médecins)." },
+  { k: "Un seul site par jour", t: "ouinon", aide: "Oui : un médecin qui part sur un autre site y passe la journée." },
+  { k: "Déplacements hors Libourne : cible par semaine (jours)", t: "int", aide: "Chaque médecin va si possible ce nombre de jours par semaine sur un autre site." },
+  { k: "Déplacements hors Libourne : maximum par semaine (jours)", t: "int", aide: "Jamais au-delà." },
+  { k: "Scanner interventionnel : minimum de vacations par semaine", t: "int", aide: "" },
+  { k: "Scanner interventionnel : référents (1 vacation chacun par semaine)", t: "medecins", aide: "Chacun a 1 vacation par semaine ; un référent peut prendre les 2 si l'autre est absent." },
+  { k: "Télétravail : jours par semaine (cible)", t: "int", aide: "Pour les médecins autorisés (fiche médecin) et les postes « faisables en télétravail »." },
+  { k: "Télétravail : maximum de jours par semaine", t: "int", aide: "" },
+  { k: "Télétravail : maximum de médecins par jour", t: "int", aide: "0 = sans limite." },
+  { k: "Temps de calcul maximum (secondes)", t: "int", aide: "Pour la génération « Approfondie »." },
+];
+const PERIODES = ["Journée", "Matin", "Après-midi"];
+const ONGLETS = {
+  "Postes": { titre: "Postes", sous: "Ouverture, nombre de médecins et priorité de fermeture de chaque poste.", ajout: "Ajouter un poste",
+    champs: [{ i: 0, l: "Code (court, unique)", t: "code" }, { i: 1, l: "Libellé", t: "text" }, { i: 2, l: "Site", t: "site" },
+      { i: 3, l: "Groupe d'équilibrage", t: "text", aide: "Les vacations d'un même groupe sont réparties équitablement entre médecins." },
+      { i: 4, l: "Médecins souhaités", t: "int" }, { i: 5, l: "Minimum", t: "int" },
+      { i: 6, l: "Priorité jusqu'au minimum", t: "prio", aide: "1 = couvert en premier ; 9 = fermé en premier s'il manque des médecins." },
+      { i: 7, l: "Priorité au-delà du minimum", t: "prio" }, { i: 8, l: "Remarque", t: "text" },
+      { l: "Ouvert", t: "demis" }, { h: "Télétravail possible", l: "Faisable en télétravail", t: "check" }],
+    resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))} <div class="meta">${esc(g(2))} · ${esc(g(4) || 1)} méd.${+g(5) && +g(5) !== +g(4) ? ` (min ${esc(g(5))})` : ""} · priorité ${esc(g(6) || "—")} · ${g("demis")}/10 demi-journées${g("tt") ? " · télétravail" : ""}</div>` },
+  "Sites": { titre: "Sites et horaires", sous: "Horaires des vacations ; l'adresse apparaît dans les calendriers des téléphones.", ajout: "Ajouter un site",
+    champs: [{ i: 0, l: "Site", t: "nom" }, { i: 1, l: "Adresse (facultatif)", t: "text" }, { i: 2, l: "Matin : début", t: "time" }, { i: 3, l: "Matin : fin", t: "time" },
+      { i: 4, l: "Après-midi : début", t: "time" }, { i: 5, l: "Après-midi : fin", t: "time" }],
+    resume: (g) => `<b>${esc(g(0))}</b> <div class="meta">${esc(g(2))}–${esc(g(3))} · ${esc(g(4))}–${esc(g(5))}${g(1) ? ` · ${esc(g(1))}` : ""}</div>` },
+  "Fermetures": { titre: "Fermetures de postes", sous: "Un poste fermé sur une période (travaux, remplacement de machine…).", ajout: "Ajouter une fermeture",
+    creer: ["Fermetures ponctuelles de postes", "Exemple : IRM1 | 12/10/2026 | 30/10/2026 | Journée | Remplacement de l'IRM.", ["Code poste", "Du", "Au", "Période", "Motif"]],
+    champs: [{ i: 0, l: "Poste", t: "poste" }, { i: 1, l: "Du", t: "date" }, { i: 2, l: "Au", t: "date" }, { i: 3, l: "Période", t: "periode" }, { i: 4, l: "Motif", t: "text" }],
+    tri: 1, resume: (g) => `<b>${esc(g(0))}</b> du ${esc(g(1))} au ${esc(g(2))} <div class="meta">${esc(g(3) || "Journée")}${g(4) ? ` · ${esc(g(4))}` : ""}</div>` },
+  "Imposées": { titre: "Affectations imposées", sous: "Affectations que la génération doit respecter (ex. plage coro, bloc séno).", ajout: "Ajouter une affectation",
+    creer: ["Affectations imposées", "Exemple : 12/10/2026 | Matin | AB | IRM2.", ["Date", "Période", "Initiales", "Code poste", "Commentaire"]],
+    champs: [{ i: 0, l: "Date", t: "date" }, { i: 1, l: "Demi-journée", t: "demi" }, { i: 2, l: "Médecin", t: "medecin" }, { i: 3, l: "Poste", t: "poste" }, { i: 4, l: "Commentaire", t: "text" }],
+    tri: 0, resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))} · ${esc(g(2))} → ${esc(g(3))}${g(4) ? `<div class="meta">${esc(g(4))}</div>` : ""}` },
+  "Fériés": { titre: "Jours fériés", sous: "Jours non planifiés.", ajout: "Ajouter un jour",
+    creer: ["Jours fériés", "Jours non planifiés.", ["Date", "Libellé"]],
+    champs: [{ i: 0, l: "Date", t: "date" }, { i: 1, l: "Libellé", t: "text" }], tri: 0, resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))}` },
+};
+const REG = { sig: "", wb: null, onglet: null, hdr: [], rows: [], edit: -1 };
+async function regClasseur() {
+  if (REG.sig !== paramsSig || !REG.wb) { REG.wb = await readXlsx(b64ToBytes(S.params.xlsx).buffer); REG.sig = paramsSig; }
+  return REG.wb;
+}
+const fmtDate = (v) => { const d = asDay(v); return d === null ? norm(v) : fmtDay(d); };
+const fmtHeure = (v) => { const m = asMinutes(v, null); return m === null ? norm(v) : `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; };
+const DEMI_HDR = [0, 1, 2, 3, 4].flatMap((j) => [`${JABR[j]} M`, `${JABR[j]} AM`]);
+function regCol(hdr, champ, k) {   // colonne d'un champ (créée à la fin si absente)
+  if (champ.i !== undefined) return champ.i;
+  const nom = champ.t === "demis" ? DEMI_HDR[k] : champ.h;
+  let c = hdr.findIndex((h) => low(h) === low(nom) || (champ.t !== "demis" && low(h).startsWith(low(nom).split(" ")[0])));
+  if (c < 0) { hdr.push(nom); c = hdr.length - 1; }
+  return c;
+}
+function regGetter(hdr, row) {
+  const def = ONGLETS[REG.onglet];
+  return (x) => {
+    if (x === "demis") return DEMI_HDR.filter((h) => { const c = hdr.findIndex((y) => low(y) === low(h)); return c >= 0 && low(row[c]) === "x"; }).length;
+    if (x === "tt") { const c = hdr.findIndex((y) => low(y).startsWith("teletravail")); return c >= 0 && /^(o|x)/.test(low(row[c])); }
+    const ch = def.champs.find((f) => f.i === x);
+    const v = row[x];
+    if (ch && ch.t === "date") return fmtDate(v);
+    if (ch && ch.t === "time") return fmtHeure(v);
+    return norm(v);
+  };
+}
+async function renderRegCard() {
+  const card = $("regCard");
+  card.hidden = !S.P;
+  if (!S.P) return;
+  let wb;
+  try { wb = await regClasseur(); } catch (e) { return; }
+  const n = (o) => { const ws = wb[o]; if (!ws) return 0; let k = 0; for (let r = 5; r <= ws.maxRow; r++) if (norm(ws.get(r, 1))) k++; return k; };
+  const items = [["Règles", "Règles", "Déplacements, scanner interventionnel, télétravail, semaines A / B"],
+    ["Postes", "Postes", `${n("Postes")} postes`], ["Sites", "Sites et horaires", `${n("Sites")} sites`],
+    ["Fermetures", "Fermetures de postes", n("Fermetures") ? `${n("Fermetures")} fermeture(s)` : "aucune"], ["Imposées", "Affectations imposées", n("Imposées") ? `${n("Imposées")} affectation(s)` : "aucune"],
+    ["Fériés", "Jours fériés", `${n("Fériés")} jours`]];
+  $("regList").innerHTML = items.map(([k, t, d]) => `<li><div class="grow"><b>${t}</b><div class="meta">${esc(d)}</div></div><button class="b" type="button" data-reg="${k}" style="min-height:36px;padding:4px 12px">Ouvrir</button></li>`).join("");
+}
+$("regList").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-reg]"); if (!b) return;
+  await regClasseur();
+  if (b.dataset.reg === "Règles") regRegles(); else regListe(b.dataset.reg);
+  $("regOverlay").hidden = false;
+});
+$("regClose").addEventListener("click", () => { $("regOverlay").hidden = true; });
+function regOptions(t, v) {
+  const P = S.P, cur = norm(v);
+  let opts = [];
+  if (t === "site") opts = P.siteList.filter((x) => x !== TT_SITE);
+  else if (t === "poste") opts = P.posteOrder.filter((c) => !P.postes[c].tt);
+  else if (t === "medecin") opts = Object.keys(P.docs);
+  else if (t === "periode") opts = PERIODES;
+  else if (t === "demi") opts = ["Matin", "Après-midi"];
+  else if (t === "prio") opts = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  else if (t === "ouinon") opts = ["Oui", "Non"];
+  if (cur && !opts.includes(cur)) opts = [cur, ...opts];
+  return opts.map((o) => `<option${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("");
+}
+function regChamp(id, ch, v, k) {
+  const lab = (x) => `<label class="f" style="margin-top:10px">${esc(ch.l)}${x}${ch.aide ? `<span class="small muted">${esc(ch.aide)}</span>` : ""}</label>`;
+  if (["site", "poste", "medecin", "periode", "demi", "prio", "ouinon"].includes(ch.t)) return lab(`<select id="${id}">${regOptions(ch.t, v)}</select>`);
+  if (ch.t === "date") { const d = asDay(v); return lab(`<input type="date" id="${id}" value="${d === null ? "" : toInput(d)}">`); }
+  if (ch.t === "time") return lab(`<input type="time" id="${id}" value="${esc(fmtHeure(v))}">`);
+  if (ch.t === "int") return lab(`<input type="number" inputmode="numeric" min="0" max="99" id="${id}" value="${esc(norm(v))}">`);
+  if (ch.t === "check") return `<label class="f" style="margin-top:12px;flex-direction:row;align-items:center;gap:10px;color:var(--ink)"><input type="checkbox" id="${id}" style="width:20px;height:20px"${/^(o|x)/.test(low(v)) ? " checked" : ""}> ${esc(ch.l)}</label>`;
+  if (ch.t === "demis") return `<div style="margin-top:12px"><div class="small muted" style="margin-bottom:4px">${esc(ch.l)}</div><div class="chips pick" id="${id}">${DEMI_HDR.map((h, j) => `<button type="button" data-k="${j}" aria-pressed="${(v || [])[j] ? "true" : "false"}">${h}</button>`).join("")}</div></div>`;
+  if (ch.t === "medecins") { const sel = norm(v).replace(/;/g, ",").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
+    return `<div style="margin-top:12px"><div class="small muted" style="margin-bottom:4px">${esc(ch.l)}</div><div class="chips pick" id="${id}">${Object.keys(S.P.docs).map((d) => `<button type="button" data-k="${esc(d)}" aria-pressed="${sel.includes(d)}">${esc(d)}</button>`).join("")}</div>${ch.aide ? `<span class="small muted">${esc(ch.aide)}</span>` : ""}</div>`; }
+  const dis = (ch.t === "code" || ch.t === "nom") && REG.edit >= 0 ? " disabled" : "";
+  return lab(`<input type="text" id="${id}" value="${esc(norm(v))}"${dis}${ch.t === "code" ? ' autocapitalize="characters" maxlength="12"' : ' maxlength="120"'}>`);
+}
+function regLire(id, ch) {
+  const el = $(id);
+  if (ch.t === "date") { const d = fromInput(el.value); return d === null ? null : fmtDay(d); }
+  if (ch.t === "time") return el.value || null;
+  if (ch.t === "int") return el.value === "" ? null : Math.max(0, Math.round(+el.value));
+  if (ch.t === "check") return el.checked ? "Oui" : "";
+  if (ch.t === "prio") return +el.value;
+  if (ch.t === "code") return el.value.trim().toUpperCase().replace(/\s+/g, "");
+  if (ch.t === "medecins") return medSel(el).join(", ");
+  return el.value.trim();
+}
+async function regEcrire(onglet, depuis, lignes, styleDe) {
+  let bytes = b64ToBytes(S.params.xlsx);
+  const def = ONGLETS[onglet];
+  if (!REG.wb[onglet] && def && def.creer) bytes = await addSheet(bytes, onglet, [[def.creer[0]], [def.creer[1]], [], def.creer[2]]);
+  bytes = await rewriteSheet(bytes, onglet, depuis, lignes, styleDe);
+  const ok = await saveParams(bytes, S.params.nom || "parametres_planning.xlsx");
+  if (!ok) setMsg($("regFormMsg"), $("paramMsg").textContent || "Enregistrement impossible.", "err");
+  else { REG.wb = await readXlsx(bytes.buffer); REG.sig = paramsSig; }
+  return ok;
+}
+// ---- onglet Paramètres
+function regRegles() {
+  REG.onglet = "Paramètres";
+  const ws = REG.wb["Paramètres"];
+  const val = {};
+  if (ws) for (let r = 5; r <= ws.maxRow; r++) if (norm(ws.get(r, 1))) val[norm(ws.get(r, 1))] = ws.get(r, 2);
+  $("regTitle").textContent = "Règles";
+  $("regSub").textContent = "Les règles chiffrées utilisées par la génération du planning.";
+  $("regBody").innerHTML = `<form id="regForm" novalidate>${REGLES.map((x, j) => regChamp(`rg${j}`, { l: x.k, t: x.t, aide: x.aide }, val[x.k])).join("")}
+    <div class="row" style="margin-top:14px"><button class="b primary" type="submit">Enregistrer</button></div></form>`;
+  setMsg($("regFormMsg"), "");
+  $("regForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = $("regFormMsg");
+    const nv = {};
+    REGLES.forEach((x, j) => { nv[x.k] = regLire(`rg${j}`, { t: x.t }); });
+    const ref = fromInput($(`rg${REGLES.findIndex((x) => x.k.startsWith("Lundi"))}`).value);
+    if (ref !== null && weekday(ref) !== 0) return setMsg(msg, "Le lundi de référence de la semaine A doit être un lundi.", "err");
+    const d1 = fromInput($("rg0").value), d2 = fromInput($("rg1").value);
+    if (d1 === null || d2 === null || d2 < d1) return setMsg(msg, "Période par défaut invalide.", "err");
+    // lignes existantes conservées (et leur mise en forme), règles manquantes ajoutées à la fin
+    const lignes = [], orig = [];
+    let rInt = 5;
+    if (ws) for (let r = 5; r <= ws.maxRow; r++) {
+      const k = norm(ws.get(r, 1)); if (!k) continue;
+      if (typeof ws.get(r, 2) === "number" && !REGLES.some((x) => x.k === k && x.t === "date")) rInt = r;
+      lignes.push([k, k in nv ? nv[k] : ws.get(r, 2), ws.get(r, 3)]); orig.push(r);
+    }
+    for (const x of REGLES) if (!lignes.some((l) => l[0] === x.k)) { lignes.push([x.k, nv[x.k], x.aide]); orig.push(rInt); }
+    setMsg(msg, "Enregistrement…");
+    if (await regEcrire("Paramètres", 5, lignes, (i) => orig[i] || rInt)) setMsg(msg, "Règles enregistrées.", "ok");
+  };
+}
+// ---- onglets en liste (Postes, Sites, Fermetures, Imposées, Fériés)
+function regCharger(onglet) {
+  const ws = REG.wb[onglet], def = ONGLETS[onglet];
+  REG.onglet = onglet;
+  REG.hdr = []; REG.rows = [];
+  if (ws) {
+    for (let c = 1; c <= ws.maxCol; c++) REG.hdr.push(ws.get(4, c) ?? "");
+    for (let r = 5; r <= ws.maxRow; r++) {
+      if (!norm(ws.get(r, 1))) continue;
+      const row = []; for (let c = 1; c <= REG.hdr.length; c++) row.push(ws.get(r, c));
+      REG.rows.push(row);
+    }
+  } else REG.hdr = def.creer[2].slice();
+}
+function regListe(onglet) {
+  regCharger(onglet);
+  const def = ONGLETS[onglet];
+  $("regTitle").textContent = def.titre; $("regSub").textContent = def.sous;
+  const ordre = REG.rows.map((r, i) => i);
+  if (def.tri !== undefined) ordre.sort((a, b) => (asDay(REG.rows[a][def.tri]) ?? 0) - (asDay(REG.rows[b][def.tri]) ?? 0));
+  $("regBody").innerHTML = `<div class="row" style="margin-bottom:6px"><button class="b primary" type="button" id="regAdd">${esc(def.ajout)}</button></div>
+    <ul class="list" id="regItems">${ordre.map((i) => `<li data-i="${i}"><div class="grow">${def.resume(regGetter(REG.hdr, REG.rows[i]))}</div><button class="b" type="button" data-edit style="min-height:36px;padding:4px 12px">Modifier</button></li>`).join("") || `<li class="small muted">Aucun élément.</li>`}</ul>`;
+  $("regAdd").onclick = () => regFiche(-1);
+  $("regItems").onclick = (e) => { const b = e.target.closest("[data-edit]"); if (b) regFiche(+b.closest("li").dataset.i); };
+}
+function regFiche(i) {
+  REG.edit = i;
+  const def = ONGLETS[REG.onglet], row = i >= 0 ? REG.rows[i] : [];
+  const hdr = REG.hdr;
+  $("regBody").innerHTML = `<form id="regForm" novalidate>${def.champs.map((ch, j) => {
+    let v;
+    if (ch.t === "demis") v = DEMI_HDR.map((h) => { const c = hdr.findIndex((y) => low(y) === low(h)); return c >= 0 && low(row[c]) === "x"; });
+    else if (ch.i !== undefined) v = row[ch.i];
+    else { const c = hdr.findIndex((y) => low(y).startsWith(low(ch.h).split(" ")[0])); v = c >= 0 ? row[c] : ""; }
+    if (i < 0 && v == null) v = ch.t === "int" ? (j === 4 ? 1 : 1) : ch.t === "prio" ? 5 : ch.t === "time" ? (ch.l.startsWith("Matin : début") ? "08:30" : ch.l.startsWith("Matin") ? "13:00" : ch.l.includes("début") ? "13:30" : "18:00") : ch.t === "periode" ? "Journée" : null;
+    return regChamp(`rf${j}`, ch, v);
+  }).join("")}
+    <div class="row" style="margin-top:14px"><button class="b primary" type="submit">Enregistrer</button><button class="b" type="button" id="regBack">Retour</button>
+    ${i >= 0 ? `<button class="x" type="button" id="regDel" style="margin-left:auto">Supprimer</button>` : ""}</div></form>`;
+  setMsg($("regFormMsg"), "");
+  $("regBack").onclick = () => regListe(REG.onglet);
+  if ($("regDel")) $("regDel").onclick = async () => {
+    const k = norm(row[0]);
+    if (REG.onglet === "Sites" && Object.values(S.P.postes).some((p) => p.site === k)) return setMsg($("regFormMsg"), `Des postes utilisent le site ${k} : modifiez-les d'abord.`, "err");
+    if (!confirm(REG.onglet === "Postes" ? `Supprimer le poste ${k} ? Les affectations imposées et fermetures qui le citent devront être retirées.` : "Supprimer cet élément ?")) return;
+    const rows = REG.rows.filter((_, x) => x !== i);
+    if (await regSauver(rows)) regListe(REG.onglet);
+  };
+  $("regForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = $("regFormMsg");
+    const hdr2 = REG.hdr.slice(), r = i >= 0 ? REG.rows[i].slice() : [];
+    for (const [j, ch] of def.champs.entries()) {
+      if (ch.t === "demis") { const sel = medSel($(`rf${j}`)).map(Number); DEMI_HDR.forEach((h, k) => { r[regCol(hdr2, ch, k)] = sel.includes(k) ? "X" : ""; }); continue; }
+      const v = regLire(`rf${j}`, ch);
+      if ((ch.t === "date" || ch.t === "time") && v === null) return setMsg(msg, `${ch.l} : valeur manquante.`, "err");
+      if ((ch.t === "code" || ch.t === "nom") && !v) return setMsg(msg, `${ch.l} : obligatoire.`, "err");
+      if ((ch.t === "code" || ch.t === "nom") && i < 0 && REG.rows.some((x) => norm(x[0]).toUpperCase() === String(v).toUpperCase())) return setMsg(msg, `« ${v} » existe déjà.`, "err");
+      r[regCol(hdr2, ch)] = v;
+    }
+    if (REG.onglet === "Postes") {
+      if (!(+r[4] >= 1)) return setMsg(msg, "Au moins 1 médecin souhaité.", "err");
+      if (+r[5] > +r[4]) return setMsg(msg, "Le minimum ne peut pas dépasser le nombre souhaité.", "err");
+      if (!r[3]) r[3] = r[1] || r[0];
+    }
+    if (REG.onglet === "Fermetures" && asDay(r[2]) < asDay(r[1])) return setMsg(msg, "La date de fin est avant la date de début.", "err");
+    if (REG.onglet === "Sites" && !(asMinutes(r[2]) < asMinutes(r[3]) && asMinutes(r[3]) <= asMinutes(r[4]) && asMinutes(r[4]) < asMinutes(r[5]))) return setMsg(msg, "Horaires incohérents.", "err");
+    REG.hdr = hdr2;
+    const rows = REG.rows.slice();
+    if (i >= 0) rows[i] = r; else rows.push(r);
+    if (await regSauver(rows)) { regListe(REG.onglet); setMsg($("regFormMsg"), "Enregistré.", "ok"); }
+  };
+}
+async function regSauver(rows) {
+  setMsg($("regFormMsg"), "Enregistrement…");
+  const hdr = REG.hdr;
+  const lignes = [hdr, ...rows.map((r) => hdr.map((_, k) => (r[k] === undefined ? null : r[k]))), ...Array.from({ length: 10 }, () => [])];
+  return regEcrire(REG.onglet, 4, lignes, (i) => (i === 0 ? 4 : 5));
+}
+
 $("mDel").addEventListener("click", async () => {
   if (MED.edit < 0) return;
   const ini = norm(MED.rows[MED.edit][MC.ini]);
