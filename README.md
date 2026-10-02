@@ -6,6 +6,8 @@ Outil de planning des vacations (matin / après-midi) pour les sites de Libourne
 - **Générateur hors ligne** : la même génération, dans un fichier qui fonctionne sans connexion, sans compte.
 - **Règles du service** : dans un classeur Excel de paramètres (médecins, compétences, jours off, postes, priorités, absences).
 
+Un autre service peut reprendre ce planning : voir **[ADAPTER.md](ADAPTER.md)**.
+
 Ce dépôt est **public**. Il ne contient que du code et des données d'exemple fictives (médecins DA, DB, IA…). Le vrai classeur du service ne doit **jamais** y être déposé : il reste sur votre ordinateur et dans la base Firebase.
 
 ---
