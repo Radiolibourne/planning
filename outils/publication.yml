@@ -1,5 +1,6 @@
 # Tests à chaque modification ; publication du site sur GitHub Pages si les tests passent (branche main).
-# Toutes les heures : republication pour rafraîchir les calendriers d'abonnement (planning publié dans Firebase).
+# Toutes les heures : republication pour rafraîchir les calendriers d'abonnement (planning publié dans Firebase)
+# et envoi des notifications (publication, rappels des dates limites).
 name: Tests et publication
 
 on:
@@ -52,6 +53,12 @@ jobs:
         env:
           CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
         run: python outils/calendriers_abonnement.py
+      - name: Clé publique des notifications
+        env:
+          FIREBASE_CLE: ${{ secrets.FIREBASE_CLE }}
+        run: |
+          pip install cryptography
+          python outils/notifications.py --cle-publique
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -77,3 +84,23 @@ jobs:
           CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
           ADMIN_UID: ${{ secrets.ADMIN_UID }}
         run: python outils/publier_regles.py
+
+  # Notifications sur les téléphones : toutes les heures, et après chaque modification (si les secrets existent).
+  notifications:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: notifications
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Outils
+        run: pip install google-auth requests cryptography
+      - name: Envoi des notifications
+        env:
+          FIREBASE_CLE: ${{ secrets.FIREBASE_CLE }}
+          CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
+        run: python outils/notifications.py

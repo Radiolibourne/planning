@@ -55,6 +55,7 @@ Administrateurs : principaux = UID du secret `ADMIN_UID` (inscrits dans les règ
 - Démo : pas de comptes (fonctionnement par « Qui êtes-vous ? »).
 
 ### Relance des dates limites
+Onglet Absences : liste des périodes ouvertes avec l'état de ma déclaration (`periodesADeclarer`) ; « Je n'ai aucune absence » est annulable (`annulerAucune`).
 `relanceInfo(c)` : médecins sans absence ni déclaration « aucune absence » sur la période. Admin : liste + lien `mailto:` (destinataires en copie cachée, adresses des comptes validés). Médecin : bandeau dans Mon planning et Absences tant que la date limite est ouverte.
 
 ### Qui est posté ? / PDF de la semaine
@@ -68,6 +69,11 @@ Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderC
 - Mêmes UID d'événements que l'import ponctuel (`buildIcs`) : les deux doivent rester alignés (test `test_firebase.py`).
 - GitHub désactive les tâches planifiées d'un dépôt public après 60 jours sans activité : dans ce cas, réactiver le workflow dans l'onglet Actions (bouton « Enable workflow »).
 - Si le code d'équipe change, les adresses changent : chaque médecin doit se réabonner.
+
+### Notifications (Web Push)
+- Le téléphone s'abonne depuis l'onglet Calendrier (comptes uniquement ; iPhone : depuis l'icône de l'écran d'accueil, iOS 16.4+). Abonnement stocké dans `abonnements/{uid}_{n}` (règles : chacun les siens).
+- Envoi par GitHub toutes les heures (`outils/notifications.py`, job `notifications`) : publication d'un planning ; rappels 3 jours avant et la veille d'une date limite, aux seuls médecins sans déclaration. Rien entre 20 h et 8 h (envoi le matin). État dans `espaces/{code}/config/notifications`.
+- Clés VAPID dérivées de `FIREBASE_CLE` (aucun secret en plus) ; clé publique écrite dans `dist/notifications.json` à la publication. Chiffrement RFC 8291 / VAPID RFC 8292 codés avec `cryptography` seulement (pywebpush indisponible), vérifiés par `tests/test_notifications.py`.
 
 ### Application installable et hors connexion
 Rappel « écran d'accueil » (`installOverlay`, `maybeInstallPrompt`) : sur iPhone / Android seulement, jamais si le site est ouvert depuis l'icône (`display-mode: standalone`). « C'est fait » le masque définitivement sur ce navigateur ; « Plus tard » pendant 3 jours (clé locale `planning-radio-installation`). Marche à suivre accessible aussi depuis l'onglet Calendrier.

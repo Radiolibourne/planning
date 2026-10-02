@@ -146,6 +146,7 @@ ul.list li:last-child { border-bottom: 0; }
 ul.list .grow { flex: 1; min-width: 0; }
 .tag { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2px 7px; background: var(--soft); }
 .tag.err { background: var(--closed-bg); color: var(--closed-ink); }
+.tag.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
 .ini { font-weight: 800; min-width: 38px; }
 /* admin */
 .progress { height: 8px; background: var(--soft); border-radius: 999px; overflow: hidden; margin-top: 12px; }
@@ -761,6 +762,7 @@ async function resolveAccount() {
   }
   if (S.admin && !S.legacy) watchAdminCollections();
   updateHeader();
+  syncNotif();
 }
 
 function watchAdminCollections() {
@@ -1091,16 +1093,14 @@ function renderMon() {
 function renderCal() {
   const v = $("vCal");
   const pub = S.published;
-  if (!S.me) {
-    v.innerHTML = `<div class="card empty"><p>Choisissez vos initiales pour ajouter votre planning à votre calendrier.</p><button class="b primary" id="calWho">Qui êtes-vous ?</button></div>`;
-    $("calWho").onclick = openWho; return;
-  }
-  if (!pub) { v.innerHTML = `<div class="card empty"><p><b>Aucun planning publié pour l'instant.</b></p><p class="small">Le calendrier sera disponible dès la première publication.</p></div>`; return; }
-  const me = S.me;
-  const ics = icsForMe(pub, me);
-  v.innerHTML = `<div class="card">
+  let html;
+  if (!S.me) html = `<div class="card empty"><p>Choisissez vos initiales pour ajouter votre planning à votre calendrier.</p><button class="b primary" id="calWho">Qui êtes-vous ?</button></div>`;
+  else if (!pub) html = `<div class="card empty"><p><b>Aucun planning publié pour l'instant.</b></p><p class="small">Le calendrier sera disponible dès la première publication.</p></div>`;
+  else {
+    const ics = icsForMe(pub, S.me);
+    html = `<div class="card">
     <h2>Mon planning dans mon calendrier</h2>
-    <p class="sub">Vos vacations (${esc(me)}) dans l'application Calendrier de l'iPhone, Google Agenda ou Outlook.</p>
+    <p class="sub">Vos vacations (${esc(S.me)}) dans l'application Calendrier de l'iPhone, Google Agenda ou Outlook.</p>
     <div id="subBox" hidden style="margin-bottom:12px"></div>
     ${ics ? `<a class="b${S.store.mode === "firebase" ? "" : " primary"}" id="icsMe" download="${esc(ics.name)}" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics.text)}">Importer ce mois dans mon calendrier</a>
     <details class="small" style="margin-top:10px"><summary>Import ponctuel : comment ça marche ?</summary>
@@ -1108,13 +1108,111 @@ function renderCal() {
       <li>Un import ne se met pas à jour : si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import. L'abonnement ci-dessus évite cette manipulation.</li></ol>
     </details>` : `<p class="muted">Aucune vacation pour vous dans ce planning.</p>`}
   </div>`;
-  if (!estInstalle() && (isIOS || isAndroid)) {
-    v.insertAdjacentHTML("beforeend", `<div class="card"><h2>Planning radio sur l'écran d'accueil</h2>
-      <p class="sub">Une icône sur votre téléphone pour ouvrir le planning en un geste, même sans réseau.</p>
-      <button class="b" id="calInstall" type="button">Voir comment faire</button></div>`);
-    $("calInstall").onclick = openInstall;
   }
-  fillSubscription(me);
+  html += `<div class="card" id="notifCard"><h2>Notifications</h2>
+    <p class="sub">Une alerte sur ce téléphone quand un planning est publié, et un rappel avant chaque date limite de dépôt des absences si vous n'avez encore rien déclaré.</p>
+    <div id="notifBox"><p class="small muted" style="margin:0">Vérification…</p></div><div class="msg" id="notifMsg" role="status"></div></div>`;
+  if (!estInstalle() && (isIOS || isAndroid)) html += `<div class="card"><h2>Planning radio sur l'écran d'accueil</h2>
+      <p class="sub">Une icône sur votre téléphone pour ouvrir le planning en un geste, même sans réseau.</p>
+      <button class="b" id="calInstall" type="button">Voir comment faire</button></div>`;
+  v.innerHTML = html;
+  if ($("calWho")) $("calWho").onclick = openWho;
+  if ($("calInstall")) $("calInstall").onclick = openInstall;
+  if (S.me && pub) fillSubscription(S.me);
+  renderNotif();
+}
+
+// ------------------------------------------------------------ notifications (Web Push)
+// Abonnement du téléphone enregistré dans abonnements/{uid}_{n} ; l'envoi est fait toutes les heures par GitHub
+// (outils/notifications.py) avec une clé publiée dans notifications.json.
+const NOTIF_KEY = "planning-radio-notif";
+const pushPossible = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+let notifCleP = null;
+function notifCle() {
+  if (!notifCleP) notifCleP = fetch("notifications.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => (j && j.cle) || null).catch(() => null);
+  return notifCleP;
+}
+function b64uBytes(s) { const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)); return Uint8Array.from(b, (c) => c.charCodeAt(0)); }
+function bytesB64u(buf) { let t = ""; new Uint8Array(buf).forEach((x) => { t += String.fromCharCode(x); }); return btoa(t).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function abonnementId(uid, endpoint) {
+  let h = 2166136261;
+  for (let i = 0; i < endpoint.length; i++) { h ^= endpoint.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return `${uid}_${h.toString(36)}`;
+}
+async function monAbonnement() {
+  if (!pushPossible()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+async function enregistrerAbonnement(sub) {
+  const j = sub.toJSON(), id = abonnementId(S.auth.uid, j.endpoint);
+  await S.store.set(`abonnements/${id}`, { uid: S.auth.uid, ini: (S.membre && S.membre.ini) || S.me || "", endpoint: j.endpoint,
+    p256dh: j.keys.p256dh, auth: j.keys.auth, majLe: Date.now() });
+  ls.set(NOTIF_KEY, id);
+}
+async function renderNotif() {
+  const box = $("notifBox"); if (!box) return;
+  const put = (h) => { if ($("notifBox") === box) box.innerHTML = h; };
+  if (S.store.mode !== "firebase") return put(`<p class="small muted" style="margin:0">Disponible sur le site de l'équipe (pas en démonstration).</p>`);
+  if (isIOS && !estInstalle()) return put(`<p class="small" style="margin:0 0 8px">Sur iPhone, les notifications fonctionnent depuis l'icône <b>Planning radio</b> de l'écran d'accueil (iOS 16.4 ou plus récent). Ajoutez l'icône, ouvrez le planning par elle, puis revenez ici.</p><button class="b" type="button" id="notifInst">Voir comment faire</button>`), ($("notifInst") && ($("notifInst").onclick = openInstall));
+  if (!pushPossible()) return put(`<p class="small muted" style="margin:0">Ce navigateur ne permet pas les notifications.</p>`);
+  if (!(S.auth && S.membre)) return put(`<p class="small muted" style="margin:0">Réservé aux comptes personnels : connectez-vous avec votre compte pour activer les notifications.</p>`);
+  const cle = await notifCle();
+  if (!cle) return put(`<p class="small muted" style="margin:0">Les notifications ne sont pas encore activées pour l'équipe (l'administrateur doit ajouter la clé Firebase dans GitHub).</p>`);
+  if (Notification.permission === "denied") return put(`<p class="small" style="margin:0">Les notifications sont bloquées pour Planning radio. Réautorisez-les dans les réglages du téléphone (Réglages → Notifications → Planning radio), puis revenez ici.</p>`);
+  let sub = null;
+  try { sub = await monAbonnement(); } catch (e) { sub = null; }
+  const actif = sub && Notification.permission === "granted" && ls.get(NOTIF_KEY);
+  put(actif ? `<p class="small" style="margin:0 0 8px"><b>Activées sur ce téléphone.</b></p><button class="b" type="button" id="notifOff">Désactiver</button>`
+    : `<button class="b primary" type="button" id="notifOn">Activer les notifications</button>`);
+  if ($("notifOn")) $("notifOn").onclick = activerNotif;
+  if ($("notifOff")) $("notifOff").onclick = desactiverNotif;
+}
+async function activerNotif() {
+  const msg = $("notifMsg");
+  if (!needOnline(msg)) return;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { setMsg(msg, "Autorisation refusée : rien n'a été activé.", "err"); return renderNotif(); }
+    const cle = await notifCle();
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    const ancienne = sub && sub.options && sub.options.applicationServerKey && bytesB64u(sub.options.applicationServerKey);
+    if (sub && ancienne && ancienne !== cle) { await sub.unsubscribe(); sub = null; }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(cle) });
+    await enregistrerAbonnement(sub);
+    setMsg(msg, "Notifications activées sur ce téléphone.", "ok");
+    try { reg.showNotification("Planning radio", { body: "Notifications activées : vous serez prévenu des publications et des dates limites.", icon: "icone-192.png", tag: "essai" }); } catch (e) { /* facultatif */ }
+  } catch (e) { console.error(e); setMsg(msg, `Activation impossible : ${e.message || e}`, "err"); }
+  renderNotif();
+}
+async function desactiverNotif() {
+  const msg = $("notifMsg");
+  try {
+    const sub = await monAbonnement();
+    const id = ls.get(NOTIF_KEY) || (sub && abonnementId(S.auth.uid, sub.endpoint));
+    if (sub) await sub.unsubscribe();
+    if (id) await S.store.del(`abonnements/${id}`);
+    ls.set(NOTIF_KEY, null);
+    setMsg(msg, "Notifications désactivées sur ce téléphone.", "ok");
+  } catch (e) { setMsg(msg, e.message || String(e), "err"); }
+  renderNotif();
+}
+// À l'ouverture : abonnement remis à jour (initiales, nouvelle clé) si les notifications sont activées sur ce téléphone
+let notifSync = false;
+async function syncNotif() {
+  if (notifSync || S.store.mode !== "firebase" || !(S.auth && S.membre) || !pushPossible() || !ls.get(NOTIF_KEY)) return;
+  notifSync = true;
+  try {
+    if (Notification.permission !== "granted") return;
+    const cle = await notifCle(); if (!cle) return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    const ancienne = sub && sub.options && sub.options.applicationServerKey && bytesB64u(sub.options.applicationServerKey);
+    if (sub && ancienne && ancienne !== cle) { await sub.unsubscribe(); sub = null; }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(cle) });
+    await enregistrerAbonnement(sub);
+  } catch (e) { /* nouvel essai à la prochaine ouverture */ }
 }
 
 // Abonnement : adresse personnelle, mise à jour automatique par le téléphone
@@ -1346,6 +1444,34 @@ function relanceBanner() {
   return rs.map((c) => `<div class="banner warn">Absences du <b>${fmtDay(c.du, false)} au ${fmtDay(c.au)}</b> à déclarer avant le <b>${fmtDay(c.limite)}</b>.
       ${peutDeclarer() ? `<div class="row" style="margin-top:8px"><a class="b" href="#indispos" style="min-height:36px;padding:5px 12px">Déclarer une absence</a><button class="b" type="button" data-aucune="${cloKey(c)}" style="min-height:36px;padding:5px 12px">Je n'ai aucune absence sur cette période</button></div>` : ""}</div>`).join("");
 }
+// Onglet Absences : chaque période ouverte par les administrateurs, avec l'état de ma déclaration
+function periodesADeclarer() {
+  if (!S.me) return "";
+  const now = Date.now(), today = todayDay();
+  const cl = ((S.saisie && S.saisie.clotures) || []).filter((c) => now <= c.finMs && c.au >= today).sort((a, b) => a.du - b.du);
+  if (!cl.length) return "";
+  const lignes = cl.map((c) => {
+    const r = relanceInfo(c), key = cloKey(c);
+    const periode = `<b>${fmtDay(c.du, false)} → ${fmtDay(c.au)}</b> <span class="small muted">· à déclarer avant le ${fmtDay(c.limite)}</span>`;
+    let etat;
+    if (r.avec.has(S.me)) etat = `<span class="tag ok">Absence déclarée</span>`;
+    else if (r.aucune.has(S.me)) etat = `<span class="tag ok">Aucune absence</span>${peutDeclarer() ? ` <button class="x" type="button" data-annuler-aucune="${key}">Annuler</button>` : ""}`;
+    else if (peutDeclarer()) etat = `<button class="b" type="button" data-aucune="${key}" style="min-height:36px;padding:5px 12px">Je n'ai aucune absence sur cette période</button>`;
+    else etat = `<span class="small muted">Connectez-vous avec votre compte pour indiquer que vous n'avez aucune absence.</span>`;
+    return `<li style="flex-wrap:wrap"><div class="grow">${periode}</div><div>${etat}</div></li>`;
+  }).join("");
+  return `<div class="banner info" style="padding-bottom:4px"><b>Périodes demandées par l'administrateur</b>
+    <p class="small" style="margin:2px 0 4px">Déclarez vos absences ci-dessous, ou indiquez que vous n'en avez aucune.</p>
+    <ul class="list">${lignes}</ul></div>`;
+}
+async function annulerAucune(key, msgEl) {
+  if (!needOnline(msgEl || $("indMsg"))) return;
+  const path = S.store.mode === "demo" ? `declarations/demo-${S.me}` : `declarations/${S.auth.uid}`;
+  const prev = S.declarations.find((d) => String(d.ini).toUpperCase() === S.me) || {};
+  const aucune = { ...(prev.aucune || {}) }; delete aucune[key];
+  try { await S.store.set(path, { ini: S.me, aucune, majLe: Date.now() }); }
+  catch (e) { if (msgEl) setMsg(msgEl, e.message, "err"); }
+}
 async function declarerAucune(key, msgEl) {
   if (!needOnline(msgEl || $("indMsg"))) return;
   const path = S.store.mode === "demo" ? `declarations/demo-${S.me}` : `declarations/${S.auth.uid}`;
@@ -1356,6 +1482,8 @@ async function declarerAucune(key, msgEl) {
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest("[data-aucune]");
   if (b) { b.disabled = true; declarerAucune(b.dataset.aucune, $("indMsg")); }
+  const a = e.target.closest && e.target.closest("[data-annuler-aucune]");
+  if (a) { a.disabled = true; annulerAucune(a.dataset.annulerAucune, $("indMsg")); }
 });
 function renderIndispos() {
   const today = todayDay();
@@ -1373,7 +1501,7 @@ function renderIndispos() {
   }
   $("indLock").hidden = !infos.length;
   $("indLock").innerHTML = infos.join("<br>");
-  $("indRelance").innerHTML = relanceBanner();
+  $("indRelance").innerHTML = periodesADeclarer();
   $("indSubmit").disabled = !S.me;
   if (!S.me) setMsg($("indMsg"), "Choisissez d'abord vos initiales (bouton « Qui êtes-vous ? » en haut).", "err");
   else if ($("indMsg").classList.contains("err") && $("indMsg").textContent.startsWith("Choisissez")) setMsg($("indMsg"), "");

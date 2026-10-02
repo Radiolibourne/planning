@@ -311,6 +311,20 @@ service cloud.firestore {
       allow write: if admin() && request.auth.uid != uid;
     }
 
+    // Notifications : chaque personne enregistre l'abonnement de ses téléphones (identifiant « uid_n »).
+    // L'envoi est fait par GitHub avec la clé de service (hors règles).
+    match /abonnements/{id} {
+      allow read, delete: if admin() || (request.auth != null && id.matches(request.auth.uid + '_[a-z0-9]+'));
+      allow create, update: if request.auth != null && membre()
+        && id.matches(request.auth.uid + '_[a-z0-9]+')
+        && request.resource.data.keys().hasOnly(['uid', 'ini', 'endpoint', 'p256dh', 'auth', 'majLe'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.endpoint is string && request.resource.data.endpoint.size() < 1000
+        && request.resource.data.endpoint.matches('https://.*')
+        && request.resource.data.p256dh is string && request.resource.data.p256dh.size() < 200
+        && request.resource.data.auth is string && request.resource.data.auth.size() < 100;
+    }
+
     // Demandes de compte : créées par la personne elle-même, examinées par un administrateur.
     match /demandes/{uid} {
       allow read: if admin() || (request.auth != null && request.auth.uid == uid);

@@ -15,6 +15,7 @@ etapes = [
     ("Hors ligne", [sys.executable, os.path.join(ICI, "test_hors_ligne.py")]),
     ("Télétravail et import", [sys.executable, os.path.join(ICI, "test_teletravail.py")]),
     ("Rappel écran d'accueil", [sys.executable, os.path.join(ICI, "test_installation.py")]),
+    ("Notifications", [sys.executable, os.path.join(ICI, "test_notifications.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

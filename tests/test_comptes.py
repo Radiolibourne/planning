@@ -63,6 +63,8 @@ def peut_lire(path, uid):
         return lecteur(s[1], uid)
     if s[0] in ("membres", "demandes", "declarations", "admins"):
         return is_admin(uid) or (len(s) == 2 and uid == s[1])
+    if s[0] == "abonnements":
+        return is_admin(uid) or (uid is not None and re.fullmatch(re.escape(uid) + r"_[a-z0-9]+", s[1]) is not None)
     return False
 def peut_ecrire(op, path, uid, data):
     s = path.split("/"); old = DB.get(path)
@@ -74,6 +76,11 @@ def peut_ecrire(op, path, uid, data):
         return is_admin(uid)
     if s[0] == "membres": return is_admin(uid)
     if s[0] == "admins": return is_admin(uid) and uid != s[1]
+    if s[0] == "abonnements":
+        propre = uid is not None and re.fullmatch(re.escape(uid) + r"_[a-z0-9]+", s[1]) is not None
+        if op == "del": return is_admin(uid) or propre
+        return (propre and membre(uid) and set(data) <= {"uid", "ini", "endpoint", "p256dh", "auth", "majLe"}
+                and data.get("uid") == uid and str(data.get("endpoint", "")).startswith("https://"))
     if s[0] == "demandes":
         if op == "del": return is_admin(uid) or uid == s[1]
         return (uid == s[1] and set(data) == {"email", "ini", "nom", "creeLe"} and data["email"] == email_of(uid)
@@ -107,10 +114,31 @@ def server(op, a):
     bump()
     return {"id": p.split("/")[-1]}
 
+from cryptography.hazmat.primitives.asymmetric import ec as _ec
+from cryptography.hazmat.primitives import serialization as _ser
+import base64 as _b64
+_pub = _ec.generate_private_key(_ec.SECP256R1()).public_key().public_bytes(_ser.Encoding.X962, _ser.PublicFormat.UncompressedPoint)
+CLE_NOTIF = _b64.urlsafe_b64encode(_pub).rstrip(b"=").decode()
+STUB_PUSH = """() => {
+  let courant = null;
+  const sub = { endpoint: "https://push.exemple.test/abc", options: {},
+    toJSON() { return { endpoint: this.endpoint, keys: { p256dh: "BPk0", auth: "QQ0" } }; },
+    unsubscribe: async () => { courant = null; return true; } };
+  const reg = { pushManager: { getSubscription: async () => courant,
+      subscribe: async (o) => { window.__cleRecue = Array.from(o.applicationServerKey); courant = sub; return sub; } },
+    showNotification: () => { window.__montree = true; } };
+  Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: { ready: Promise.resolve(reg),
+    getRegistration: async () => reg, register: async () => reg, addEventListener() {}, controller: null } });
+  if (!window.PushManager) window.PushManager = function () {};
+  const N = function () {}; N.permission = "default"; N.requestPermission = async () => { N.permission = "granted"; return "granted"; };
+  Object.defineProperty(window, "Notification", { configurable: true, value: N });
+}"""
+
 def route(r):
     u = r.request.url
     if u.startswith("https://planning.test/"):
         if "/cal/" in u or u.endswith(".png") or u.endswith(".js") and "sw.js" in u: return r.fulfill(status=404, body="")
+        if u.endswith("/notifications.json"): return r.fulfill(status=200, body=json.dumps({"cle": CLE_NOTIF}), headers={"content-type": "application/json"})
         return r.fulfill(status=200, body=html, headers={"content-type": "text/html; charset=utf-8"})
     m = re.match(r"https://www\.gstatic\.com/firebasejs/10\.14\.1/(firebase-[a-z]+\.js)$", u)
     if m: return r.fulfill(status=200, body=MODS[m.group(1)], headers={"content-type": "application/javascript", "access-control-allow-origin": "*"})
@@ -217,6 +245,33 @@ with sync_playwright() as pw:
     ok("aucune absence » : DA" in adm.inner_text("#cloList"), "« aucune absence » : DA retiré de la relance")
     doc.wait_for_function("!document.querySelector('#vMon [data-aucune]')", timeout=8000)
     ok(True, "médecin : rappel disparu après sa déclaration")
+    # ---------------- onglet Absences : périodes demandées, « aucune absence » annulable
+    doc.click("a[data-tab=indispos]")
+    doc.wait_for_selector("#indRelance [data-annuler-aucune]", timeout=8000)
+    ok("Aucune absence" in doc.inner_text("#indRelance"), "Absences : période demandée listée avec « Aucune absence »")
+    doc.click("#indRelance [data-annuler-aucune]")
+    doc.wait_for_selector("#indRelance [data-aucune]", timeout=8000)
+    ok(not any((v.get("aucune") or {}) for k, v in DB.items() if k == f"declarations/{uid_da}"), "« aucune absence » annulée")
+    doc.click("#indRelance [data-aucune]")
+    doc.wait_for_selector("#indRelance [data-annuler-aucune]", timeout=8000)
+    ok(any((v.get("aucune") or {}) for k, v in DB.items() if k == f"declarations/{uid_da}"), "« aucune absence » redéclarée depuis l'onglet Absences")
+    # ---------------- notifications
+    doc.evaluate(STUB_PUSH)
+    doc.click("a[data-tab=cal]"); doc.wait_for_selector("#notifOn", timeout=8000)
+    doc.click("#notifOn")
+    doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('activées')", timeout=8000)
+    abos = {k: v for k, v in DB.items() if k.startswith("abonnements/")}
+    ok(len(abos) == 1 and list(abos)[0].split("/")[1].startswith(uid_da + "_") and list(abos.values())[0]["ini"] == "DA",
+       "notifications : abonnement du téléphone enregistré pour DA")
+    cle = doc.evaluate("window.__cleRecue")
+    ok(bytes(cle) == _b64.urlsafe_b64decode(CLE_NOTIF + "=="), "notifications : clé publique du site utilisée")
+    ok(doc.is_visible("#notifOff"), "notifications : état « activées » affiché")
+    r = doc.evaluate("""async () => JSON.parse(await window.__fb('set', JSON.stringify({path: 'abonnements/autre_abc', uid: globalThis.__uid,
+        data: {uid: 'autre', ini: 'DB', endpoint: 'https://x.test/', p256dh: 'a', auth: 'b', majLe: 1}}))).error || 'accepté'""")
+    ok(r == "permission-denied", "serveur : impossible d'abonner le téléphone d'un collègue")
+    doc.click("#notifOff")
+    doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('désactivées')", timeout=8000)
+    ok(not any(k.startswith("abonnements/") for k in DB), "notifications : désactivation supprime l'abonnement")
     # ---------------- second administrateur, depuis Admin → Comptes
     adm.click(f'#accList li[data-uid="{uid_da}"] [data-admin-oui]')
     adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('est administrateur')", timeout=8000)
@@ -233,8 +288,9 @@ with sync_playwright() as pw:
     ok(f"admins/{uid_da}" not in DB, "admin : droits de DA retirés")
     doc.reload(); doc.wait_for_selector("#vAuth:not([hidden])", timeout=10000)   # (connexion simulée non conservée au rechargement)
     doc.fill("#aEmail", "da@chl.fr"); doc.fill("#aPw", "motdepasse1"); doc.click("#aSubmit")
-    doc.wait_for_selector("#vMon:not([hidden])", timeout=10000)
+    doc.wait_for_selector("#tabs:not([hidden])", timeout=10000); doc.wait_for_timeout(500)
     ok(doc.is_hidden("#adminBtn"), "DA : plus de bouton Admin")
+    doc.click("a[data-tab=mon]")
     # ---------------- retrait d'accès
     adm.click(f'#accList li[data-uid="{uid_da}"] [data-retirer]')
     adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('retiré')", timeout=8000)
