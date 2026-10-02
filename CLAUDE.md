@@ -70,6 +70,7 @@ Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderC
 - Si le code d'équipe change, les adresses changent : chaque médecin doit se réabonner.
 
 ### Application installable et hors connexion
+Rappel « écran d'accueil » (`installOverlay`, `maybeInstallPrompt`) : sur iPhone / Android seulement, jamais si le site est ouvert depuis l'icône (`display-mode: standalone`). « C'est fait » le masque définitivement sur ce navigateur ; « Plus tard » pendant 3 jours (clé locale `planning-radio-installation`). Marche à suivre accessible aussi depuis l'onglet Calendrier.
 - Nom sur l'écran d'accueil : « Planning radio ». Icône : calendrier blanc sur fond bleu #1f3864.
 - `sw.js` : page et icônes en « réseau d'abord, copie locale sinon » ; bibliothèque Firebase (URL versionnée) en « copie locale d'abord ». Version du cache = empreinte des pages construites (chaque déploiement invalide l'ancien cache). Activé sur https et localhost uniquement.
 - Données : cache local Firestore (`persistentLocalCache`, multi-onglets) → le dernier planning consulté reste lisible sans réseau.

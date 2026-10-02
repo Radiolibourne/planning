@@ -200,6 +200,11 @@ table.pl thead th { background: var(--head); color: #fff; }
 table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #fff; }
 table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
+/* rappel d'installation sur l'écran d'accueil */
+.inst-head { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.inst-head img { border-radius: 12px; flex: 0 0 auto; }
+ol.inst li { margin-bottom: 10px; line-height: 1.45; }
+.ico { width: 20px; height: 20px; vertical-align: -4px; color: var(--accent); }
 [hidden] { display: none !important; }
 </style>
 </head>
@@ -528,6 +533,35 @@ table.qui tr.site td { background: var(--head); color: #fff; text-transform: non
   </section>
 </main>
 
+<!-- Rappel : installer « Planning radio » sur l'écran d'accueil -->
+<div class="overlay" id="installOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+    <div class="inst-head"><img src="icone-180.png" alt="" width="52" height="52"><div>
+      <h2 id="installTitle" style="margin:0;font-size:18px">Planning radio sur votre écran d'accueil</h2>
+      <p class="sub" style="margin:2px 0 0">Ouverture en un geste, comme une application, même sans réseau.</p></div></div>
+    <div id="instIos" hidden>
+      <ol class="steps inst">
+        <li>Touchez le bouton <b>Partager</b> <svg class="ico" viewBox="0 0 24 24" aria-label="Partager" role="img"><path d="M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10H5v11h14V10h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> en bas de Safari. Sur les iPhone récents, il se trouve dans le menu <b>⋯</b> en bas à droite.</li>
+        <li>Faites défiler et touchez <b>Sur l'écran d'accueil</b>.</li>
+        <li>Touchez <b>Ajouter</b> : l'icône « Planning radio » apparaît. Ouvrez ensuite le planning par cette icône.</li>
+      </ol>
+      <p class="small muted" id="instIosApp" hidden>Vous êtes dans le navigateur d'une autre application (e-mail, messagerie) : ouvrez d'abord ce lien dans <b>Safari</b>.</p>
+    </div>
+    <div id="instAndroid" hidden>
+      <div class="row" id="instPromptRow" hidden style="margin-bottom:8px"><button class="b primary" id="instPrompt" type="button">Installer l'application</button></div>
+      <ol class="steps inst" id="instAndroidSteps">
+        <li>Touchez le menu <b>⋮</b> en haut à droite de Chrome.</li>
+        <li>Touchez <b>Ajouter à l'écran d'accueil</b> (ou <b>Installer l'application</b>).</li>
+        <li>Confirmez : l'icône « Planning radio » apparaît. Ouvrez ensuite le planning par cette icône.</li>
+      </ol>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="b primary" id="instDone" type="button">C'est fait</button>
+      <button class="b" id="instLater" type="button">Plus tard</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="whoOverlay" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="whoTitle">
     <div id="whoAccount" hidden style="margin-bottom:14px">
@@ -645,7 +679,9 @@ function route() {
   show(TABS[t]);
   updateHeader();
   render();
+  if (!installShown) { installShown = true; setTimeout(maybeInstallPrompt, 1200); }
 }
+let installShown = false;
 window.addEventListener("hashchange", route);
 
 // ------------------------------------------------------------ connexion au stockage
@@ -930,6 +966,41 @@ function openWho() {
 }
 $("meBtn").addEventListener("click", openWho);
 $("whoClose").addEventListener("click", () => { $("whoOverlay").hidden = true; });
+
+// ------------------------------------------------------------ rappel « écran d'accueil »
+// Affiché sur téléphone tant que le site n'est pas ouvert depuis l'icône et que la personne n'a pas répondu « C'est fait ».
+// « Plus tard » : de nouveau proposé 3 jours après.
+const INSTALL_KEY = "planning-radio-installation";
+const ua = navigator.userAgent || "";
+const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/.test(ua);
+const estInstalle = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
+window.addEventListener("appinstalled", () => { ls.set(INSTALL_KEY, "fait"); $("installOverlay").hidden = true; });
+function openInstall() {
+  $("instIos").hidden = !isIOS;
+  $("instIosApp").hidden = !(isIOS && /FBAN|FBAV|Instagram|Line\/|GSA\/|Outlook|WhatsApp/i.test(ua));
+  $("instAndroid").hidden = isIOS;
+  $("instPromptRow").hidden = !installEvt;
+  $("installOverlay").hidden = false;
+}
+function maybeInstallPrompt() {
+  if (!(isIOS || isAndroid) || estInstalle() || !S.code) return;
+  const v = ls.get(INSTALL_KEY) || "";
+  if (v === "fait" || (v.startsWith("plus-tard:") && Date.now() < +v.slice(10))) return;
+  if (!$("whoOverlay").hidden || !$("installOverlay").hidden) return;
+  openInstall();
+}
+if (estInstalle()) ls.set(INSTALL_KEY, "fait");
+$("instDone").addEventListener("click", () => { ls.set(INSTALL_KEY, "fait"); $("installOverlay").hidden = true; });
+$("instLater").addEventListener("click", () => { ls.set(INSTALL_KEY, "plus-tard:" + (Date.now() + 3 * 86400000)); $("installOverlay").hidden = true; });
+$("instPrompt").addEventListener("click", async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  try { const r = await installEvt.userChoice; if (r && r.outcome === "accepted") { ls.set(INSTALL_KEY, "fait"); $("installOverlay").hidden = true; } } catch (e) { /* ignoré */ }
+  installEvt = null;
+});
 $("whoLogout").addEventListener("click", () => { $("whoOverlay").hidden = true; logout(); });
 $("whoOverlay").addEventListener("click", (e) => { if (e.target === $("whoOverlay")) $("whoOverlay").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("whoOverlay").hidden = true; });
@@ -1037,6 +1108,12 @@ function renderCal() {
       <li>Un import ne se met pas à jour : si le planning est republié, supprimez ce calendrier dédié (Calendrier → Calendriers → ⓘ → Supprimer) puis refaites l'import. L'abonnement ci-dessus évite cette manipulation.</li></ol>
     </details>` : `<p class="muted">Aucune vacation pour vous dans ce planning.</p>`}
   </div>`;
+  if (!estInstalle() && (isIOS || isAndroid)) {
+    v.insertAdjacentHTML("beforeend", `<div class="card"><h2>Planning radio sur l'écran d'accueil</h2>
+      <p class="sub">Une icône sur votre téléphone pour ouvrir le planning en un geste, même sans réseau.</p>
+      <button class="b" id="calInstall" type="button">Voir comment faire</button></div>`);
+    $("calInstall").onclick = openInstall;
+  }
   fillSubscription(me);
 }
 
