@@ -455,9 +455,10 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
       </div>
 
       <div class="card">
-        <h2>Indisponibilités saisies</h2>
+        <h2>Absences : demandes à valider</h2>
         <p class="sub" id="admIndSub"></p>
         <ul class="list" id="admInd"></ul>
+        <div class="msg" id="admIndMsg" role="status"></div>
       </div>
 
       <div class="card" id="accCard" hidden>
@@ -902,7 +903,7 @@ async function enter(code, silent) {
   };
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
-  S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; render(); }, onErr));
+  S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => { S.saisie = d; render(); }, onErr));
   if (S.store.mode === "firebase") S.unsub.push(S.store.watchDoc(PATHS.acces(), (d) => { S.acces = d; render(); }, () => {}));
   // déclarations « aucune absence » : toutes en démonstration (et pour l'admin, via ses abonnements), la sienne sinon
@@ -1021,7 +1022,8 @@ function updateHeader() {
   $("meBtn").textContent = S.me ? `Vous : ${S.me}` : (choixLibre() ? "Qui êtes-vous ?" : "Mon compte");
   // bouton Admin : administrateur, ou accès par code / démonstration (connexion administrateur possible)
   $("adminBtn").hidden = !hasCode || (comptesActifs() && S.entry !== "code" && !S.admin);
-  $("adminBtn").textContent = S.admin ? "Admin ✓" : "Admin";
+  const nAtt = S.admin ? S.indispos.filter((x) => statutInd(x) === "attente").length : 0;
+  $("adminBtn").textContent = S.admin ? (nAtt ? `Admin · ${nAtt}` : "Admin ✓") : "Admin";
   $("adminBtn").classList.toggle("admin", !!S.admin);
   $("tabAdmin").hidden = !S.admin && currentTab() !== "admin";
   if (!$("whoOverlay").hidden) renderWho(); // la liste se complète si les paramètres arrivent pendant que la fenêtre est ouverte
@@ -1493,7 +1495,9 @@ function renderQui() {
 function indLine(x, canDelete, showIni) {
   const same = x.d1 === x.d2;
   const when = same ? `le ${JC[weekday(x.d1)].toLowerCase()} ${fmtDay(x.d1)}` : `du ${fmtDay(x.d1, false)} au ${fmtDay(x.d2)}`;
-  return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}</div><div class="small muted">${esc(x.motif)}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">Supprimer</button>` : ""}</li>`;
+  const st = statutInd(x);
+  const tag = st === "attente" ? ` <span class="tag">en attente</span>` : st === "refusee" ? ` <span class="tag err">refusée</span>` : x.statut === "acceptee" ? ` <span class="tag ok">acceptée</span>` : "";
+  return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}${tag}</div><div class="small muted">${esc(x.motif)}${st === "refusee" && x.refus ? ` · motif du refus : ${esc(x.refus)}` : ""}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">${st === "attente" ? "Annuler la demande" : "Supprimer"}</button>` : ""}</li>`;
 }
 const lockOf = (x) => lockReason(x.d1, x.d2, S.published, S.saisie);
 
@@ -1501,7 +1505,7 @@ const lockOf = (x) => lockReason(x.d1, x.d2, S.published, S.saisie);
 const cloKey = (c) => `${c.du}_${c.au}`;
 function relanceInfo(c) {
   const key = cloKey(c);
-  const avec = new Set(S.indispos.filter((x) => x.d2 >= c.du && x.d1 <= c.au).map((x) => String(x.ini).toUpperCase()));
+  const avec = new Set(S.indispos.filter((x) => statutInd(x) !== "refusee" && x.d2 >= c.du && x.d1 <= c.au).map((x) => String(x.ini).toUpperCase()));
   const aucune = new Set(S.declarations.filter((d) => d.aucune && d.aucune[key]).map((d) => String(d.ini).toUpperCase()));
   const manquants = doctorList().filter((i) => !avec.has(i) && !aucune.has(i));
   return { key, avec, aucune, manquants };
@@ -1584,7 +1588,7 @@ function renderIndispos() {
   const sorted = S.indispos.slice().sort((a, b) => a.d1 - b.d1 || String(a.ini).localeCompare(b.ini));
   const mine = sorted.filter((x) => String(x.ini).toUpperCase() === S.me && x.d2 >= today);
   $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, !!S.admin || !lockOf(x), false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
-  const team = sorted.filter((x) => x.d2 >= today);
+  const team = sorted.filter((x) => x.d2 >= today && statutInd(x) !== "refusee");
   $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
 }
 $("indD1").addEventListener("change", () => { if (!$("indD2").value || $("indD2").value < $("indD1").value) $("indD2").value = $("indD1").value; });
@@ -1601,11 +1605,13 @@ $("indForm").addEventListener("submit", async (e) => {
   if (verrou && !S.admin) return setMsg(msg, verrou, "err");
   if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
   const prec = $("indPrec").value.trim().slice(0, 60);
-  const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: $("indMotif").value + (prec ? ` — ${prec}` : ""), creeLe: Date.now() };
+  // un administrateur enregistre directement une absence acceptée ; un médecin envoie une demande à valider
+  const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: $("indMotif").value + (prec ? ` — ${prec}` : ""), creeLe: Date.now(),
+    statut: S.admin ? "acceptee" : "attente" };
   $("indSubmit").disabled = true;
   try {
     await S.store.add(PATHS.indispos(), data);
-    setMsg(msg, "Indisponibilité enregistrée.", "ok");
+    setMsg(msg, S.admin ? "Absence enregistrée (acceptée)." : "Demande envoyée : en attente de validation par l'administrateur.", "ok");
     $("indPrec").value = "";
   } catch (err) { setMsg(msg, err.message, "err"); }
   finally { $("indSubmit").disabled = false; }
@@ -1661,9 +1667,15 @@ function renderAdmin() {
   const today = todayDay();
   const list = S.indispos.slice().sort((a, b) => a.d1 - b.d1);
   const future = list.filter((x) => x.d2 >= today);
-  $("admIndSub").textContent = `${future.length} à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}. Elles seront prises en compte à la prochaine génération.`;
-  $("admInd").innerHTML = future.length ? future.map((x) => indLine(x, true, true).replace("<div class=\"grow\">",
-    `<div class="grow">${confIds.has(x.id) ? `<span class="tag err" style="float:right">affecté pendant l'absence</span>` : ""}`)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
+  const attente = list.filter((x) => statutInd(x) === "attente");
+  const autres = future.filter((x) => statutInd(x) !== "attente");
+  $("admIndSub").textContent = `${attente.length ? `${attente.length} demande(s) à valider · ` : ""}${autres.length} à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}. Seules les absences acceptées sont prises en compte à la génération.`;
+  const ligne = (x) => indLine(x, true, true).replace("<div class=\"grow\">",
+    `<div class="grow">${confIds.has(x.id) ? `<span class="tag err" style="float:right">affecté pendant l'absence</span>` : ""}`);
+  const dem = attente.map((x) => ligne(x).replace(/<button class="x" data-del[^]*?<\/button>/, "")
+    .replace(/<\/li>$/, `<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="b primary" data-accept="${esc(x.id)}" style="min-height:36px;padding:4px 12px">Accepter</button><button class="b" data-refuse="${esc(x.id)}" style="min-height:36px;padding:4px 12px">Refuser</button></div></li>`)).join("");
+  $("admInd").innerHTML = (attente.length ? `<li class="small" style="border:0;padding-bottom:0"><b>Demandes à valider</b></li>${dem}<li class="small" style="border:0;padding-bottom:0;margin-top:8px"><b>Absences</b></li>` : "")
+    + (autres.length ? autres.map(ligne).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`);
   // dates limites de dépôt
   const clos = ((S.saisie && S.saisie.clotures) || []).slice().sort((a, b) => a.du - b.du);
   const nowMs = Date.now();
@@ -1817,7 +1829,28 @@ $("rCopy").addEventListener("click", async () => {
   catch (e) { $("rText").select(); document.execCommand("copy"); }
   setMsg($("rMsg"), "Règles copiées. Collez-les dans Firestore → Règles, puis Publier.", "ok");
 });
-$("admInd").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) deleteIndispo(b.dataset.del, $("paramMsg")); });
+$("admInd").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-del]"); if (b) return deleteIndispo(b.dataset.del, $("paramMsg"));
+  const a = e.target.closest("[data-accept],[data-refuse]"); if (a) decider(a.dataset.accept || a.dataset.refuse, !!a.dataset.accept);
+});
+// Décision de l'administrateur sur une demande d'absence
+async function decider(id, accepter) {
+  const x = S.indispos.find((i) => i.id === id); if (!x) return;
+  const msg = $("admIndMsg") || $("paramMsg");
+  if (!needOnline(msg)) return;
+  let refus = "";
+  if (!accepter) {
+    const r = prompt(`Refuser la demande de ${x.ini} (${fmtDay(x.d1, false)} → ${fmtDay(x.d2)}) ?\nMotif (facultatif, visible par le médecin) :`, "");
+    if (r === null) return;
+    refus = r.trim().slice(0, 200);
+  }
+  const { id: _id, ...data } = x;
+  try {
+    await S.store.set(`${PATHS.indispos()}/${id}`, { ...data, statut: accepter ? "acceptee" : "refusee", decidePar: (S.auth && S.auth.email) || "",
+      decideLe: Date.now(), ...(accepter ? {} : { refus }) });
+    setMsg(msg, accepter ? `Absence de ${x.ini} acceptée.` : `Demande de ${x.ini} refusée.`, "ok");
+  } catch (e) { setMsg(msg, e.message, "err"); }
+}
 
 // Paramètres
 async function saveParams(bytes, nom) {
@@ -2250,6 +2283,8 @@ $("gBtn").addEventListener("click", async () => {
   const msg = $("gMsg"), prog = $("gProg"), bar = prog.firstElementChild;
   const start = fromInput($("gStart").value), end = fromInput($("gEnd").value);
   if (start === null || end === null || end < start) return setMsg(msg, "Période invalide.", "err");
+  const enAttente = S.indispos.filter((x) => statutInd(x) === "attente" && x.d2 >= start && x.d1 <= end);
+  if (enAttente.length && !confirm(`${enAttente.length} demande(s) d'absence en attente sur cette période (${[...new Set(enAttente.map((x) => x.ini))].join(", ")}) : elles ne seront pas prises en compte. Générer quand même ?`)) return;
   if (S.draft && !confirm("Un planning non publié est en cours d'édition. Le remplacer par une nouvelle génération ?")) return;
   $("gBtn").disabled = true; prog.hidden = false; bar.style.width = "0";
   try {

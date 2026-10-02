@@ -103,4 +103,5 @@ jobs:
         env:
           FIREBASE_CLE: ${{ secrets.FIREBASE_CLE }}
           CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
+          ADMIN_UID: ${{ secrets.ADMIN_UID }}
         run: python outils/notifications.py

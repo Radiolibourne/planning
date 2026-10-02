@@ -54,7 +54,8 @@ def ouvert(d1, d2):
     now = time.time() * 1000
     return all(now <= c["finMs"] or d2 < c["du"] or d1 > c["au"] for c in sa.get("clotures", [])[:5])
 def valid_indispo(d):
-    return (set(d) == {"ini", "d1", "d2", "periode", "motif", "creeLe"} and isinstance(d["ini"], str) and len(d["ini"]) <= 10
+    base = {"ini", "d1", "d2", "periode", "motif", "creeLe"}
+    return (base <= set(d) <= base | {"statut", "decidePar", "decideLe", "refus"} and d.get("statut", "acceptee") in ("attente", "acceptee", "refusee") and isinstance(d["ini"], str) and len(d["ini"]) <= 10
             and d["d2"] >= d["d1"] and d["d2"] - d["d1"] <= 366 and d["periode"] in ("Journée", "Matin", "Après-midi"))
 def peut_lire(path, uid):
     s = path.split("/")
@@ -72,7 +73,8 @@ def peut_ecrire(op, path, uid, data):
         if s[1] != TEAM: return False
         if len(s) >= 3 and s[2] == "indispos":
             if op == "del": return is_admin(uid) or (old is not None and auteur(old["ini"], uid) and ouvert(old["d1"], old["d2"]))
-            return valid_indispo(data) and (is_admin(uid) or (auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"])))
+            if op == "set" and old is not None: return is_admin(uid) and valid_indispo(data)       # décision de l'administrateur
+            return valid_indispo(data) and (is_admin(uid) or (data.get("statut") == "attente" and auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"])))
         return is_admin(uid)
     if s[0] == "membres": return is_admin(uid)
     if s[0] == "admins": return is_admin(uid) and uid != s[1]
@@ -219,8 +221,8 @@ with sync_playwright() as pw:
     x = m2_fin + dt.timedelta(days=20)
     doc.click("a[data-tab=indispos]")
     doc.fill("#indD1", x.isoformat()); doc.fill("#indD2", x.isoformat()); doc.click("#indSubmit")
-    doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')", timeout=8000)
-    ok(any(v.get("ini") == "DA" for k, v in DB.items() if "/indispos/" in k), "médecin : absence enregistrée à son nom")
+    doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('en attente')", timeout=8000)
+    ok(any(v.get("ini") == "DA" for k, v in DB.items() if "/indispos/" in k), "médecin : demande enregistrée à son nom")
     r = doc.evaluate("""async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos', uid: globalThis.__uid,
         data: {ini: 'DB', d1: j, d2: j, periode: 'Journée', motif: 'test', creeLe: 1}}))).error || 'accepté'""", [TEAM, numero_jour(x)])
     ok(r == "permission-denied", "serveur : impossible de déclarer une absence au nom d'un collègue")

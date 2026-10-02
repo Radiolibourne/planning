@@ -130,7 +130,7 @@ En-têtes en ligne 4, données à partir de la ligne 5. Semaines A / B : alterna
 ### Données en ligne (Firestore, sous `espaces/{codeEquipe}/`)
 - `config/parametres` : `{nom, majLe, par, xlsx (base64)}`. Écriture réservée à l'admin.
 - `planning/publie` : planning publié (format décrit en tête de `online_core.js`). Écriture admin. Taille < 1 Mo, pas de tableaux imbriqués, pas de `undefined`.
-- `indispos/{id}` : `{ini, d1, d2, periode, motif, creeLe}`. Création et suppression par l'équipe, champs validés par les règles, **uniquement sur une période ouverte** (voir ci-dessous) ; les administrateurs ne sont pas limités.
+- `indispos/{id}` : `{ini, d1, d2, periode, motif, creeLe, statut?, decidePar?, decideLe?, refus?}`. **Demande à valider** : un médecin crée avec `statut: "attente"` ; seul un administrateur passe à `acceptee` / `refusee` (règle `update`). Sans statut (anciennes) = acceptée (`statutInd`). Seules les acceptées entrent dans la génération (`onlineAbs`) ; notifications : décision → médecin, nouvelle demande → administrateurs. Création et suppression par l'équipe, champs validés par les règles, **uniquement sur une période ouverte** (voir ci-dessous) ; les administrateurs ne sont pas limités.
 - `config/saisie` : `{clotures: [{du, au, limite, finMs}], majLe}`. Dates limites de dépôt définies par l'admin (5 au plus, `MAX_CLOTURES`). `finMs` = fin de la journée `limite`, heure de Paris (`parisEndOfDayMs`).
 
 ### Verrouillage de la saisie des absences

@@ -4,7 +4,7 @@ Site en ligne contre un Firebase SIMULÉ (aucun accès aux serveurs de Google) :
 les modules Firebase sont remplacés par des doublures qui appliquent la même logique que les règles de sécurité.
 Utilise la page configurée et les règles produites par test_demo.py.
 """
-import copy, itertools, json, os, re
+import copy, datetime as dt, itertools, json, os, re
 from playwright.sync_api import sync_playwright
 from commun import Bilan, EXEMPLE, SORTIE, chromium, jours_ouvres, mois_suivant
 
@@ -27,7 +27,7 @@ def can_read(path): s = seg(path); return len(s) >= 2 and s[0] == 'espaces' and 
 def is_admin(uid): return uid in ADMINS
 def valid_indispo(d):
     keys = {'ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'}
-    return (set(d) == keys and isinstance(d['ini'], str) and len(d['ini']) <= 10 and isinstance(d['d1'], (int, float))
+    return (keys <= set(d) <= keys | {'statut', 'decidePar', 'decideLe', 'refus'} and d.get('statut', 'acceptee') in ('attente', 'acceptee', 'refusee') and isinstance(d['ini'], str) and len(d['ini']) <= 10 and isinstance(d['d1'], (int, float))
             and isinstance(d['d2'], (int, float)) and d['d2'] >= d['d1'] and d['d2'] - d['d1'] <= 366
             and d['periode'] in ('Journée', 'Matin', 'Après-midi') and isinstance(d['motif'], str) and len(d['motif']) <= 100)
 def ouvert(d1, d2):
@@ -54,10 +54,10 @@ def server(op, a):
     in_ind = len(s) >= 3 and s[2] == 'indispos'
     if not can_read(p): return denied()
     if op == 'add':
-        if not (valid_indispo(a['data']) and (is_admin(uid) or ouvert(a['data']['d1'], a['data']['d2'])) if in_ind else is_admin(uid)): return denied()
+        if not (valid_indispo(a['data']) and (is_admin(uid) or (a['data'].get('statut') == 'attente' and ouvert(a['data']['d1'], a['data']['d2']))) if in_ind else is_admin(uid)): return denied()
         p = p + '/' + f'id{next(ids)}'
     elif op == 'set':
-        if not (is_admin(uid) or (in_ind and valid_indispo(a['data']) and ouvert(a['data']['d1'], a['data']['d2']))): return denied()
+        if not (is_admin(uid) and (not in_ind or valid_indispo(a['data']))): return denied()   # mise à jour (décision) : administrateur
     elif op == 'del':
         old = DB.get(p)
         if not (is_admin(uid) or (in_ind and old and ouvert(old['d1'], old['d2']))): return denied()
@@ -158,15 +158,23 @@ with sync_playwright() as pw:
     doc.click('#meBtn'); doc.wait_for_selector('#whoGrid button[data-ini=DA]', timeout=5000); doc.click('#whoGrid button[data-ini=DA]')
     doc.click('a[data-tab=indispos]')
     doc.fill('#indD1', mardis[1].isoformat()); doc.fill('#indD2', (mardis[1]).isoformat()); doc.click('#indSubmit')
-    doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('enregistrée')")
+    doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('en attente')")
     doc.wait_for_function(f"document.querySelector('#myInd').innerText.includes('{mardis[1]:%d/%m}')", timeout=5000)
-    ok(any(v.get('ini') == 'DA' for k, v in DB.items() if '/indispos/' in k), 'médecin : indisponibilité enregistrée en ligne')
+    ok(any(v.get('ini') == 'DA' and v.get('statut') == 'attente' for k, v in DB.items() if '/indispos/' in k), 'médecin : demande enregistrée en ligne, en attente')
+    r = doc.evaluate("""async (j) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + %s + '/indispos', data: {ini: 'DA', d1: j, d2: j, periode: 'Journée', motif: 'x', creeLe: 1, statut: 'acceptee'}}))).error || 'accepté'""" % json.dumps(TEAM), (mardis[2] - dt.date(1970, 1, 1)).days)
+    ok(r == 'permission-denied', 'serveur : un médecin ne peut pas créer une absence déjà acceptée')
+    kd = next(k for k, v in DB.items() if '/indispos/' in k and v.get('ini') == 'DA')
+    r = doc.evaluate("""async ([p, d]) => JSON.parse(await window.__fb('set', JSON.stringify({path: p, data: d}))).error || 'accepté'""", [kd, {**DB[kd], 'statut': 'acceptee'}])
+    ok(r == 'permission-denied', "serveur : un médecin ne peut pas accepter sa propre demande")
     r = doc.evaluate("""async () => { try { await window.__fb('set', JSON.stringify({path: 'espaces/' + %s + '/planning/publie', data: {x: 1}})).then(x => { if (JSON.parse(x).error) throw new Error(JSON.parse(x).error); }); return 'écrit'; } catch (e) { return e.message; } }""" % json.dumps(TEAM))
     ok(r == 'permission-denied', 'médecin non connecté : ne peut pas modifier le planning publié')
     r = doc.evaluate("""async () => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + %s + '/indispos', data: {ini: 'DA', d1: 1, d2: 0, periode: 'Journée', motif: '', creeLe: 1}}))).error || 'accepté'""" % json.dumps(TEAM))
     ok(r == 'permission-denied', 'indisponibilité mal formée refusée par les règles')
     # --- admin : génération + publication
     adm.wait_for_function("document.querySelector('#admInd').innerText.includes('DA')", timeout=5000)
+    adm.click('#admInd [data-accept]')
+    adm.wait_for_function("document.querySelector('#admIndMsg').innerText.includes('acceptée')", timeout=5000)
+    ok(DB[kd].get('statut') == 'acceptee' and DB[kd].get('decidePar') == 'admin@chl.fr', 'administrateur : demande acceptée (en base)')
     adm.fill('#gStart', d1.isoformat()); adm.fill('#gEnd', d2.isoformat())
     adm.select_option('#gQual', '10'); adm.click('#gBtn')
     adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning généré')", timeout=90000)

@@ -82,8 +82,12 @@ function perDoctor(draft) {
 }
 
 // Indisponibilités saisies en ligne -> format P.abs
+// Demandes d'absence : "attente" (à valider par un administrateur), "acceptee", "refusee".
+// Les absences enregistrées avant la validation (sans statut) sont considérées comme acceptées.
+const statutInd = (x) => (x.statut === "attente" || x.statut === "refusee" ? x.statut : "acceptee");
+
 function onlineAbs(indispos) {
-  return indispos.map((x) => ({
+  return indispos.filter((x) => statutInd(x) === "acceptee").map((x) => ({
     ini: String(x.ini || "").toUpperCase(), d1: x.d1, d2: x.d2,
     halves: x.periode === "Matin" ? ["M"] : x.periode === "Après-midi" ? ["AM"] : HALVES,
     motif: x.motif || "Absence",
@@ -96,6 +100,7 @@ function conflicts(draft, indispos) {
   const pd = perDoctor(draft);
   const out = [];
   for (const x of indispos) {
+    if (statutInd(x) === "refusee") continue;
     const m = pd[String(x.ini).toUpperCase()];
     if (!m) continue;
     const hs = x.periode === "Matin" ? ["M"] : x.periode === "Après-midi" ? ["AM"] : HALVES;
@@ -284,17 +289,22 @@ service cloud.firestore {
     }
 
     // Indisponibilités : chacun les siennes, format contrôlé, période ouverte.
+    // Une demande d'un médecin est créée « en attente » ; seul un administrateur l'accepte ou la refuse.
+    function demandeValide(d) {
+      return d.keys().hasAll(['ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'])
+        && d.keys().hasOnly(['ini', 'd1', 'd2', 'periode', 'motif', 'creeLe', 'statut', 'decidePar', 'decideLe', 'refus'])
+        && d.ini is string && d.ini.size() <= 10
+        && d.d1 is number && d.d2 is number && d.d2 >= d.d1 && d.d2 - d.d1 <= 366
+        && d.periode in ['Journée', 'Matin', 'Après-midi']
+        && d.motif is string && d.motif.size() <= 100
+        && d.get('statut', 'acceptee') in ['attente', 'acceptee', 'refusee']
+        && d.get('refus', '') is string && d.get('refus', '').size() <= 200;
+    }
     match /espaces/{code}/indispos/{id} {
-      allow create, update: if equipe(code)
-        && request.resource.data.keys().hasAll(['ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'])
-        && request.resource.data.keys().hasOnly(['ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'])
-        && request.resource.data.ini is string && request.resource.data.ini.size() <= 10
-        && request.resource.data.d1 is number && request.resource.data.d2 is number
-        && request.resource.data.d2 >= request.resource.data.d1
-        && request.resource.data.d2 - request.resource.data.d1 <= 366
-        && request.resource.data.periode in ['Journée', 'Matin', 'Après-midi']
-        && request.resource.data.motif is string && request.resource.data.motif.size() <= 100
-        && (admin() || (auteur(code, request.resource.data.ini) && ouvert(code, request.resource.data.d1, request.resource.data.d2)));
+      allow create: if equipe(code) && demandeValide(request.resource.data)
+        && (admin() || (request.resource.data.get('statut', '') == 'attente'
+          && auteur(code, request.resource.data.ini) && ouvert(code, request.resource.data.d1, request.resource.data.d2)));
+      allow update: if equipe(code) && admin() && demandeValide(request.resource.data);
       allow delete: if equipe(code)
         && (admin() || (auteur(code, resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
     }

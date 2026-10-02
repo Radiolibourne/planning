@@ -4,6 +4,8 @@ Notifications sur les téléphones (Web Push), envoyées par GitHub toutes les h
 
 Événements :
   1. un planning est publié (ou republié)             -> tous les abonnés ;
+  3. une demande d'absence est acceptée ou refusée   -> le médecin concerné ;
+  4. nouvelle demande d'absence à valider            -> les administrateurs ;
   2. date limite de dépôt des absences dans 3 jours, puis la veille
      -> seulement les médecins qui n'ont encore rien déclaré pour la période (ni absence, ni « aucune absence »).
 
@@ -122,7 +124,7 @@ def heure_paris(maintenant_ms):
     return dt.datetime.fromtimestamp(maintenant_ms / 1000, ZoneInfo("Europe/Paris"))
 
 
-def planifier(publie, saisie, indispos, declarations, abonnements, etat, maintenant_ms):
+def planifier(publie, saisie, indispos, declarations, abonnements, etat, maintenant_ms, admins=()):
     """-> (envois [(abonnement, charge)], nouvel état).
     Premier passage : mémorise sans rien envoyer. Rien n'est envoyé la nuit (avant 8 h, après 20 h, heure de Paris) :
     l'envoi attend le premier passage du matin."""
@@ -162,6 +164,31 @@ def planifier(publie, saisie, indispos, declarations, abonnements, etat, mainten
                       "body": f"Déclarez vos absences du {fmt_jour(c['du'])} au {fmt_jour(c['au'])} avant {quand}, ou indiquez que vous n'en avez aucune.",
                       "url": "./#indispos", "tag": f"relance-{cle}"}
             envois += [(a, charge) for a in abonnements if str(a.get("ini", "")).upper() not in avec | aucune]
+    # 3. demandes d'absence : décision -> le médecin ; nouvelle demande -> les administrateurs
+    def quand_ind(x):
+        return f"le {fmt_jour(x['d1'])}" if x.get("d1") == x.get("d2") else f"du {fmt_jour(x['d1'])} au {fmt_jour(x['d2'])}"
+    dec0, dem0 = etat.get("decisionsLe", 0), etat.get("demandesLe", 0)
+    for x in indispos:
+        st, le = x.get("statut"), x.get("decideLe") or 0
+        if st in ("acceptee", "refusee") and le > dec0 and not premier:
+            ok = st == "acceptee"
+            charge = {"title": "Absence acceptée" if ok else "Demande d'absence refusée",
+                      "body": f"Votre absence {quand_ind(x)} a été acceptée." if ok else
+                      f"Votre demande d'absence {quand_ind(x)} a été refusée." + (f" Motif : {x['refus']}" if x.get("refus") else ""),
+                      "url": "./#indispos", "tag": f"decision-{x.get('_id', '')}"}
+            envois += [(a, charge) for a in abonnements if str(a.get("ini", "")).upper() == str(x.get("ini", "")).upper()]
+    nouvelles = [x for x in indispos if x.get("statut") == "attente" and (x.get("creeLe") or 0) > dem0]
+    if nouvelles and not premier:
+        if len(nouvelles) == 1:
+            x = nouvelles[0]
+            corps = f"{x.get('ini', '?')} : {quand_ind(x)} ({x.get('motif', 'absence')}). À accepter ou refuser dans Admin."
+        else:
+            corps = f"{len(nouvelles)} demandes ({', '.join(sorted({str(x.get('ini', '?')) for x in nouvelles}))}) à accepter ou refuser dans Admin."
+        charge = {"title": "Nouvelle demande d'absence" if len(nouvelles) == 1 else "Nouvelles demandes d'absence",
+                  "body": corps, "url": "./#admin", "tag": "demandes"}
+        envois += [(a, charge) for a in abonnements if a.get("uid") in admins]
+    etat["decisionsLe"] = max([dec0] + [x.get("decideLe") or 0 for x in indispos])
+    etat["demandesLe"] = max([dem0] + [x.get("creeLe") or 0 for x in indispos if x.get("statut") == "attente"])
     # on ne garde que les rappels récents (état compact)
     etat["rappels"] = {k: v for k, v in faits.items() if maintenant_ms - v < 120 * JOUR_MS}
     return envois, etat
@@ -262,8 +289,10 @@ def main():
             continue                                   # compte retiré : plus de notifications
         abonnements.append({**a, "ini": m.get("ini") or a.get("ini", "")})
     etat = fs.doc(f"{esp}/config/notifications") or {}
+    admins = {u.strip() for u in os.environ.get("ADMIN_UID", "").replace(";", ",").split(",") if u.strip()}
+    admins |= {a["_id"] for a in fs.coll("admins")}
     envois, etat2 = planifier(fs.doc(f"{esp}/planning/publie"), fs.doc(f"{esp}/config/saisie"), fs.coll(f"{esp}/indispos"),
-                              fs.coll("declarations"), abonnements, etat, int(time.time() * 1000))
+                              fs.coll("declarations"), abonnements, etat, int(time.time() * 1000), admins)
     prive, sujet = cle_vapid(cle), sujet_vapid()
     ok = expires = echecs = 0
     for a, charge in envois:
