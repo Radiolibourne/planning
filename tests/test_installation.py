@@ -9,7 +9,7 @@ URL = "file://" + os.path.join(DIST, "demo.html")
 IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36"
 with sync_playwright() as p:
-    b = chromium(p)
+    b = chromium(p, plis=True)   # sans script d'initialisation : il perturbe parfois le stockage local des pages file:// au rechargement
     errs = []
     # iPhone
     ctx = b.new_context(user_agent=IPHONE, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
@@ -19,6 +19,7 @@ with sync_playwright() as p:
     B.ok("Sur l'écran d'accueil" in pg.inner_text("#instIos"), "iPhone : étape « Sur l'écran d'accueil »")
     pg.click("#instLater")
     B.ok(pg.is_hidden("#installOverlay"), "« Plus tard » ferme la fenêtre")
+    pg.wait_for_function("(localStorage.getItem('planning-radio-installation') || '').startsWith('plus-tard:')")
     pg.reload(); pg.wait_for_selector("#vMon:not([hidden])"); pg.wait_for_timeout(2000)
     B.ok(pg.is_hidden("#installOverlay"), "« Plus tard » : pas de nouveau rappel tout de suite")
     pg.evaluate("localStorage.setItem('planning-radio-installation', 'plus-tard:1')")   # délai écoulé
