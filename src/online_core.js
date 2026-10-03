@@ -165,7 +165,7 @@ function frenchError(e) {
 }
 
 const FB_VERSION = "10.14.1";
-async function firebaseStore(cfg) {
+async function firebaseStore(cfg, opts = {}) {
   const base = `https://www.gstatic.com/firebasejs/${FB_VERSION}/`;
   let A, F, U;
   try {
@@ -175,10 +175,20 @@ async function firebaseStore(cfg) {
   }
   const app = A.initializeApp(cfg);
   // Cache local des données : le dernier planning consulté reste lisible sans réseau.
+  // Ordinateur partagé (opts.partage) : rien n'est gardé sur le disque — données en mémoire seulement,
+  // copie locale d'une utilisation précédente effacée, connexion oubliée à la fermeture du navigateur.
   let fs;
-  try { fs = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
-  catch (e) { fs = F.getFirestore(app); }
+  try {
+    fs = F.initializeFirestore(app, { localCache: opts.partage && F.memoryLocalCache ? F.memoryLocalCache()
+      : F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) });
+    if (opts.partage && F.clearIndexedDbPersistence) await F.clearIndexedDbPersistence(fs).catch(() => {});
+  } catch (e) { fs = F.getFirestore(app); }
   const auth = U.getAuth(app);
+  const persistance = async (partage) => {
+    const mode = partage ? U.browserSessionPersistence : U.browserLocalPersistence;
+    if (U.setPersistence && mode) await U.setPersistence(auth, mode);
+  };
+  if (opts.partage) await persistance(true).catch(() => {});
   const wrap = async (fn) => { try { return await fn(); } catch (e) { throw frenchError(e); } };
   return {
     mode: "firebase",
@@ -189,6 +199,7 @@ async function firebaseStore(cfg) {
     watchDoc: (path, cb, err) => F.onSnapshot(F.doc(fs, path), (s) => cb(s.exists() ? s.data() : null), (e) => err && err(frenchError(e))),
     watchColl: (coll, cb, err) => F.onSnapshot(F.collection(fs, coll),
       (qs) => cb(qs.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => err && err(frenchError(e))),
+    persistance: (partage) => wrap(() => persistance(partage)),
     signIn: (email, pw) => wrap(() => U.signInWithEmailAndPassword(auth, email, pw)),
     createAccount: (email, pw) => wrap(() => U.createUserWithEmailAndPassword(auth, email, pw)),
     resetPassword: (email) => wrap(() => U.sendPasswordResetEmail(auth, email)),
@@ -281,11 +292,6 @@ service cloud.firestore {
     match /espaces/{code}/{document=**} {
       allow read: if lecteur(code);
       allow write: if equipe(code) && admin();
-    }
-
-    // Planning publié : lisible avec le seul code (calendriers d'abonnement produits par GitHub).
-    match /espaces/{code}/planning/publie {
-      allow read: if equipe(code);
     }
 
     // Indisponibilités : chacun les siennes, format contrôlé, période ouverte.

@@ -52,7 +52,10 @@ jobs:
       - name: Calendriers d'abonnement
         env:
           CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
-        run: python outils/calendriers_abonnement.py
+          FIREBASE_CLE: ${{ secrets.FIREBASE_CLE }}
+        run: |
+          pip install google-auth requests
+          python outils/calendriers_abonnement.py
       - name: Clé publique des notifications
         env:
           FIREBASE_CLE: ${{ secrets.FIREBASE_CLE }}

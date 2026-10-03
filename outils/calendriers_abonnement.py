@@ -3,13 +3,14 @@
 Calendriers d'abonnement (webcal) : un fichier .ics par médecin, régénéré par GitHub toutes les heures
 à partir du planning publié dans Firestore. L'iPhone (ou Android, Outlook…) abonné se met à jour tout seul.
 
-- Lecture : API REST Firestore, sans compte (les règles autorisent la lecture à qui connaît le code d'équipe).
+- Lecture : API REST Firestore avec la clé de service (secret FIREBASE_CLE) : le planning publié n'est lisible
+  que par les comptes validés et par GitHub, plus avec le seul code d'équipe.
 - Le code d'équipe vient du secret GitHub CODE_EQUIPE (jamais dans le dépôt).
 - Adresse de chaque calendrier : dist/cal/<jeton>.ics, jeton = HMAC-SHA256(code d'équipe, "cal:" + initiales),
   24 premiers caractères hexadécimaux. La page calcule le même jeton (calToken dans src/online_core.js).
 - Sans secret, sans configuration Firebase ou sans planning publié : rien n'est produit (le site reste construit).
 
-Usage : CODE_EQUIPE=... python outils/calendriers_abonnement.py
+Usage : CODE_EQUIPE=... FIREBASE_CLE=... python outils/calendriers_abonnement.py
 Test  : FIRESTORE_JSON=fichier.json (réponse REST enregistrée) remplace l'appel réseau.
 """
 import datetime as dt
@@ -49,6 +50,24 @@ def lire_planning(cfg, code):
     if os.environ.get("FIRESTORE_JSON"):
         with open(os.environ["FIRESTORE_JSON"], encoding="utf-8") as f:
             brut = json.load(f)
+    elif os.environ.get("FIREBASE_CLE", "").strip():
+        try:
+            from google.oauth2 import service_account
+            from google.auth.transport.requests import AuthorizedSession
+            cred = service_account.Credentials.from_service_account_info(
+                json.loads(os.environ["FIREBASE_CLE"]), scopes=["https://www.googleapis.com/auth/datastore"])
+            r = AuthorizedSession(cred).get(f"https://firestore.googleapis.com/v1/projects/{cfg['projectId']}/databases/(default)/documents/"
+                                            f"espaces/{urllib.parse.quote(code)}/planning/publie", timeout=30)
+        except Exception as e:  # clé illisible, réseau indisponible…
+            print(f"::warning::Lecture du planning impossible ({type(e).__name__}) : calendriers d'abonnement non mis à jour.")
+            return None
+        if r.status_code == 404:
+            print("::notice::Aucun planning publié : pas de calendrier à produire.")
+            return None
+        if r.status_code != 200:
+            print(f"::warning::Firestore a répondu {r.status_code} : calendriers d'abonnement non mis à jour.")
+            return None
+        brut = r.json()
     else:
         chemin = f"espaces/{urllib.parse.quote(code)}/planning/publie"
         url = (f"https://firestore.googleapis.com/v1/projects/{cfg['projectId']}/databases/(default)/documents/"

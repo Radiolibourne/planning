@@ -20,18 +20,25 @@ AUTH = r"""
 const L = new Set(); let user = null;
 const call = async (op, a) => JSON.parse(await window.__fb(op, JSON.stringify(a)));
 const fail = (c) => { const e = new Error(c); e.code = c; throw e; };
-const login = (o) => { user = { uid: o.uid, email: o.email }; globalThis.__uid = o.uid; L.forEach((f) => f(user)); return { user }; };
+// persistance « session » (ordinateur partagé) : la connexion survit au rechargement, pas à la fermeture du navigateur
+try { user = JSON.parse(sessionStorage.getItem('__fakeUser') || 'null'); if (user) globalThis.__uid = user.uid; } catch (e) {}
+const login = (o) => { user = { uid: o.uid, email: o.email }; globalThis.__uid = o.uid;
+  if (globalThis.__persistance === 'session') sessionStorage.setItem('__fakeUser', JSON.stringify(user)); L.forEach((f) => f(user)); return { user }; };
+export const browserSessionPersistence = 'session', browserLocalPersistence = 'local';
+export async function setPersistence(a, m){ globalThis.__persistance = m; }
 export function getAuth(){ return {}; }
 export async function signInWithEmailAndPassword(a, email, pw){ const o = await call('signin', { email, pw }); if (o.error) fail(o.error); return login(o); }
 export async function createUserWithEmailAndPassword(a, email, pw){ const o = await call('signup', { email, pw }); if (o.error) fail(o.error); return login(o); }
 export async function sendPasswordResetEmail(a, email){ await call('reset', { email }); }
-export async function signOut(){ user = null; globalThis.__uid = null; L.forEach((f) => f(null)); }
+export async function signOut(){ user = null; globalThis.__uid = null; sessionStorage.removeItem('__fakeUser'); L.forEach((f) => f(null)); }
 export function onAuthStateChanged(a, cb){ L.add(cb); setTimeout(() => cb(user), 0); return () => L.delete(cb); }
 """
 APP = "export function initializeApp(cfg){ return {cfg}; }"
-MODS = {"firebase-app.js": APP, "firebase-firestore.js": FS.replace("export function getFirestore(app){ return { app }; }",
+MODS = {"firebase-app.js": APP, "firebase-firestore.js": (FS.replace("export function getFirestore(app){ return { app }; }",
         "export function getFirestore(app){ return { app }; }\nexport function persistentMultipleTabManager(){ return {}; }\n"
-        "export function persistentLocalCache(o){ return {}; }\nexport function initializeFirestore(app, s){ return { app }; }") if "initializeFirestore" not in FS else FS,
+        "export function persistentLocalCache(o){ return {}; }\nexport function initializeFirestore(app, s){ return { app }; }") if "initializeFirestore" not in FS else FS) + (
+        "\nexport function memoryLocalCache(){ globalThis.__cacheMemoire = true; return { kind: 'memory' }; }"
+        "\nexport async function clearIndexedDbPersistence(){ globalThis.__cacheEfface = true; }"),
         "firebase-auth.js": AUTH}
 
 # ------------------------------------------------------------------ serveur simulé (même logique que les règles)
@@ -60,7 +67,6 @@ def valid_indispo(d):
 def peut_lire(path, uid):
     s = path.split("/")
     if s[0] == "espaces":
-        if s[2:4] == ["planning", "publie"] and s[1] == TEAM: return True
         return lecteur(s[1], uid)
     if s[0] in ("membres", "demandes", "declarations", "admins"):
         return is_admin(uid) or (len(s) == 2 and uid == s[1])
@@ -232,6 +238,25 @@ with sync_playwright() as pw:
     anon.fill("#codeInput", TEAM); anon.click("#codeForm button")
     anon.wait_for_function("document.querySelector('#codeMsg').innerText.includes('refusé')", timeout=8000)
     ok(True, "code d'équipe seul : refusé (accès provisoire désactivé)")
+    # ---------------- ordinateur partagé (poste de l'hôpital)
+    poste = page()
+    poste.goto("https://planning.test/"); poste.wait_for_selector("#vAuth:not([hidden])")
+    poste.check("#aPartage")
+    poste.fill("#aEmail", "admin@chl.fr"); poste.fill("#aPw", "secret"); poste.click("#aSubmit")
+    poste.wait_for_selector("#tabs:not([hidden])", timeout=10000)
+    etat = poste.evaluate("""() => ({ partage: localStorage.getItem('planning-radio-partage'),
+        disque: Object.keys(localStorage).filter((k) => k.startsWith('planning-radio-') && k !== 'planning-radio-partage' && k !== 'planning-radio-plis'),
+        session: Object.keys(sessionStorage).filter((k) => k.startsWith('planning-radio-')),
+        persistance: globalThis.__persistance, memoire: !!globalThis.__cacheMemoire, efface: !!globalThis.__cacheEfface })""")
+    ok(etat["partage"] == "1" and etat["persistance"] == "session", "ordinateur partagé : connexion oubliée à la fermeture du navigateur")
+    ok(etat["memoire"] and etat["efface"], "ordinateur partagé : données en mémoire seulement, copie locale effacée")
+    ok(not etat["disque"] and "planning-radio-membre" in etat["session"], f"ordinateur partagé : rien de personnel gardé sur le disque {etat['disque']}")
+    poste.evaluate("derniereActivite = Date.now() - 31 * 60 * 1000; verifInactivite()")
+    poste.wait_for_selector("#vAuth:not([hidden])", timeout=8000)
+    ok("30 minutes" in poste.inner_text("#authMsg"), "ordinateur partagé : déconnexion automatique après 30 minutes sans activité")
+    poste.close()
+    sans = doc.evaluate("indLine({ini: 'DB', d1: 20000, d2: 20000, periode: 'Journée', motif: 'Autre — rendez-vous'}, false, true, true)")
+    ok("absent" in sans and "rendez-vous" not in sans, "liste de l'équipe : motif des absences des collègues masqué")
     # ---------------- relance : date limite sur le mois d'après, ouverte jusqu'à demain
     demain = dt.date.today() + dt.timedelta(days=1)
     adm.fill("#cDu", m2.isoformat()); adm.fill("#cAu", m2_fin.isoformat()); adm.fill("#cLim", demain.isoformat()); adm.click("#cAdd")

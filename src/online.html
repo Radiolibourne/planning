@@ -226,6 +226,8 @@ table.qui tr.site td { background: var(--head); color: #fff; text-transform: non
 ol.inst li { margin-bottom: 10px; line-height: 1.45; }
 .ico { width: 20px; height: 20px; vertical-align: -4px; color: var(--accent); }
 [hidden] { display: none !important; }
+.chk { display:flex; gap:10px; align-items:center; margin-top:12px; font-size:14px; color:var(--muted, #555); }
+.chk input { width:20px; height:20px; flex:none; margin:0; }
 </style>
 </head>
 <body>
@@ -284,6 +286,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
             </div>
             <p class="small muted" style="margin:8px 0 0">Votre compte sera actif après validation par l'administrateur. Aucun e-mail ne vous sera envoyé.</p>
           </div>
+          <label class="chk partage-chk"><input type="checkbox" id="aPartage"> Ordinateur partagé (poste de l'hôpital) : ne pas rester connecté</label>
           <div class="row" style="margin-top:14px"><button class="b primary" type="submit" id="aSubmit">Se connecter</button></div>
           <div class="msg" id="authMsg" role="status"></div>
         </form>
@@ -357,7 +360,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
           <label class="f">Motif
             <select id="indMotif"><option>Congés</option><option>Formation</option><option>Congrès</option><option>Récupération</option><option>Autre</option></select>
           </label>
-          <label class="f" style="flex:2 1 200px">Précision (facultatif)<input type="text" id="indPrec" maxlength="60"></label>
+          <label class="f" style="flex:2 1 200px">Précision (facultatif)<input type="text" id="indPrec" maxlength="60" placeholder="Pas de motif médical (ex. congrès SFR)"></label>
         </div>
         <div class="row" style="margin-top:12px"><button class="b primary" type="submit" id="indSubmit">Ajouter</button></div>
         <div class="msg" id="indMsg" role="status"></div>
@@ -384,6 +387,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
           <label class="f">Adresse e-mail<input type="email" id="loginEmail" autocomplete="username" required></label>
           <label class="f">Mot de passe<input type="password" id="loginPw" autocomplete="current-password" required></label>
         </div>
+        <label class="chk partage-chk"><input type="checkbox" id="loginPartage"> Ordinateur partagé (poste de l'hôpital) : ne pas rester connecté</label>
         <div class="row" style="margin-top:12px"><button class="b primary" type="submit">Se connecter</button></div>
         <div class="msg" id="loginMsg" role="status"></div>
       </form>
@@ -689,10 +693,25 @@ window.DEFAULT_PARAMS_B64 = "/*__PARAMS__*/";
 "use strict";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Ordinateur partagé (poste de l'hôpital) : choix fait à la connexion, retenu sur ce navigateur.
+// Tout le reste est alors gardé pour la durée de la session seulement (effacé à la fermeture du navigateur).
+const PARTAGE_KEY = "planning-radio-partage";
+const partage = { get() { try { return localStorage.getItem(PARTAGE_KEY) === "1"; } catch (e) { return false; } } };
+const lsZone = () => { try { return partage.get() ? sessionStorage : localStorage; } catch (e) { return null; } };
 const ls = {
-  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { /* ignoré */ } },
+  get(k) { try { return lsZone().getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { v == null ? lsZone().removeItem(k) : lsZone().setItem(k, v); } catch (e) { /* ignoré */ } },
 };
+function setPartage(on) {
+  try {
+    if (on === partage.get()) return;
+    const avant = lsZone(), cles = [];
+    for (let i = 0; i < avant.length; i++) if (avant.key(i).startsWith("planning-radio-") && avant.key(i) !== PARTAGE_KEY) cles.push(avant.key(i));
+    on ? localStorage.setItem(PARTAGE_KEY, "1") : localStorage.removeItem(PARTAGE_KEY);
+    const apres = lsZone();
+    for (const k of cles) { apres.setItem(k, avant.getItem(k)); avant.removeItem(k); }
+  } catch (e) { /* ignoré */ }
+}
 function b64ToBytes(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 function bytesToB64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
 function saveFile(data, name, type) {
@@ -787,7 +806,7 @@ window.addEventListener("hashchange", route);
 // ------------------------------------------------------------ connexion au stockage
 async function connect() {
   if (window.FIREBASE_CONFIG) {
-    S.store = await firebaseStore(window.FIREBASE_CONFIG);
+    S.store = await firebaseStore(window.FIREBASE_CONFIG, { partage: partage.get() });
   } else {
     S.store = demoStore();
     $("demoBanner").hidden = false;
@@ -966,6 +985,25 @@ function renderAuth() {
 $("authToggle").addEventListener("click", () => { S.signup = !S.signup; setMsg($("authMsg"), ""); renderAuth(); });
 $("authCode").addEventListener("click", () => { S.entry = "code"; $("codeSub").textContent = "Accès provisoire : saisissez le code d'équipe communiqué par l'administrateur."; route(); });
 ["authLogout1", "authLogout2"].forEach((id) => $(id).addEventListener("click", () => logout()));
+// Connexion, en tenant compte du choix « ordinateur partagé ».
+async function connexion(email, pw, surPartage) {
+  const avant = partage.get();
+  if (S.store.persistance) await S.store.persistance(surPartage);
+  await S.store.signIn(email, pw);
+  setPartage(surPartage);
+  // passage en mode partagé : on recharge pour repartir sans copie locale des données (la connexion est conservée)
+  if (surPartage && !avant && S.store.mode === "firebase") location.reload();
+}
+// Ordinateur partagé : déconnexion automatique après 30 minutes sans activité.
+const INACTIVITE_MS = 30 * 60 * 1000;
+let derniereActivite = Date.now();
+["pointerdown", "keydown", "scroll", "touchstart"].forEach((t) => addEventListener(t, () => { derniereActivite = Date.now(); }, { passive: true, capture: true }));
+function verifInactivite() {
+  if (!partage.get() || !S.auth || S.store.mode === "demo") return;
+  if (Date.now() - derniereActivite > INACTIVITE_MS) { derniereActivite = Date.now(); logout().then(() => setMsg($("authMsg"), "Déconnexion automatique après 30 minutes sans activité (ordinateur partagé).", "")); }
+}
+setInterval(verifInactivite, 60 * 1000);
+["aPartage", "loginPartage"].forEach((id) => { $(id).checked = partage.get(); });
 async function logout() {
   ls.set("planning-radio-membre", null); ls.set("planning-radio-code", null); ls.set("planning-radio-acces", null);
   S.membre = null; S.signup = false;
@@ -987,12 +1025,12 @@ $("authForm").addEventListener("submit", async (e) => {
   if (!needOnline(msg)) return;
   if (!S.signup) {
     setMsg(msg, "Connexion…");
-    try { await S.store.signIn(email, pw); setMsg(msg, ""); $("aPw").value = ""; }
+    try { await connexion(email, pw, $("aPartage").checked); setMsg(msg, ""); $("aPw").value = ""; }
     catch (err) { setMsg(msg, err.message, "err"); }
     return;
   }
   const ini = $("aIni").value.trim().toUpperCase(), nom = $("aNom").value.trim();
-  if (pw.length < 6) return setMsg(msg, "Mot de passe trop court : 6 caractères au minimum.", "err");
+  if (pw.length < 10) return setMsg(msg, "Mot de passe trop court : 10 caractères au minimum.", "err");
   if (pw !== $("aPw2").value) return setMsg(msg, "Les deux mots de passe ne correspondent pas.", "err");
   if (!/^[A-Z0-9]{1,10}$/.test(ini)) return setMsg(msg, "Initiales : lettres ou chiffres, sans espace (ex. KS).", "err");
   if (!nom) return setMsg(msg, "Indiquez votre prénom et votre nom.", "err");
@@ -1516,12 +1554,12 @@ function renderQui() {
 }
 
 // ------------------------------------------------------------ indisponibilités
-function indLine(x, canDelete, showIni) {
+function indLine(x, canDelete, showIni, sansMotif) {
   const same = x.d1 === x.d2;
   const when = same ? `le ${JC[weekday(x.d1)].toLowerCase()} ${fmtDay(x.d1)}` : `du ${fmtDay(x.d1, false)} au ${fmtDay(x.d2)}`;
   const st = statutInd(x);
   const tag = st === "attente" ? ` <span class="tag">en attente</span>` : st === "refusee" ? ` <span class="tag err">refusée</span>` : x.statut === "acceptee" ? ` <span class="tag ok">acceptée</span>` : "";
-  return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}${tag}</div><div class="small muted">${esc(x.motif)}${st === "refusee" && x.refus ? ` · motif du refus : ${esc(x.refus)}` : ""}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">${st === "attente" ? "Annuler la demande" : "Supprimer"}</button>` : ""}</li>`;
+  return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}${tag}</div><div class="small muted">${sansMotif ? "absent" : esc(x.motif)}${st === "refusee" && x.refus ? ` · motif du refus : ${esc(x.refus)}` : ""}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">${st === "attente" ? "Annuler la demande" : "Supprimer"}</button>` : ""}</li>`;
 }
 const lockOf = (x) => lockReason(x.d1, x.d2, S.published, S.saisie);
 
@@ -1613,7 +1651,7 @@ function renderIndispos() {
   const mine = sorted.filter((x) => String(x.ini).toUpperCase() === S.me && x.d2 >= today);
   $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, !!S.admin || !lockOf(x), false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
   const team = sorted.filter((x) => x.d2 >= today && statutInd(x) !== "refusee");
-  $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
+  $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true, !S.admin)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
 }
 $("indD1").addEventListener("change", () => { if (!$("indD2").value || $("indD2").value < $("indD1").value) $("indD2").value = $("indD1").value; });
 $("indForm").addEventListener("submit", async (e) => {
@@ -1653,7 +1691,7 @@ $("myInd").addEventListener("click", (e) => { const b = e.target.closest("[data-
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   setMsg($("loginMsg"), "Connexion…");
-  try { await S.store.signIn($("loginEmail").value.trim(), $("loginPw").value); setMsg($("loginMsg"), ""); $("loginPw").value = ""; }
+  try { await connexion($("loginEmail").value.trim(), $("loginPw").value, $("loginPartage").checked); setMsg($("loginMsg"), ""); $("loginPw").value = ""; }
   catch (err) { setMsg($("loginMsg"), err.message, "err"); }
 });
 $("logoutBtn").addEventListener("click", () => S.store.signOut());

@@ -50,7 +50,12 @@ Administrateurs : principaux = UID du secret `ADMIN_UID` (inscrits dans les règ
 - L'admin saisit le code d'équipe une fois ; sa propre fiche `membres` (role admin) est alors créée.
 - **Règles d'avant les comptes** (lecture de sa propre fiche refusée) : `S.legacy` → ancien fonctionnement (connexion = admin), inscriptions bloquées avec un message.
 - **Transition** : `codeSeul(code)` dans les règles lit `espaces/{code}/config/acces` (`{codeSeul: bool}`) ; absent = autorisé. L'admin coche/décoche « Accès provisoire par code d'équipe » dans Admin → Comptes (effet immédiat, sans republier les règles). Autorisé : accès sans compte (code d'équipe + « Qui êtes-vous ? »).
-- Toujours lisible avec le seul code : `planning/publie` (calendriers d'abonnement produits par GitHub, sans compte).
+- `planning/publie` n'est plus lisible avec le seul code (depuis octobre 2026) : comptes validés (ou accès provisoire) uniquement. GitHub le lit avec la clé de service (`FIREBASE_CLE`) pour les calendriers d'abonnement.
+
+### Sécurité des postes partagés
+- Case « Ordinateur partagé (poste de l'hôpital) » à la connexion (`aPartage`, `loginPartage`) : clé locale `planning-radio-partage`. Alors : connexion Firebase en `browserSessionPersistence` (oubliée à la fermeture du navigateur), cache Firestore en mémoire + `clearIndexedDbPersistence`, toutes les autres clés `planning-radio-*` en `sessionStorage` (`ls`, `setPartage`), déconnexion après 30 min sans activité (`verifInactivite`). Passage en mode partagé : rechargement après connexion.
+- Liste « Absences de l'équipe » : motif des collègues masqué (« absent ») pour les non-administrateurs ; champ Précision : pas de motif médical (placeholder). Les règles laissent les membres lire les absences (motif compris) : ne pas y mettre de données de santé.
+- Mot de passe : 10 caractères minimum à la création d'un compte (Firebase en exige 6).
 - `declarations/{uid}` `{ini, aucune: {"<du>_<au>": true}, majLe}` : « Je n'ai aucune absence sur cette période » (relance).
 - Démo : pas de comptes (fonctionnement par « Qui êtes-vous ? »).
 
@@ -66,7 +71,7 @@ Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par perso
 
 ### Abonnement calendrier (webcal)
 Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderCal`), pas sur Mon planning.
-- `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore (sans compte, grâce au code d'équipe) et écrit `dist/cal/<jeton>.ics` par médecin.
+- `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore avec la clé de service (`FIREBASE_CLE` ; repli : clé API web, si les règles l'autorisent) et écrit `dist/cal/<jeton>.ics` par médecin.
 - `jeton = HMAC-SHA256(code d'équipe, "cal:" + initiales)[:24]` ; la page calcule le même (`calToken`) pour afficher le bouton « S'abonner » (lien `webcal://…`), seulement si le fichier existe déjà.
 - Le code d'équipe vient du **secret GitHub `CODE_EQUIPE`** (Settings → Secrets and variables → Actions). Sans secret, rien n'est produit ; aucune erreur de ce script ne bloque la publication du site (avertissement seulement).
 - Mêmes UID d'événements que l'import ponctuel (`buildIcs`) : les deux doivent rester alignés (test `test_firebase.py`).
