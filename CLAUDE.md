@@ -118,6 +118,16 @@ Rappel « écran d'accueil » (`installOverlay`, `maybeInstallPrompt`) : sur iPh
   
   Un classeur ancien, sans la nouvelle colonne, doit continuer à fonctionner, avec une valeur par défaut.
 
+### Règles du service (octobre 2026) — onglets et colonnes facultatifs
+- **Postes, ouverture** : `X` = chaque semaine, `A` / `B` = semaines A ou B seulement (`opensWeek`, appliqué dans `buildProblem` via `weekType`). Éditeur : sélecteur « chaque semaine / semaine A / semaine B » au-dessus des puces (`chips cycle`, `data-mode-for`).
+- **Postes, « Télétravail possible » = Toujours** : poste lu à distance uniquement (`remoteOnly` → `ttOnly` : seul le jumeau `-TT` est proposé, la couverture reste comptée sur le poste).
+- **Postes, colonne « Matin + après-midi »** : `Interdit` (contrainte dure dans `hardOK`, même poste d'origine), `Éviter` (`W.eviter`), `Journée entière` (`W.journee`, coût `splitCost` par médecin et par jour).
+- **Onglet « Vacations spécialisées »** : Nom | Postes | Créneaux | Médecins habilités | Minimum par semaine (vide = obligatoire à chaque créneau, 0 = souhaitée) | Si présents. Une instance par semaine (`pr.vacs`, `slotVac`) ; coût `vacCost` = `W.vacMiss` × manque − `W.vacBonus` × couvertes. Seuls les postes listés comptent (pas leur jumeau télétravail).
+- **Onglet « Préférences »** : Médecin | Type (Poste / Libre) | Poste ou site | Jours. Poste : au moins un des créneaux sur ce poste/site dans la semaine (`W.habit`) ; Libre : au moins une des demi-journées libre (`W.libre`, assez fort pour fermer un poste de priorité ≥ 5).
+- **Onglet « Astreintes »** (Date | Médecin, recopié de l'outil d'astreinte) : note « Astreinte : XX » + préférence IRM 1 l'après-midi (`W.astreinte`) ; pour les référents du scanner interventionnel, un poste du groupe Interventionnel convient aussi.
+- **Onglet « Notes »** (Texte | Quand | Demi-journée) : « 1er mardi », « 3e jeudi », « dernier vendredi », « chaque lundi » ou une date → `pr.notes` → champ facultatif `notes` du planning publié, affiché dans Général, Mon planning et l'Excel (colonne Jour de la ligne après-midi).
+- **Paramètres « Binôme : jamais absents le même jour »** (2 initiales) et **« Binôme : jour de repos de repli »** : dans `buildProblem`, si l'un est absent le jour de repos de l'autre, ce repos passe au jour de repli de la semaine (`pr.infos`) ; alerte si les deux sont absents un autre jour ; demande d'absence chevauchant celle de l'autre refusée côté page aux non-administrateurs.
+
 ### Classeur de paramètres (format lu par `readParams`)
 Admin → Règles et postes : onglets Paramètres, Postes, Sites, Fermetures, Imposées, Fériés modifiables dans le site (`REGLES`, `ONGLETS`, `regRegles`, `regListe`, `regFiche`). Dates et heures écrites en texte « JJ/MM/AAAA » / « HH:MM » (lues par `asDay` / `asMinutes`). Onglet absent (ex. Fermetures) : créé par `addSheet` (`zip.js`).
 Admin → Médecins : la fiche de chaque médecin se modifie dans le site (`renderMedecins`, `medOuvrir`, `medEcrire`). L'onglet Médecins du classeur est réécrit avec `rewriteSheet` (`zip.js`), qui conserve le reste du classeur (styles, listes déroulantes, autres onglets) ; colonnes manquantes (nouveaux postes, Télétravail) ajoutées à la fin.

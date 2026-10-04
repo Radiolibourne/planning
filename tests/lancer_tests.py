@@ -19,6 +19,7 @@ etapes = [
     ("Fiche médecin", [sys.executable, os.path.join(ICI, "test_medecins.py")]),
     ("Règles et postes", [sys.executable, os.path.join(ICI, "test_reglages.py")]),
     ("Cartes repliables", [sys.executable, os.path.join(ICI, "test_plis.py")]),
+    ("Règles du service", [sys.executable, os.path.join(ICI, "test_regles_service.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

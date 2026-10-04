@@ -61,7 +61,7 @@ with sync_playwright() as p:
     pg.fill("#rf4", "1"); pg.fill("#rf5", "1")
     for k in ("0", "1", "2"):
         pg.click(f'#regForm .chips.pick button[data-k="{k}"]')
-    pg.check("#rf10")
+    pg.select_option("#rf11", "Oui")   # télétravail
     pg.click("#regForm button[type=submit]"); attendre()
     pg.wait_for_timeout(300)
     r = pg.evaluate(LIRE)

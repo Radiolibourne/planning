@@ -228,6 +228,8 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
 [hidden] { display: none !important; }
 .chk { display:flex; gap:10px; align-items:center; margin-top:12px; font-size:14px; color:var(--muted, #555); }
 .chk input { width:20px; height:20px; flex:none; margin:0; }
+.note { display:block; font-size:11px; font-style:italic; color:var(--muted); line-height:1.3; margin-top:2px; }
+.day .note { margin:4px 0 0 2px; }
 </style>
 </head>
 <body>
@@ -1221,6 +1223,8 @@ function renderMon() {
       if (m && a && m.code && m.code === a.code) body = line(m, "M", "AM", "Journée");
       else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Journée</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
       else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "Après-midi");
+      const nts = pub.notes && pub.notes[String(d)];
+      if (nts) body += `<div class="note">${nts.map(esc).join(" · ")}</div>`;
       html += `<div class="day${d === today ? " today" : ""}" ${d === today ? 'id="todayRow"' : ""}><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
     }
   }
@@ -1409,7 +1413,8 @@ function planningTable(draft, opts) {
   for (const w of weeksShown) {
     body += `<tr class="week"><td colspan="${ncol}">Semaine du ${fmtDay(w.lundi)} — semaine ${esc(w.type)}</td></tr>`;
     for (const d of days.filter((x) => mondayOf(x) === w.lundi)) for (const h of HALVES) {
-      let row = `<tr class="${h === "M" ? "m" : ""}"><td class="lead">${h === "M" ? `${JC[weekday(d)]} ${fmtDay(d, false)}` : ""}</td><td>${h === "M" ? "M" : "AM"}</td>`;
+      const nts = h === "AM" && draft.notes && draft.notes[String(d)];
+      let row = `<tr class="${h === "M" ? "m" : ""}"><td class="lead">${h === "M" ? `${JC[weekday(d)]} ${fmtDay(d, false)}` : nts ? `<span class="note">${nts.map(esc).join("<br>")}</span>` : ""}</td><td>${h === "M" ? "M" : "AM"}</td>`;
       if (mode === "poste") {
         for (const c of draft.ordre) {
           const k = caseKey(d, h, c);
@@ -1479,6 +1484,7 @@ async function downloadPublishedXlsx(msgEl, complet = false) {
   setMsg(msgEl, "Préparation du fichier…");
   try {
     const pr = problemFor(pub.start, pub.end);
+    if (pub.notes) pr.notes = new Map(Object.entries(pub.notes).map(([d, t]) => [+d, t]));
     const R = { assign: assignFromDraft(pr, pub), iterations: 0 };
     const bytes = await exportPlanning(pr, R, checks(pr, R), { equipe: !complet, icsHint: "Chaque médecin retrouve son planning et son calendrier iPhone sur le site du planning." });
     const x = ymd(pub.start);
@@ -1666,6 +1672,17 @@ $("indForm").addEventListener("submit", async (e) => {
   const verrou = lockReason(d1, d2, S.published, S.saisie);
   if (verrou && !S.admin) return setMsg(msg, verrou, "err");
   if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
+  // binôme (ex. interventionnels) : jamais absents le même jour
+  const bin = (S.P && S.P.binome) || [];
+  if (bin.length === 2 && bin.includes(S.me)) {
+    const autre = bin.find((x) => x !== S.me);
+    const chev = S.indispos.find((x) => String(x.ini).toUpperCase() === autre && statutInd(x) !== "refusee" && x.d1 <= d2 && x.d2 >= d1);
+    if (chev) {
+      const txt = `${autre} est déjà absent du ${fmtDay(Math.max(d1, chev.d1), false)} au ${fmtDay(Math.min(d2, chev.d2), false)} : vous ne pouvez pas être absents le même jour.`;
+      if (!S.admin) return setMsg(msg, txt + " Voyez avec un administrateur.", "err");
+      if (!confirm(txt + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
+    }
+  }
   const prec = $("indPrec").value.trim().slice(0, 60);
   // un administrateur enregistre directement une absence acceptée ; un médecin envoie une demande à valider
   const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: $("indMotif").value + (prec ? ` — ${prec}` : ""), creeLe: Date.now(),
@@ -1983,9 +2000,14 @@ function medChips(el, items, label, sel) {
   el.innerHTML = items.map((k) => `<button type="button" data-k="${k}" aria-pressed="${sel.includes(k)}">${label(k)}</button>`).join("");
 }
 const medSel = (el) => [...el.querySelectorAll("button[aria-pressed=true]")].map((b) => b.dataset.k);
+document.addEventListener("change", (e) => { const id = e.target.dataset && e.target.dataset.modeFor; if (id && $(id)) $(id).dataset.mode = e.target.value; });
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest(".chips.pick button");
-  if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true");
+  if (b && b.parentElement.classList.contains("cycle")) {   // ouverture d'un poste selon le type choisi au-dessus (chaque semaine, A, B)
+    const mode = b.parentElement.dataset.mode || "X", v = (b.dataset.v || "") === mode ? "" : mode;
+    b.dataset.v = v; b.setAttribute("aria-pressed", v ? "true" : "false");
+    b.textContent = b.dataset.l + (v === "A" || v === "B" ? ` · ${v}` : "");
+  } else if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true");
   const sg = e.target.closest && e.target.closest("#mComp .seg button");
   if (sg) sg.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === sg ? "true" : "false"));
 });
@@ -2160,6 +2182,8 @@ const REGLES = [
   { k: "Télétravail : jours par semaine (cible)", t: "int", aide: "Pour les médecins autorisés (fiche médecin) et les postes « faisables en télétravail »." },
   { k: "Télétravail : maximum de jours par semaine", t: "int", aide: "" },
   { k: "Télétravail : maximum de médecins par jour", t: "int", aide: "0 = sans limite." },
+  { k: "Binôme : jamais absents le même jour", t: "medecins", aide: "Deux médecins (ex. les interventionnels) : alerte s'ils sont absents le même jour." },
+  { k: "Binôme : jour de repos de repli", t: "jour", aide: "Si l'un est absent le jour de repos de l'autre, ce repos passe à ce jour-là (ex. mercredi, salle fermée)." },
   { k: "Temps de calcul maximum (secondes)", t: "int", aide: "Pour la génération « Approfondie »." },
 ];
 const PERIODES = ["Journée", "Matin", "Après-midi"];
@@ -2170,8 +2194,10 @@ const ONGLETS = {
       { i: 4, l: "Médecins souhaités", t: "int" }, { i: 5, l: "Minimum", t: "int" },
       { i: 6, l: "Priorité jusqu'au minimum", t: "prio", aide: "1 = couvert en premier ; 9 = fermé en premier s'il manque des médecins." },
       { i: 7, l: "Priorité au-delà du minimum", t: "prio" }, { i: 8, l: "Remarque", t: "text" },
-      { l: "Ouvert", t: "demis" }, { h: "Télétravail possible", l: "Faisable en télétravail", t: "check" }],
-    resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))} <div class="meta">${esc(g(2))} · ${esc(g(4) || 1)} méd.${+g(5) && +g(5) !== +g(4) ? ` (min ${esc(g(5))})` : ""} · priorité ${esc(g(6) || "—")} · ${g("demis")}/10 demi-journées${g("tt") ? " · télétravail" : ""}</div>` },
+      { l: "Ouvert", t: "demis" },
+      { h: "Matin + après-midi", l: "Même médecin le matin et l'après-midi", t: "mj", aide: "Interdit : une demi-journée par jour au plus. Journée entière : le même médecin toute la journée." },
+      { h: "Télétravail possible", l: "Télétravail", t: "tt3", aide: "Toujours : ce poste ne se fait qu'en télétravail." }],
+    resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))} <div class="meta">${esc(g(2))} · ${esc(g(4) || 1)} méd.${+g(5) && +g(5) !== +g(4) ? ` (min ${esc(g(5))})` : ""} · priorité ${esc(g(6) || "—")} · ${g("demis")}/10 demi-journées${g("tt") ? ` · télétravail${/^t/.test(low(g("ttv"))) ? " toujours" : ""}` : ""}${g("mj") ? ` · ${esc(g("mj").toLowerCase())}` : ""}</div>` },
   "Sites": { titre: "Sites et horaires", sous: "Horaires des vacations ; l'adresse apparaît dans les calendriers des téléphones.", ajout: "Ajouter un site",
     champs: [{ i: 0, l: "Site", t: "nom" }, { i: 1, l: "Adresse (facultatif)", t: "text" }, { i: 2, l: "Matin : début", t: "time" }, { i: 3, l: "Matin : fin", t: "time" },
       { i: 4, l: "Après-midi : début", t: "time" }, { i: 5, l: "Après-midi : fin", t: "time" }],
@@ -2184,6 +2210,26 @@ const ONGLETS = {
     creer: ["Affectations imposées", "Exemple : 12/10/2026 | Matin | AB | IRM2.", ["Date", "Période", "Initiales", "Code poste", "Commentaire"]],
     champs: [{ i: 0, l: "Date", t: "date" }, { i: 1, l: "Demi-journée", t: "demi" }, { i: 2, l: "Médecin", t: "medecin" }, { i: 3, l: "Poste", t: "poste" }, { i: 4, l: "Commentaire", t: "text" }],
     tri: 0, resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))} · ${esc(g(2))} → ${esc(g(3))}${g(4) ? `<div class="meta">${esc(g(4))}</div>` : ""}` },
+  "Vacations spécialisées": { titre: "Vacations spécialisées", sous: "Coro, pédiatrie… : un médecin habilité sur le poste à ces créneaux.", ajout: "Ajouter une vacation",
+    creer: ["Vacations spécialisées", "Un médecin habilité sur le poste à ces créneaux. Minimum par semaine vide = obligatoire à chaque créneau ; 0 = souhaité.", ["Nom", "Postes", "Créneaux", "Médecins habilités", "Minimum par semaine", "Si présents", "Remarque"]],
+    champs: [{ i: 0, l: "Nom", t: "text", requis: true }, { i: 1, l: "Postes", t: "postes", aide: "Postes sur site (le télétravail ne compte pas)." }, { i: 2, l: "Créneaux", t: "creneaux" },
+      { i: 3, l: "Médecins habilités", t: "medecins" }, { i: 4, l: "Minimum par semaine", t: "int", def: null, aide: "Vide = obligatoire à chaque créneau ; 1 = au moins une par semaine ; 0 = souhaitée seulement." },
+      { i: 5, l: "Seulement si présents", t: "medecins", aide: "Facultatif : la vacation n'existe que si tous ces médecins sont présents." }, { i: 6, l: "Remarque", t: "text" }],
+    resume: (g) => `<b>${esc(g(0))}</b> <div class="meta">${esc(g(1))} · ${esc(g(2))} · ${esc(g(3))} · ${g(4) === "" ? "obligatoire" : `${esc(g(4))} min./semaine`}${g(5) ? ` · si ${esc(g(5))} présents` : ""}</div>` },
+  "Préférences": { titre: "Préférences", sous: "Souples : respectées quand c'est possible.", ajout: "Ajouter une préférence",
+    creer: ["Préférences", "Poste : le médecin plutôt sur ce poste ou ce site ces jours-là (une fois par semaine). Libre : au moins une de ces demi-journées libre chaque semaine.", ["Médecin", "Type", "Poste ou site", "Jours", "Remarque"]],
+    champs: [{ i: 0, l: "Médecin", t: "medecin" }, { i: 1, l: "Type", t: "typepref" }, { i: 2, l: "Poste ou site", t: "cible", aide: "Pour le type « Poste »." },
+      { i: 3, l: "Jours / demi-journées", t: "creneaux" }, { i: 4, l: "Remarque", t: "text" }],
+    resume: (g) => `<b>${esc(g(0))}</b> ${/^l/.test(low(g(1))) ? "demi-journée libre" : esc(g(2))} <div class="meta">${esc(g(3))}${g(4) ? ` · ${esc(g(4))}` : ""}</div>` },
+  "Notes": { titre: "Notes du planning", sous: "Réunions, staffs… affichés sur le planning.", ajout: "Ajouter une note",
+    creer: ["Notes du planning", "Quand : « 1er mardi », « 3e jeudi », « dernier vendredi », « chaque lundi » ou une date (JJ/MM/AAAA).", ["Texte", "Quand", "Demi-journée"]],
+    champs: [{ i: 0, l: "Texte", t: "text", requis: true }, { i: 1, l: "Quand", t: "text", requis: true, aide: "« 1er mardi », « 3e jeudi », « dernier vendredi », « chaque lundi » ou une date JJ/MM/AAAA." },
+      { i: 2, l: "Demi-journée (facultatif)", t: "demiopt" }],
+    resume: (g) => `<b>${esc(g(0))}</b> <div class="meta">${esc(g(1))}${g(2) ? ` · ${esc(g(2).toLowerCase())}` : ""}</div>` },
+  "Astreintes": { titre: "Astreintes", sous: "Recopiées depuis l'outil d'astreinte. Affichées sur le planning ; le médecin d'astreinte est placé de préférence à l'IRM 1 l'après-midi.", ajout: "Ajouter une astreinte",
+    creer: ["Astreintes", "Une ligne par jour : date et médecin d'astreinte.", ["Date", "Médecin"]],
+    champs: [{ i: 0, l: "Date", t: "date" }, { i: 1, l: "Médecin", t: "medecin" }], tri: 0,
+    resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))}` },
   "Fériés": { titre: "Jours fériés", sous: "Jours non planifiés.", ajout: "Ajouter un jour",
     creer: ["Jours fériés", "Jours non planifiés.", ["Date", "Libellé"]],
     champs: [{ i: 0, l: "Date", t: "date" }, { i: 1, l: "Libellé", t: "text" }], tri: 0, resume: (g) => `<b>${esc(g(0))}</b> ${esc(g(1))}` },
@@ -2196,6 +2242,15 @@ async function regClasseur() {
 const fmtDate = (v) => { const d = asDay(v); return d === null ? norm(v) : fmtDay(d); };
 const fmtHeure = (v) => { const m = asMinutes(v, null); return m === null ? norm(v) : `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; };
 const DEMI_HDR = [0, 1, 2, 3, 4].flatMap((j) => [`${JABR[j]} M`, `${JABR[j]} AM`]);
+function creneauxSet(v) {   // « Lun AM, Jeudi » -> indices de DEMI_HDR
+  const out = new Set();
+  for (const tok of norm(v).replace(/;/g, ",").split(",")) {
+    const p = tok.trim().split(/\s+/), j = JABR.findIndex((x) => low(x) === low(p[0]).slice(0, 3));
+    if (j < 0) continue;
+    if (p.length >= 2) out.add(2 * j + (p[1].toUpperCase() === "AM" ? 1 : 0)); else { out.add(2 * j); out.add(2 * j + 1); }
+  }
+  return out;
+}
 function regCol(hdr, champ, k) {   // colonne d'un champ (créée à la fin si absente)
   if (champ.i !== undefined) return champ.i;
   const nom = champ.t === "demis" ? DEMI_HDR[k] : champ.h;
@@ -2206,8 +2261,10 @@ function regCol(hdr, champ, k) {   // colonne d'un champ (créée à la fin si a
 function regGetter(hdr, row) {
   const def = ONGLETS[REG.onglet];
   return (x) => {
-    if (x === "demis") return DEMI_HDR.filter((h) => { const c = hdr.findIndex((y) => low(y) === low(h)); return c >= 0 && low(row[c]) === "x"; }).length;
-    if (x === "tt") { const c = hdr.findIndex((y) => low(y).startsWith("teletravail")); return c >= 0 && /^(o|x)/.test(low(row[c])); }
+    if (x === "demis") return DEMI_HDR.filter((h) => { const c = hdr.findIndex((y) => low(y) === low(h)); return c >= 0 && /^[xab]$/.test(low(row[c])); }).length;
+    if (x === "tt") { const c = hdr.findIndex((y) => low(y).startsWith("teletravail")); return c >= 0 && /^(o|x|t)/.test(low(row[c])); }
+    if (x === "ttv") { const c = hdr.findIndex((y) => low(y).startsWith("teletravail")); return c >= 0 ? norm(row[c]) : ""; }
+    if (x === "mj") { const c = hdr.findIndex((y) => low(y).startsWith("matin + apres")); return c >= 0 ? norm(row[c]) : ""; }
     const ch = def.champs.find((f) => f.i === x);
     const v = row[x];
     if (ch && ch.t === "date") return fmtDate(v);
@@ -2225,6 +2282,10 @@ async function renderRegCard() {
   const items = [["Règles", "Règles", "Déplacements, scanner interventionnel, télétravail, semaines A / B"],
     ["Postes", "Postes", `${n("Postes")} postes`], ["Sites", "Sites et horaires", `${n("Sites")} sites`],
     ["Fermetures", "Fermetures de postes", n("Fermetures") ? `${n("Fermetures")} fermeture(s)` : "aucune"], ["Imposées", "Affectations imposées", n("Imposées") ? `${n("Imposées")} affectation(s)` : "aucune"],
+    ["Vacations spécialisées", "Vacations spécialisées", n("Vacations spécialisées") ? `${n("Vacations spécialisées")} vacation(s)` : "aucune"],
+    ["Préférences", "Préférences", n("Préférences") ? `${n("Préférences")} préférence(s)` : "aucune"],
+    ["Notes", "Notes du planning", n("Notes") ? `${n("Notes")} note(s)` : "aucune"],
+    ["Astreintes", "Astreintes", n("Astreintes") ? `${n("Astreintes")} jour(s)` : "aucune"],
     ["Fériés", "Jours fériés", `${n("Fériés")} jours`]];
   $("regList").innerHTML = items.map(([k, t, d]) => `<li><div class="grow"><b>${t}</b><div class="meta">${esc(d)}</div></div><button class="b" type="button" data-reg="${k}" style="min-height:36px;padding:4px 12px">Ouvrir</button></li>`).join("");
 }
@@ -2245,17 +2306,29 @@ function regOptions(t, v) {
   else if (t === "demi") opts = ["Matin", "Après-midi"];
   else if (t === "prio") opts = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
   else if (t === "ouinon") opts = ["Oui", "Non"];
+  else if (t === "mj") opts = ["", "Interdit", "Éviter", "Journée entière"];
+  else if (t === "tt3") opts = ["Non", "Oui", "Toujours"];
+  else if (t === "typepref") opts = ["Poste", "Libre"];
+  else if (t === "demiopt") opts = ["", "Matin", "Après-midi"];
+  else if (t === "jour") opts = ["", ...JOURS.slice(0, 5)];
+  else if (t === "cible") opts = [...P.siteList.filter((x) => x !== TT_SITE), ...P.posteOrder.filter((c) => !P.postes[c].tt)];
   if (cur && !opts.includes(cur)) opts = [cur, ...opts];
   return opts.map((o) => `<option${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("");
 }
 function regChamp(id, ch, v, k) {
   const lab = (x) => `<label class="f" style="margin-top:10px">${esc(ch.l)}${x}${ch.aide ? `<span class="small muted">${esc(ch.aide)}</span>` : ""}</label>`;
-  if (["site", "poste", "medecin", "periode", "demi", "prio", "ouinon"].includes(ch.t)) return lab(`<select id="${id}">${regOptions(ch.t, v)}</select>`);
+  if (["site", "poste", "medecin", "periode", "demi", "prio", "ouinon", "mj", "tt3", "typepref", "demiopt", "jour", "cible"].includes(ch.t)) return lab(`<select id="${id}">${regOptions(ch.t, v)}</select>`);
   if (ch.t === "date") { const d = asDay(v); return lab(`<input type="date" id="${id}" value="${d === null ? "" : toInput(d)}">`); }
   if (ch.t === "time") return lab(`<input type="time" id="${id}" value="${esc(fmtHeure(v))}">`);
   if (ch.t === "int") return lab(`<input type="number" inputmode="numeric" min="0" max="99" id="${id}" value="${esc(norm(v))}">`);
   if (ch.t === "check") return `<label class="f" style="margin-top:12px;flex-direction:row;align-items:center;gap:10px;color:var(--ink)"><input type="checkbox" id="${id}" style="width:20px;height:20px"${/^(o|x)/.test(low(v)) ? " checked" : ""}> ${esc(ch.l)}</label>`;
-  if (ch.t === "demis") return `<div style="margin-top:12px"><div class="small muted" style="margin-bottom:4px">${esc(ch.l)}</div><div class="chips pick" id="${id}">${DEMI_HDR.map((h, j) => `<button type="button" data-k="${j}" aria-pressed="${(v || [])[j] ? "true" : "false"}">${h}</button>`).join("")}</div></div>`;
+  if (ch.t === "demis") return `<div style="margin-top:12px"><div class="row" style="align-items:center;gap:8px;margin-bottom:4px"><span class="small muted">${esc(ch.l)}</span>
+    <select data-mode-for="${id}" aria-label="Type d'ouverture" style="width:auto;min-height:32px;padding:2px 8px;font-size:13px"><option value="X">chaque semaine</option><option value="A">semaine A seulement</option><option value="B">semaine B seulement</option></select></div>
+    <div class="chips pick cycle" id="${id}" data-mode="X">${DEMI_HDR.map((h, j) => { const x = (v || [])[j] || ""; return `<button type="button" data-k="${j}" data-v="${x}" data-l="${h}" aria-pressed="${x ? "true" : "false"}">${h}${x === "A" || x === "B" ? ` · ${x}` : ""}</button>`; }).join("")}</div></div>`;
+  if (ch.t === "creneaux") { const hs = creneauxSet(v);
+    return `<div style="margin-top:12px"><div class="small muted" style="margin-bottom:4px">${esc(ch.l)}</div><div class="chips pick" id="${id}">${DEMI_HDR.map((h, j) => `<button type="button" data-k="${j}" aria-pressed="${hs.has(j)}">${h}</button>`).join("")}</div></div>`; }
+  if (ch.t === "postes") { const sel = norm(v).replace(/;/g, ",").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
+    return `<div style="margin-top:12px"><div class="small muted" style="margin-bottom:4px">${esc(ch.l)}</div><div class="chips pick" id="${id}">${S.P.posteOrder.filter((c) => !S.P.postes[c].tt).map((c) => `<button type="button" data-k="${esc(c)}" aria-pressed="${sel.includes(c)}">${esc(c)}</button>`).join("")}</div>${ch.aide ? `<span class="small muted">${esc(ch.aide)}</span>` : ""}</div>`; }
   if (ch.t === "medecins") { const sel = norm(v).replace(/;/g, ",").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
     return `<div style="margin-top:12px"><div class="small muted" style="margin-bottom:4px">${esc(ch.l)}</div><div class="chips pick" id="${id}">${Object.keys(S.P.docs).map((d) => `<button type="button" data-k="${esc(d)}" aria-pressed="${sel.includes(d)}">${esc(d)}</button>`).join("")}</div>${ch.aide ? `<span class="small muted">${esc(ch.aide)}</span>` : ""}</div>`; }
   const dis = (ch.t === "code" || ch.t === "nom") && REG.edit >= 0 ? " disabled" : "";
@@ -2269,7 +2342,9 @@ function regLire(id, ch) {
   if (ch.t === "check") return el.checked ? "Oui" : "";
   if (ch.t === "prio") return +el.value;
   if (ch.t === "code") return el.value.trim().toUpperCase().replace(/\s+/g, "");
-  if (ch.t === "medecins") return medSel(el).join(", ");
+  if (ch.t === "medecins" || ch.t === "postes") return medSel(el).join(", ");
+  if (ch.t === "creneaux") { const j = medSel(el).map(Number).sort((a, b) => a - b);
+    return j.map((k) => (k % 2 === 0 && j.includes(k + 1) ? JOURS[k / 2] : k % 2 === 1 && j.includes(k - 1) ? null : DEMI_HDR[k])).filter(Boolean).join(", "); }
   return el.value.trim();
 }
 async function regEcrire(onglet, depuis, lignes, styleDe) {
@@ -2346,10 +2421,11 @@ function regFiche(i) {
   const hdr = REG.hdr;
   $("regBody").innerHTML = `<form id="regForm" novalidate>${def.champs.map((ch, j) => {
     let v;
-    if (ch.t === "demis") v = DEMI_HDR.map((h) => { const c = hdr.findIndex((y) => low(y) === low(h)); return c >= 0 && low(row[c]) === "x"; });
+    if (ch.t === "demis") v = DEMI_HDR.map((h) => { const c = hdr.findIndex((y) => low(y) === low(h)); const x = c >= 0 ? norm(row[c]).toUpperCase() : ""; return /^[XAB]$/.test(x) ? x : ""; });
     else if (ch.i !== undefined) v = row[ch.i];
     else { const c = hdr.findIndex((y) => low(y).startsWith(low(ch.h).split(" ")[0])); v = c >= 0 ? row[c] : ""; }
-    if (i < 0 && v == null) v = ch.t === "int" ? (j === 4 ? 1 : 1) : ch.t === "prio" ? 5 : ch.t === "time" ? (ch.l.startsWith("Matin : début") ? "08:30" : ch.l.startsWith("Matin") ? "13:00" : ch.l.includes("début") ? "13:30" : "18:00") : ch.t === "periode" ? "Journée" : null;
+    if (i < 0 && v == null && ch.def !== undefined) v = ch.def;
+    else if (i < 0 && v == null) v = ch.t === "int" ? (j === 4 ? 1 : 1) : ch.t === "prio" ? 5 : ch.t === "time" ? (ch.l.startsWith("Matin : début") ? "08:30" : ch.l.startsWith("Matin") ? "13:00" : ch.l.includes("début") ? "13:30" : "18:00") : ch.t === "periode" ? "Journée" : null;
     return regChamp(`rf${j}`, ch, v);
   }).join("")}
     <div class="row" style="margin-top:14px"><button class="b primary" type="submit">Enregistrer</button><button class="b" type="button" id="regBack">Retour</button>
@@ -2368,10 +2444,10 @@ function regFiche(i) {
     const msg = $("regFormMsg");
     const hdr2 = REG.hdr.slice(), r = i >= 0 ? REG.rows[i].slice() : [];
     for (const [j, ch] of def.champs.entries()) {
-      if (ch.t === "demis") { const sel = medSel($(`rf${j}`)).map(Number); DEMI_HDR.forEach((h, k) => { r[regCol(hdr2, ch, k)] = sel.includes(k) ? "X" : ""; }); continue; }
+      if (ch.t === "demis") { const bs = [...$(`rf${j}`).querySelectorAll("button")]; DEMI_HDR.forEach((h, k) => { r[regCol(hdr2, ch, k)] = bs[k].dataset.v || ""; }); continue; }
       const v = regLire(`rf${j}`, ch);
       if ((ch.t === "date" || ch.t === "time") && v === null) return setMsg(msg, `${ch.l} : valeur manquante.`, "err");
-      if ((ch.t === "code" || ch.t === "nom") && !v) return setMsg(msg, `${ch.l} : obligatoire.`, "err");
+      if ((ch.t === "code" || ch.t === "nom" || ch.requis) && !v) return setMsg(msg, `${ch.l} : obligatoire.`, "err");
       if ((ch.t === "code" || ch.t === "nom") && i < 0 && REG.rows.some((x) => norm(x[0]).toUpperCase() === String(v).toUpperCase())) return setMsg(msg, `« ${v} » existe déjà.`, "err");
       r[regCol(hdr2, ch)] = v;
     }
@@ -2443,6 +2519,7 @@ $("upPlanning").addEventListener("change", async (e) => {
   const msg = $("upPlanningMsg");
   try {
     const draft = draftFromPlanningXlsx(await readXlsx(await f.arrayBuffer()), S.P);
+    try { const n = problemFor(draft.start, draft.end).notes; if (n && n.size && !draft.notes) draft.notes = Object.fromEntries([...n].map(([d, t]) => [String(d), t])); } catch (e) { /* notes facultatives */ }
     if (S.draft && !confirm("Un planning non publié est en cours d'édition. Le remplacer par le fichier importé ?")) return;
     setMsg(msg, "");
     setDraft(draft, `Importé de ${f.name}`);

@@ -172,7 +172,9 @@ async function exportPlanning(pr, R, items, opts = {}) {
         const border = sl.h === "M" ? "dayTop" : "thin";
         for (let c = 1; c <= ncols; c++) ws.cell(row, c, null, { font: { sz: 9, b: c <= 2 }, fill, border, align: "center", wrap: true });
         ws.cell(row, 1, sl.d + EXCEL_EPOCH, { font: { sz: 9, b: true, color: sl.h === "AM" ? fill : undefined }, fill, border, align: "center", num: "DD/MM/YYYY" });
-        ws.cell(row, 2, sl.h === "M" ? JOURS[weekday(sl.d)] : "");
+        const notes = sl.h === "AM" && pr.notes && pr.notes.get(sl.d);
+        if (notes) ws.cell(row, 2, notes.join("\n"), { font: { sz: 7, i: true, color: C.grey }, fill, border, align: "center", wrap: true });
+        else ws.cell(row, 2, sl.h === "M" ? JOURS[weekday(sl.d)] : "");
         ws.cell(row, 3, HALF_LABEL[sl.h]);
       }
     }

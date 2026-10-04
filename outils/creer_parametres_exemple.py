@@ -74,6 +74,10 @@ lines = [
     ("• Absences : congés, formations, maladie… (une ligne par absence).", N_FONT),
     ("• Imposées : affectations à respecter obligatoirement (ex. : OA en IRM 2 le 12/10 matin).", N_FONT),
     ("• Fermetures : postes fermés sur une période (travaux, remplacement de machine).", N_FONT),
+    ("• Vacations spécialisées : coro, pédiatrie… tenues par un médecin habilité (obligatoires ou « au moins N par semaine »).", N_FONT),
+    ("• Préférences : un médecin plutôt sur un poste ou un site certains jours, ou une demi-journée libre par semaine.", N_FONT),
+    ("• Notes : réunions et staffs affichés sur le planning (« 1er mardi », « 3e jeudi »…). Astreintes : recopiées depuis l'outil d'astreinte.", N_FONT),
+    ("• Postes : X = ouvert chaque semaine, A ou B = une semaine sur deux ; « Matin + après-midi » : Interdit, Éviter ou Journée entière ; Télétravail « Toujours » = poste lu à distance uniquement.", N_FONT),
     ("• Fériés : jours non planifiés.", N_FONT),
     ("", N_FONT),
     ("Ajouter un médecin", Font(name=F, bold=True, size=11, color="1F3864")),
@@ -120,6 +124,8 @@ params = [
      "Chaque médecin autorisé (onglet Médecins, colonne Télétravail) a si possible 1 journée par semaine, sur les postes marqués « Oui » dans l'onglet Postes."),
     ("Télétravail : maximum de jours par semaine", 1, "Au-delà, jamais."),
     ("Télétravail : maximum de médecins par jour", 1, "Nombre de médecins en télétravail le même jour (0 = sans limite). Les jours disponibles sont répartis équitablement sur le mois."),
+    ("Binôme : jamais absents le même jour", "IA, IB", "Alerte si les deux sont absents le même jour ; une demande d'absence qui chevauche celle de l'autre est refusée."),
+    ("Binôme : jour de repos de repli", "Mercredi", "Si l'un est absent le jour de repos de l'autre, ce repos passe à ce jour-là (salle fermée)."),
 ]
 for i, (k, v, c) in enumerate(params, 5):
     put(ws, i, [k, v, c], inp=False, align=LEFT)
@@ -147,8 +153,8 @@ ws = wb.create_sheet("Postes")
 title(ws, "Postes par site",
       "X = poste ouvert sur cette demi-journée. Priorité : 1 = couvert en premier ; les chiffres élevés ferment en premier.")
 cols = ["Code", "Libellé", "Site", "Groupe d'équilibrage", "Nb médecins souhaité", "Nb médecins minimum",
-        "Priorité (jusqu'au minimum)", "Priorité au-delà du minimum", "Remarque"] + DEMI + ["Télétravail possible"]
-header(ws, 4, cols, [9, 30, 20, 16, 11, 11, 12, 12, 42] + [7] * 10 + [12])
+        "Priorité (jusqu'au minimum)", "Priorité au-delà du minimum", "Remarque"] + DEMI + ["Télétravail possible", "Matin + après-midi"]
+header(ws, 4, cols, [9, 30, 20, 16, 11, 11, 12, 12, 42] + [7] * 10 + [12, 14])
 TELE = {"SCAN", "IRM2"}   # postes faisables à distance
 ALL = {d: "X" for d in DEMI}
 def opn(days):
@@ -177,15 +183,21 @@ postes = [
      "Fermeture seulement si vraiment pas assez de médecins.", ALL),
 ]
 for i, p in enumerate(postes, 5):
-    vals = list(p[:9]) + [p[9][d] for d in DEMI] + ["Oui" if p[0] in TELE else ""]
+    vals = list(p[:9]) + [p[9][d] for d in DEMI] + ["Oui" if p[0] in TELE else "", ""]
     put(ws, i, vals)
     ws.cell(row=i, column=2).alignment = LEFT
     ws.cell(row=i, column=9).alignment = LEFT
     ws.cell(row=i, column=9).font = Font(name=F, size=9)
 ws.freeze_panes = "C5"
-dvx = DataValidation(type="list", formula1='"X"', allow_blank=True)
+dvx = DataValidation(type="list", formula1='"X,A,B"', allow_blank=True)
 ws.add_data_validation(dvx)
 dvx.add("J5:S60")
+dvt = DataValidation(type="list", formula1='"Oui,Non,Toujours"', allow_blank=True)
+ws.add_data_validation(dvt)
+dvt.add("T5:T60")
+dvm = DataValidation(type="list", formula1='"Interdit,Éviter,Journée entière"', allow_blank=True)
+ws.add_data_validation(dvm)
+dvm.add("U5:U60")
 dvp = DataValidation(type="whole", operator="between", formula1="1", formula2="9")
 ws.add_data_validation(dvp)
 dvp.add("G5:H60")
@@ -283,6 +295,27 @@ for rr in range(5, 45):
 dvp4 = DataValidation(type="list", formula1='"Journée,Matin,Après-midi"', allow_blank=True)
 ws.add_data_validation(dvp4)
 dvp4.add("D5:D200")
+
+# ---------------------------------------------------------------- Vacations spécialisées, préférences, notes, astreintes (vides)
+def onglet_vide(nom, titre, sous, entetes, largeurs, n=30):
+    w = wb.create_sheet(nom)
+    title(w, titre, sous)
+    header(w, 4, entetes, largeurs)
+    for rr in range(5, 5 + n):
+        put(w, rr, [""] * len(entetes))
+    return w
+onglet_vide("Vacations spécialisées", "Vacations spécialisées (coro, pédiatrie…)",
+            "Exemple : Coro | SCAN | Lun AM, Ven M | SC, DA | 1. Minimum par semaine vide = obligatoire à chaque créneau ; 0 = souhaitée.",
+            ["Nom", "Postes", "Créneaux", "Médecins habilités", "Minimum par semaine", "Si présents", "Remarque"], [24, 14, 22, 22, 12, 14, 40])
+onglet_vide("Préférences", "Préférences (souples)",
+            "Exemple : OA | Poste | Blaye | Lundi. Ou : SA | Libre | | Mar M, Mar AM (au moins une demi-journée libre).",
+            ["Médecin", "Type", "Poste ou site", "Jours", "Remarque"], [10, 10, 22, 22, 40])
+onglet_vide("Notes", "Notes du planning", "Exemple : Réunion de service 13h30 | 1er mardi. Quand : « 1er mardi », « 3e jeudi », « dernier vendredi », « chaque lundi » ou une date.",
+            ["Texte", "Quand", "Demi-journée"], [40, 18, 14])
+w = onglet_vide("Astreintes", "Astreintes", "Recopiées depuis l'outil d'astreinte : une ligne par jour. Le médecin d'astreinte est placé de préférence à l'IRM 1 l'après-midi.",
+                ["Date", "Médecin"], [14, 12], n=60)
+for rr in range(5, 65):
+    w.cell(row=rr, column=1).number_format = "DD/MM/YYYY"
 
 # ---------------------------------------------------------------- Fériés
 ws = wb.create_sheet("Fériés")

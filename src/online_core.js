@@ -5,6 +5,7 @@
 //   sites: [..], mainSite, jours: [day], semaines: [{lundi, type}], medecins: [ini],
 //   cases: {"<day>_<h>_<code>": "AB / CD"}   (seulement les postes ouverts ; "" = fermé)
 //   statuts: {ini: {"<day>_<h>": "OFF" | "ABS" | "INDISPO"}}
+//   notes?: {"<day>": ["Réunion de service 13h30", "Astreinte : AB"]}   (facultatif)
 // }
 const caseKey = (d, h, code) => `${d}_${h}_${code}`;
 const splitInis = (v) => String(v || "").split("/").map((x) => x.trim().toUpperCase()).filter(Boolean);
@@ -32,6 +33,7 @@ function draftFromResult(pr, R) {
     genereLe: Date.now(), ordre: pr.postes.slice(), postes, sites: P.siteList.slice(), mainSite: P.mainSite,
     jours: pr.days.slice(), semaines: pr.weeks.map((w) => ({ lundi: w, type: pr.weekType.get(w) })),
     medecins: pr.docs.slice(), cases, statuts,
+    ...(pr.notes && pr.notes.size ? { notes: Object.fromEntries([...pr.notes].map(([d, t]) => [String(d), t.slice()])) } : {}),
   };
 }
 
