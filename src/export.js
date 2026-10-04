@@ -564,3 +564,61 @@ function draftFromPlanningXlsx(S, P) {
     medecins, cases, statuts, importe: true,  // repos / absences : ceux du fichier
   };
 }
+
+// ---------------------------------------------------------------- Import d'un fichier d'astreintes (export Lifen ou autre)
+// Format libre : on cherche, feuille par feuille, des dates et des médecins (initiales, « Dr XX » ou nom de la fiche).
+// - en ligne : une date et un ou plusieurs médecins sur la même ligne ;
+// - en grille : une ligne d'en-tête avec plusieurs dates, les médecins dans les colonnes en dessous.
+// Renvoie { liste: [{d, ini}], inconnus: [textes non reconnus voisins d'une date] }.
+function astreintesDepuisClasseur(S, P) {
+  const docs = Object.values(P.docs);
+  const sansAccent = (v) => low(v).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const MOISL = MOIS.map((m) => m.normalize("NFD").replace(/[̀-ͯ]/g, ""));
+  const dateDe = (v) => {
+    if (typeof v === "number") return v > 30000 && v < 80000 ? dayFromExcel(v) : null;
+    const s = norm(v);
+    let m = /(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/.exec(s);
+    if (m) { const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return dayFromYMD(y, +m[2], +m[1]); }
+    m = /(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (m) return dayFromYMD(+m[1], +m[2], +m[3]);
+    m = /(\d{1,2})(?:er)?\s+([a-zéû]+)\s+(\d{4})/i.exec(s);
+    if (m) { const mo = MOISL.indexOf(sansAccent(m[2])); if (mo >= 0) return dayFromYMD(+m[3], mo + 1, +m[1]); }
+    return null;
+  };
+  const medecinsDe = (v) => {
+    if (v === null || v === undefined || typeof v === "number") return [];
+    const brut = norm(v);
+    if (!brut || brut.length > 80) return [];
+    const t = " " + sansAccent(brut) + " ";
+    const out = new Set();
+    for (const d of docs) {
+      const ini = d.ini.toLowerCase();
+      if (new RegExp(`(^| |dr )${ini}( |$)`).test(t)) out.add(d.ini);
+      if (d.nom) { const n = sansAccent(d.nom).replace(/^dr /, ""); if (n.length >= 3 && t.includes(" " + n + " ")) out.add(d.ini); }
+    }
+    return [...out];
+  };
+  const liste = new Map(), inconnus = new Set();
+  const ajoute = (d, ini) => { if (d !== null) liste.set(d + "|" + ini, { d, ini }); };
+  const texteInconnu = (v) => { const s = norm(v); if (s && typeof v !== "number" && dateDe(v) === null && /[a-z]/i.test(s) && s.length <= 40) inconnus.add(s); };
+  for (const ws of Object.values(S)) {
+    let entete = null;   // colonne -> date (format grille)
+    for (let r = 1; r <= ws.maxRow; r++) {
+      const dates = [], meds = [];
+      for (let c = 1; c <= ws.maxCol; c++) {
+        const v = ws.get(r, c);
+        const d = dateDe(v);
+        if (d !== null) dates.push([c, d]);
+        else { const m = medecinsDe(v); if (m.length) meds.push([c, m]); }
+      }
+      if (dates.length >= 3) { entete = new Map(dates); continue; }
+      if (dates.length === 1 && meds.length) { for (const [, m] of meds) for (const ini of m) ajoute(dates[0][1], ini); continue; }
+      if (dates.length === 1) for (let c = 1; c <= ws.maxCol; c++) if (c !== dates[0][0]) texteInconnu(ws.get(r, c));
+      if (entete && !dates.length) {
+        for (const [c, m] of meds) if (entete.has(c)) for (const ini of m) ajoute(entete.get(c), ini);
+        for (const [c] of entete) if (!meds.some((x) => x[0] === c)) texteInconnu(ws.get(r, c));
+      }
+    }
+  }
+  return { liste: [...liste.values()].sort((a, b) => a.d - b.d || a.ini.localeCompare(b.ini)), inconnus: [...inconnus].slice(0, 20) };
+}

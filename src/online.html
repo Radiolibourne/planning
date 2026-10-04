@@ -2414,6 +2414,25 @@ function regListe(onglet) {
     <ul class="list" id="regItems">${ordre.map((i) => `<li data-i="${i}"><div class="grow">${def.resume(regGetter(REG.hdr, REG.rows[i]))}</div><button class="b" type="button" data-edit style="min-height:36px;padding:4px 12px">Modifier</button></li>`).join("") || `<li class="small muted">Aucun élément.</li>`}</ul>`;
   $("regAdd").onclick = () => regFiche(-1);
   $("regItems").onclick = (e) => { const b = e.target.closest("[data-edit]"); if (b) regFiche(+b.closest("li").dataset.i); };
+  if (onglet === "Astreintes") {
+    $("regAdd").insertAdjacentHTML("afterend", `<label class="b" style="cursor:pointer">Importer un fichier Excel<input type="file" id="astFile" accept=".xlsx" hidden></label>`);
+    $("regBody").insertAdjacentHTML("afterbegin", `<p class="small muted" style="margin:0 0 8px">Fichier exporté de Lifen (ou tableau Excel) : les dates et les médecins (initiales, « Dr … » ou nom de la fiche médecin) sont reconnus. Les astreintes déjà saisies sur les mêmes dates sont remplacées.</p>`);
+    $("astFile").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importerAstreintes(f); };
+  }
+}
+async function importerAstreintes(f) {
+  const msg = $("regFormMsg");
+  let res;
+  try { res = astreintesDepuisClasseur(await readXlsx(await f.arrayBuffer()), S.P); }
+  catch (e) { return setMsg(msg, `Fichier illisible : ${e.message}`, "err"); }
+  if (!res.liste.length) return setMsg(msg, `Aucune astreinte reconnue dans ${f.name}.${res.inconnus.length ? ` Noms non reconnus : ${res.inconnus.slice(0, 8).join(", ")} (renseignez le nom dans la fiche médecin).` : ""}`, "err");
+  const d1 = res.liste[0].d, d2 = res.liste[res.liste.length - 1].d;
+  const txt = `${res.liste.length} astreinte(s) du ${fmtDay(d1, false)} au ${fmtDay(d2)}.` + (res.inconnus.length ? `\nNon reconnus (ignorés) : ${res.inconnus.slice(0, 8).join(", ")}.` : "") + "\n\nRemplacer les astreintes de cette période ?";
+  if (!confirm(txt)) return;
+  const garder = REG.rows.filter((r) => { const d = asDay(r[0]); return d === null || d < d1 || d > d2; });
+  const rows = garder.concat(res.liste.map((x) => [fmtDay(x.d), x.ini])).sort((a, b) => (asDay(a[0]) ?? 0) - (asDay(b[0]) ?? 0));
+  if (!REG.hdr.length) REG.hdr = ONGLETS.Astreintes.creer[2].slice();
+  if (await regSauver(rows)) { regListe("Astreintes"); setMsg($("regFormMsg"), `${res.liste.length} astreinte(s) importée(s) du ${fmtDay(d1, false)} au ${fmtDay(d2)}.${res.inconnus.length ? ` Non reconnus : ${res.inconnus.slice(0, 8).join(", ")}.` : ""}`, "ok"); }
 }
 function regFiche(i) {
   REG.edit = i;

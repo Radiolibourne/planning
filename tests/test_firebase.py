@@ -114,6 +114,8 @@ def handle(route):
     m = re.match(r'https://www\.gstatic\.com/firebasejs/10\.14\.1/(firebase-[a-z]+\.js)$', u)
     if m: return route.fulfill(status=200, body=MODS[m.group(1)], headers={'content-type': 'application/javascript', 'access-control-allow-origin': '*'})
     route.abort()
+import shutil as _sh
+_sh.rmtree(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dist', 'cal'), ignore_errors=True)   # calendriers d'un essai précédent
 with sync_playwright() as pw:
     b = chromium(pw)
     def page(ctx):

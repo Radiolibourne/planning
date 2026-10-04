@@ -182,6 +182,31 @@ with sync_playwright() as p:
     pg.wait_for_function("document.querySelector('#regFormMsg').innerText.startsWith('Enregistré')", timeout=10000)
     B.ok("Staff IRM" in pg.inner_text("#regItems"), "éditeur : note ajoutée")
     pg.click("#regClose")
+    # --- import d'un fichier d'astreintes (format « Lifen » en lignes, puis en grille)
+    from openpyxl import Workbook
+    f1 = Workbook(); w = f1.active
+    w.append(["Planning des astreintes — radiologie"]); w.append(["Date", "Médecin d'astreinte", "Téléphone"])
+    for j, qui in ((1, "Dr DA"), (2, "OB"), (3, "Dr Dupont"), (4, "sc")):
+        w.append([dt.datetime(2026, 12, j), qui, "06 00 00 00 00"])
+    a1 = os.path.join(SORTIE, "astreintes_lignes.xlsx"); f1.save(a1)
+    f2 = Workbook(); w = f2.active
+    w.append(["Semaine", "lundi 07/12/2026", "mardi 08/12/2026", "mercredi 09/12/2026", "jeudi 10/12/2026", "vendredi 11/12/2026"])
+    w.append(["Astreinte", "IA", "IB", "OA", "OC", "SD"])
+    a2 = os.path.join(SORTIE, "astreintes_grille.xlsx"); f2.save(a2)
+    pg.click('#regList [data-reg="Astreintes"]'); pg.wait_for_selector("#regOverlay:not([hidden])")
+    pg.set_input_files("#astFile", a1)
+    pg.wait_for_function("document.querySelector('#regFormMsg').innerText.includes('importée')", timeout=10000)
+    m1 = pg.inner_text("#regFormMsg")
+    pg.set_input_files("#astFile", a2)
+    pg.wait_for_function("document.querySelector('#regFormMsg').innerText.includes('du 07/12')", timeout=10000)
+    pg.wait_for_timeout(300)
+    ast = pg.evaluate("""async () => { const P = readParams(await readXlsx(b64ToBytes(S.params.xlsx).buffer));
+        return P.astreintes.filter((a) => a.d >= dayFromYMD(2026, 12, 1)).map((a) => fmtDay(a.d, false) + ' ' + a.ini); }""")
+    B.ok(ast == ["01/12 DA", "02/12 OB", "04/12 SC", "07/12 IA", "08/12 IB", "09/12 OA", "10/12 OC", "11/12 SD"] and "Dupont" in m1,
+         f"astreintes : fichier en lignes et en grille importés, nom inconnu signalé ({ast} ; {m1})")
+    B.ok(len(pg.evaluate("""async () => readParams(await readXlsx(b64ToBytes(S.params.xlsx).buffer)).astreintes""")) == 12,
+         "astreintes : celles de novembre conservées")
+    pg.click("#regClose")
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)

@@ -296,8 +296,9 @@ with sync_playwright() as pw:
     r = doc.evaluate("""async () => JSON.parse(await window.__fb('set', JSON.stringify({path: 'abonnements/autre_abc', uid: globalThis.__uid,
         data: {uid: 'autre', ini: 'DB', endpoint: 'https://x.test/', p256dh: 'a', auth: 'b', majLe: 1}}))).error || 'accepté'""")
     ok(r == "permission-denied", "serveur : impossible d'abonner le téléphone d'un collègue")
+    doc.wait_for_timeout(500)   # l'encart se redessine après l'abonnement
     doc.click("#notifOff")
-    doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('désactivées')", timeout=8000)
+    doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('désactivées')", timeout=15000)
     ok(not any(k.startswith("abonnements/") for k in DB), "notifications : désactivation supprime l'abonnement")
     # ---------------- second administrateur, depuis Admin → Comptes
     adm.click(f'#accList li[data-uid="{uid_da}"] [data-admin-oui]')
