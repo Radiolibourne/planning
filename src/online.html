@@ -2101,7 +2101,7 @@ $("medForm").addEventListener("submit", async (e) => {
 const PLIS_KEY = "planning-radio-plis";
 const PLIS_OUVERTES = ["genCard", "draftCard", "indCard"];   // ouvertes par défaut
 (function initPlis() {
-  const brut = ls.get(PLIS_KEY), tout = brut === "tout";
+  const brut = ls.get(PLIS_KEY), tout = brut === "tout" || window.__PLIS_TOUT === true;   // (tests : toutes les cartes ouvertes)
   let etat = {};
   try { etat = tout ? {} : JSON.parse(brut || "{}") || {}; } catch (e) { etat = {}; }
   for (const card of document.querySelectorAll("#adminBody > .card")) {
