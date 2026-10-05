@@ -84,6 +84,18 @@ with sync_playwright() as p:
     q = pg.evaluate("({ j: S.published.jours, tt: S.published.cases[caseKey(%d, 'M', 'SCAN-TT')], s: S.published.cases[caseKey(%d, 'M', 'SCAN')], t: S.published.titre })" % (jn(11, 2), jn(11, 16)))
     B.ok(jn(11, 2) in q["j"] and jn(11, 16) in q["j"] and q["tt"] == "OB" and q["s"] == "OA / OC / SD" and q["t"].endswith("novembre 2026"),
          f"publier une autre période conserve les semaines déjà publiées ({len(q['j'])} jours, {q['t']})")
+    # Mon planning : un mois à la fois
+    wb3 = Workbook(); wb3.remove(wb3.active); globals()["wb"] = wb3
+    semaine("DU 7 DECEMBRE AU 11 DECEMBRE", "SEMAINE DU 7 DECEMBRE 2026 AU 11 DECEMBRE 2026", {(10, 2): "OA/OC/SD"})
+    f3 = os.path.join(SORTIE, "planning_fait_main_3.xlsx"); wb3.save(f3)
+    pg.set_input_files("#upPlanning", f3)
+    pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
+    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(12, 7), timeout=10000)
+    pg.evaluate("S.me = 'OA'; location.hash = '#mon'"); pg.wait_for_selector("#monMois", timeout=8000)
+    opts = pg.evaluate("[...document.querySelectorAll('#monMois option')].map((o) => o.textContent)")
+    pg.select_option("#monMois", label="décembre 2026"); pg.wait_for_timeout(300)
+    nj = pg.locator("#vMon .day").count()
+    B.ok(opts == ["novembre 2026", "décembre 2026"] and nj == 5, f"Mon planning : menu des mois, décembre seul affiché ({opts}, {nj} jours)")
     v = pg.evaluate("""() => { const a = { ...S.published, jours: [100, 101], start: 100, end: 101, cases: { '100_M_SCAN': 'DA' }, statuts: {}, semaines: [{ lundi: mondayOf(100), type: 'A' }] };
         const n = fusionnerPublies(a, S.published, todayDay()); return n.jours.includes(100); }""")
     B.ok(v is False, "jours publiés très anciens retirés")

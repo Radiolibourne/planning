@@ -1195,10 +1195,17 @@ function renderMon() {
   const me = S.me;
   const pd = perDoctor(pub)[me] || {};
   const myConf = conflicts(pub, S.indispos.filter((x) => String(x.ini).toUpperCase() === me));
-  const nHalf = Object.values(pd).filter((c) => c.code).length;
   const today = todayDay();
+  // un mois à la fois (menu déroulant) : par défaut le mois en cours, sinon le premier mois à venir
+  const moisDe = (d) => { const x = ymd(d); return x.y * 100 + x.m; };
+  const listeMois = [...new Set(pub.jours.map(moisDe))];
+  if (!listeMois.includes(S.monMois)) S.monMois = listeMois.includes(moisDe(today)) ? moisDe(today) : (listeMois.find((m) => m > moisDe(today)) ?? listeMois[listeMois.length - 1]);
+  const moisSel = S.monMois;
+  const nHalf = Object.entries(pd).filter(([k, c]) => c.code && moisDe(+k.split("_")[0]) === moisSel).length;
+  const libMois = (m) => `${MOIS[m % 100 - 1]} ${Math.floor(m / 100)}`;
   let html = `<div class="card">
-    <h2>${esc(pub.titre.replace("Planning du service de radiologie — ", "Planning de "))} · ${esc(me)}</h2>
+    <h2>Mon planning · ${esc(me)}</h2>
+    ${listeMois.length > 1 ? `<select id="monMois" aria-label="Mois" style="width:auto;margin:4px 0 2px">${listeMois.map((m) => `<option value="${m}"${m === moisSel ? " selected" : ""}>${libMois(m)}</option>`).join("")}</select>` : `<p class="sub" style="margin:0">${libMois(moisSel)}</p>`}
     <p class="sub">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} travaillée${nHalf > 1 ? "s" : ""}` : ""}</p>
   </div>`;
   html += relanceBanner();
@@ -1209,7 +1216,7 @@ function renderMon() {
   // semaine en cours en premier ; semaines passées repliées en bas
   const semaine = (w) => {
     let html = "";
-    const days = pub.jours.filter((d) => mondayOf(d) === w.lundi);
+    const days = pub.jours.filter((d) => mondayOf(d) === w.lundi && moisDe(d) === moisSel);
     if (!days.length) return "";
     html += `<div class="week-h">Semaine du ${fmtDay(w.lundi, false)}${w.lundi === mondayOf(today) ? " · cette semaine" : ""}</div>`;
     for (const d of days) {
@@ -1234,14 +1241,16 @@ function renderMon() {
     }
     return html;
   };
-  const passees = pub.semaines.filter((w) => w.lundi + 4 < today);
-  const aVenir = pub.semaines.filter((w) => w.lundi + 4 >= today);
-  if (!aVenir.length) html += pub.semaines.map(semaine).join("");
+  const semMois = pub.semaines.filter((w) => pub.jours.some((d) => mondayOf(d) === w.lundi && moisDe(d) === moisSel));
+  const passees = semMois.filter((w) => w.lundi + 4 < today);
+  const aVenir = semMois.filter((w) => w.lundi + 4 >= today);
+  if (!aVenir.length) html += semMois.map(semaine).join("");
   else {
     html += aVenir.map(semaine).join("");
     if (passees.length) html += `<details class="passees"><summary>Semaines passées (${passees.length})</summary>${passees.map(semaine).join("")}</details>`;
   }
   v.innerHTML = html;
+  if ($("monMois")) $("monMois").onchange = (e) => { S.monMois = +e.target.value; renderMon(); };
 }
 
 // Onglet Calendrier : abonnement (mise à jour automatique) ou import ponctuel du mois
