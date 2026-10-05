@@ -50,6 +50,7 @@ Administrateurs : principaux = UID du secret `ADMIN_UID` (inscrits dans les règ
 - L'admin saisit le code d'équipe une fois ; sa propre fiche `membres` (role admin) est alors créée.
 - **Règles d'avant les comptes** (lecture de sa propre fiche refusée) : `S.legacy` → ancien fonctionnement (connexion = admin), inscriptions bloquées avec un message.
 - **Transition** : `codeSeul(code)` dans les règles lit `espaces/{code}/config/acces` (`{codeSeul: bool}`) ; absent = autorisé. L'admin coche/décoche « Accès provisoire par code d'équipe » dans Admin → Comptes (effet immédiat, sans republier les règles). Autorisé : accès sans compte (code d'équipe + « Qui êtes-vous ? »).
+- **Plusieurs mois en ligne** : publier ne remplace que la période du brouillon (`fusionnerPublies`, `online_core.js`) ; les jours publiés hors de cette période sont conservés (sauf ceux de plus de `HISTORIQUE_JOURS` avant la semaine en cours, et en dessous de 900 Ko). Titre recalculé (`titreMois`).
 - `planning/publie` n'est plus lisible avec le seul code (depuis octobre 2026) : comptes validés (ou accès provisoire) uniquement. GitHub le lit avec la clé de service (`FIREBASE_CLE`) pour les calendriers d'abonnement.
 
 ### Sécurité des postes partagés

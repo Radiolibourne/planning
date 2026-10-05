@@ -73,6 +73,20 @@ with sync_playwright() as p:
     pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
     pg.wait_for_function("S.published && S.published.cases", timeout=10000)
     B.ok(pg.evaluate("S.published.cases[caseKey(%d, 'M', 'SCAN-TT')]" % jn(11, 2)) == "OB", "publication du planning importé")
+    # 2e publication (semaine suivante) : la première reste en ligne
+    wb2 = Workbook(); wb2.remove(wb2.active)
+    globals()["wb"] = wb2
+    semaine("DU 16 NOVEMBRE AU 20 NOVEMBRE", "SEMAINE DU 16 NOVEMBRE 2026 AU 20 NOVEMBRE 2026", {(10, 2): "OA/OC/SD"})
+    f2 = os.path.join(SORTIE, "planning_fait_main_2.xlsx"); wb2.save(f2)
+    pg.set_input_files("#upPlanning", f2)
+    pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
+    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(11, 16), timeout=10000)
+    q = pg.evaluate("({ j: S.published.jours, tt: S.published.cases[caseKey(%d, 'M', 'SCAN-TT')], s: S.published.cases[caseKey(%d, 'M', 'SCAN')], t: S.published.titre })" % (jn(11, 2), jn(11, 16)))
+    B.ok(jn(11, 2) in q["j"] and jn(11, 16) in q["j"] and q["tt"] == "OB" and q["s"] == "OA / OC / SD" and q["t"].endswith("novembre 2026"),
+         f"publier une autre période conserve les semaines déjà publiées ({len(q['j'])} jours, {q['t']})")
+    v = pg.evaluate("""() => { const a = { ...S.published, jours: [100, 101], start: 100, end: 101, cases: { '100_M_SCAN': 'DA' }, statuts: {}, semaines: [{ lundi: mondayOf(100), type: 'A' }] };
+        const n = fusionnerPublies(a, S.published, todayDay()); return n.jours.includes(100); }""")
+    B.ok(v is False, "jours publiés très anciens retirés")
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)

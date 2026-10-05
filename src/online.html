@@ -2660,8 +2660,9 @@ $("publishBtn").addEventListener("click", async () => {
   const nErr = ctx ? ctx.items.filter((i) => i[0] === "Erreur").length : 0;
   if (!needOnline(msg)) return;
   if (nErr && !confirm(`${nErr} erreur(s) détectée(s) (voir « Contrôle des règles »). Publier quand même ?`)) return;
-  if (!confirm("Publier ce planning ? Il remplacera la version actuelle pour toute l'équipe.")) return;
-  const doc = JSON.parse(JSON.stringify(S.draft));
+  const autres = S.published && S.published.jours ? S.published.jours.filter((d) => d < S.draft.start || d > S.draft.end).length : 0;
+  if (!confirm(`Publier ce planning (${fmtDay(S.draft.start, false)} → ${fmtDay(S.draft.end, false)}) ?` + (autres ? "\n\nLes autres jours déjà publiés (mois précédent ou suivant) sont conservés ; seule cette période est remplacée." : " Il remplacera la version actuelle pour toute l'équipe."))) return;
+  let doc = JSON.parse(JSON.stringify(S.draft));
   if (ctx) { // absences saisies depuis la génération ajoutées ; statuts et médecins du brouillon conservés (planning importé)
     const st = doc.statuts || {};
     ctx.pr.docs.forEach((ini, d) => {
@@ -2671,6 +2672,7 @@ $("publishBtn").addEventListener("click", async () => {
     doc.statuts = st;
     doc.medecins = [...new Set((doc.medecins || []).concat(ctx.pr.docs))];
   }
+  doc = fusionnerPublies(S.published, doc, todayDay());   // les autres mois publiés restent en ligne
   doc.publieLe = Date.now(); doc.publiePar = (S.auth && S.auth.email) || "";
   setMsg(msg, "Publication…");
   try {

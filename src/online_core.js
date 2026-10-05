@@ -519,3 +519,47 @@ function draftFromManuel(S, P) {
   draft.ignores = [...ignores].slice(0, 30);
   return draft;
 }
+
+// ================================================================ Plusieurs mois en ligne
+// Publier un planning ne remplace que sa période : les autres jours déjà publiés (le mois précédent, le suivant) sont conservés.
+// Les jours trop anciens sont retirés pour rester sous la taille maximale d'un document Firestore (1 Mo).
+const HISTORIQUE_JOURS = 70;
+function titreMois(start, end) {
+  const a = ymd(start), b = ymd(end);
+  let m1 = a.y * 12 + a.m - 1 + (a.d > 20 ? 1 : 0), m2 = b.y * 12 + b.m - 1 - (b.d < 7 ? 1 : 0);
+  if (m2 < m1) m2 = m1;
+  const lab = (m) => MOIS[m % 12], an = (m) => Math.floor(m / 12);
+  return m1 === m2 ? `${lab(m1)} ${an(m1)}` : an(m1) === an(m2) ? `${lab(m1)} – ${lab(m2)} ${an(m2)}` : `${lab(m1)} ${an(m1)} – ${lab(m2)} ${an(m2)}`;
+}
+function fusionnerPublies(ancien, nouveau, aujourdhui) {
+  if (!ancien || !ancien.jours || !ancien.jours.length) return nouveau;
+  const garde = (d) => (d < nouveau.start || d > nouveau.end) && d >= mondayOf(aujourdhui) - HISTORIQUE_JOURS;
+  const joursA = ancien.jours.filter(garde);
+  if (!joursA.length) return nouveau;
+  const jourDe = (k) => +String(k).split("_")[0];
+  const out = JSON.parse(JSON.stringify(nouveau));
+  for (const [k, v] of Object.entries(ancien.cases || {})) if (garde(jourDe(k))) out.cases[k] = v;
+  for (const [ini, m] of Object.entries(ancien.statuts || {})) for (const [k, v] of Object.entries(m)) if (garde(jourDe(k))) (out.statuts[ini] = out.statuts[ini] || {})[k] = v;
+  const notes = {};
+  for (const [k, v] of Object.entries(ancien.notes || {})) if (garde(+k)) notes[k] = v;
+  if (Object.keys(notes).length || out.notes) out.notes = { ...notes, ...(out.notes || {}) };
+  for (const c of ancien.ordre || []) if (!out.ordre.includes(c)) out.ordre.push(c);
+  out.postes = { ...(ancien.postes || {}), ...out.postes };
+  for (const s of ancien.sites || []) if (!out.sites.includes(s)) out.sites.push(s);
+  out.medecins = [...new Set(out.medecins.concat(ancien.medecins || []))];
+  out.jours = [...new Set(joursA.concat(out.jours))].sort((a, b) => a - b);
+  const types = new Map((ancien.semaines || []).concat(out.semaines).map((w) => [w.lundi, w.type]));
+  out.semaines = [...new Set(out.jours.map(mondayOf))].map((lundi) => ({ lundi, type: types.get(lundi) || "A" }));
+  out.start = out.jours[0]; out.end = out.jours[out.jours.length - 1];
+  out.titre = `Planning du service de radiologie — ${titreMois(out.start, out.end)}`;
+  // taille : on retire les semaines les plus anciennes si besoin
+  while (JSON.stringify(out).length > 900000 && out.semaines.length > 1 && out.semaines[0].lundi < nouveau.start) {
+    const w = out.semaines.shift().lundi, sort = (d) => mondayOf(d) === w;
+    out.jours = out.jours.filter((d) => !sort(d));
+    for (const k of Object.keys(out.cases)) if (sort(jourDe(k))) delete out.cases[k];
+    for (const m of Object.values(out.statuts)) for (const k of Object.keys(m)) if (sort(jourDe(k))) delete m[k];
+    if (out.notes) for (const k of Object.keys(out.notes)) if (sort(+k)) delete out.notes[k];
+    out.start = out.jours[0];
+  }
+  return out;
+}
