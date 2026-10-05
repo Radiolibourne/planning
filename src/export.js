@@ -147,7 +147,11 @@ async function exportPlanning(pr, R, items, opts = {}) {
   const H = { font: { b: true, color: "FFFFFF", sz: 9 }, fill: C.navy, align: "center", wrap: true };
   const T = { font: { b: true, sz: 14, color: C.navy } };
   const I = { font: { i: true, sz: 9, color: "7F7F7F" } };
-  const firstPc = 4, lastPc = 3 + postes.length;
+  // télétravail : le médecin apparaît sur son poste, marqué d'une étoile (pas de colonne séparée)
+  const affiches = postes.map((c, i) => i).filter((i) => !pr.pTT[i]);
+  const jumeauDe = (i) => postes.findIndex((c, j) => pr.pTT[j] && pr.pBase[j] === i);
+  const occupes = (s, i) => { const j = jumeauDe(i); return get(s, i).concat(j >= 0 ? get(s, j).map((x) => x + TT_MARK) : []); };
+  const firstPc = 4, lastPc = 3 + affiches.length;
   const get = (s, p) => R.assign.get(s + "|" + p) || [];
   const today = fmtDay(Math.floor(Date.now() / 86400000));
 
@@ -191,7 +195,7 @@ async function exportPlanning(pr, R, items, opts = {}) {
   headLeft(ws);
   let col = firstPc;
   P.siteList.forEach((site, si) => {
-    const ps = postes.filter((p) => P.postes[p].site === site);
+    const ps = postes.filter((p) => P.postes[p].site === site && !P.postes[p].tt);
     if (!ps.length) return;
     const fill = C.sites[si % C.sites.length];
     for (let k = 0; k < ps.length; k++) ws.cell(4, col + k, k === 0 ? site.toUpperCase() : null, { ...H, fill });
@@ -210,10 +214,10 @@ async function exportPlanning(pr, R, items, opts = {}) {
   for (const [row, kind, pay] of layout) {
     if (kind !== "slot") continue;
     const s = pay.s, fill = pay.k % 2 ? C.alt : "FFFFFF", border = slots[s].h === "M" ? "dayTop" : "thin";
-    postes.forEach((code, p) => {
-      const c = firstPc + p;
+    affiches.forEach((p, k) => {
+      const c = firstPc + k;
       if (!pr.open[s][p]) { ws.cell(row, c, "—", { font: { sz: 8, color: C.grey }, fill, border, align: "center" }); return; }
-      const inis = get(s, p);
+      const inis = occupes(s, p);
       ws.cell(row, c, inis.length ? inis.join(" / ") : "FERMÉ",
         inis.length && inis.length < po[p].need ? { font: { sz: 9 }, fill: C.orange, border, align: "center", wrap: true } : undefined);
     });
@@ -256,7 +260,7 @@ async function exportPlanning(pr, R, items, opts = {}) {
     const rr = `${PP}$${numToCol(firstPc)}$${row}:$${numToCol(lastPc)}$${row}`;
     for (let i = 0; i < ndoc; i++) {
       const c = 4 + i, Hh = `${numToCol(c)}$5`;
-      const hit = `ISNUMBER(SEARCH(" "&${Hh}&" "," "&SUBSTITUTE(${rr},"/"," ")&" "))`;
+      const hit = `ISNUMBER(SEARCH(" "&${Hh}&" "," "&SUBSTITUTE(SUBSTITUTE(${rr},"/"," "),"${TT_MARK}"," ")&" "))`;
       const n = `SUMPRODUCT(--${hit})`;
       const pos = `SUMPRODUCT(${hit}*(COLUMN(${rr})-COLUMN(${PP}$${numToCol(firstPc)}$${row})+1))`;
       const fb = i < docs.length ? `Statuts!${numToCol(c)}${row}` : '"DISPO"';
@@ -281,7 +285,8 @@ async function exportPlanning(pr, R, items, opts = {}) {
   const sy = wb.add("Synthèse");
   sy.cell(1, 1, `Synthèse par médecin — ${mois}`, T);
   sy.cell(2, 1, "Nombre de demi-journées par poste (formules : se met à jour si le planning est modifié).", I);
-  const hdr = ["Médecin", "Quotité", ...postes.map((p) => P.postes[p].label), "Total affecté", "Dispo non affecté", "Off / absent",
+  const postesS = postes.filter((p) => !P.postes[p].tt);
+  const hdr = ["Médecin", "Quotité", ...postesS.map((p) => P.postes[p].label), "Total affecté", "Dispo non affecté", "Off / absent",
     `Demi-j. hors ${P.mainSite}`, ...weeks.map((w) => `Hors ${P.mainSite} sem. ${fmtDay(w, false)}`)];
   hdr.forEach((h, i) => { sy.cell(4, i + 1, h, { ...H, border: "thin" }); sy.width(i + 1, i === 0 ? 11 : i === 1 ? 8 : 10); });
   sy.height(4, 54);
@@ -293,8 +298,8 @@ async function exportPlanning(pr, R, items, opts = {}) {
     const base = { font: { sz: 9 }, align: "center", border: "thin", fill: row % 2 === 0 ? C.alt : undefined };
     sy.cell(row, 1, { f: `IF(${pm}${mc}$5="","",${pm}${mc}$5)` }, { ...base, font: { sz: 9, b: true } });
     sy.cell(row, 2, i < docs.length ? P.docs[docs[i]].quotite : null, { ...base, num: "0%" });
-    postes.forEach((p, j) => sy.cell(row, 3 + j, { f: `IF($A${row}="","",COUNTIF(${colr},"${p}"))` }, base));
-    const ct = 3 + postes.length;
+    postesS.forEach((p, j) => sy.cell(row, 3 + j, { f: `IF($A${row}="","",COUNTIF(${colr},"${p}"))` }, base));
+    const ct = 3 + postesS.length;
     sy.cell(row, ct, { f: `IF($A${row}="","",SUM(${numToCol(3)}${row}:${numToCol(ct - 1)}${row}))` }, base);
     sy.cell(row, ct + 1, { f: `IF($A${row}="","",COUNTIF(${colr},"DISPO"))` }, base);
     sy.cell(row, ct + 2, { f: `IF($A${row}="","",COUNTIF(${colr},"OFF")+COUNTIF(${colr},"ABS")+COUNTIF(${colr},"INDISPO"))` }, base);
@@ -321,8 +326,8 @@ async function exportPlanning(pr, R, items, opts = {}) {
   let fr = 5;
   const cellSt = { font: { sz: 9 }, align: "center", border: "thin" };
   slots.forEach((sl, s) => postes.forEach((code, p) => {
-    if (!pr.open[s][p]) return;
-    const n = get(s, p).length;
+    if (!pr.open[s][p] || pr.pTT[p]) return;
+    const n = occupes(s, p).length;
     if (n >= po[p].need) return;
     [sl.d + EXCEL_EPOCH, JOURS[weekday(sl.d)], HALF_LABEL[sl.h], po[p].label, po[p].site, po[p].need - n]
       .forEach((v, i) => fe.cell(fr, i + 1, v, i === 0 ? { ...cellSt, num: "DD/MM/YYYY" } : cellSt));
@@ -544,9 +549,13 @@ function draftFromPlanningXlsx(S, P) {
     for (const [c, code] of Object.entries(codes)) {
       const v = norm(ws.get(rr, +c));
       if (!v || v === "—") continue;                     // poste non ouvert
-      const inis = /^FERM/i.test(v) ? [] : v.split("/").map((x) => x.trim().toUpperCase()).filter(Boolean);
+      const toks = /^FERM/i.test(v) ? [] : v.split("/").map((x) => x.trim().toUpperCase()).filter(Boolean);
+      const tw = postes[code + TT_SUFFIX] ? code + TT_SUFFIX : null;   // « CD* » : en télétravail sur ce poste
+      const inis = toks.filter((x) => !(tw && x.endsWith(TT_MARK))).map((x) => x.replace(TT_MARK, ""));
+      const tele = tw ? toks.filter((x) => x.endsWith(TT_MARK)).map((x) => x.replace(TT_MARK, "")) : [];
       cases[`${d}_${h}_${code}`] = inis.join(" / ");
-      for (const ini of inis) if (!medecins.includes(ini)) medecins.push(ini);
+      if (tw && (tele.length || !(`${d}_${h}_${tw}` in cases))) cases[`${d}_${h}_${tw}`] = tele.join(" / ");
+      for (const ini of inis.concat(tele)) if (!medecins.includes(ini)) medecins.push(ini);
     }
     if (st) for (const [c, ini] of Object.entries(stDocs)) {
       const v = norm(st.get(rr, +c)).toUpperCase();

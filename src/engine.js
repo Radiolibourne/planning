@@ -11,6 +11,7 @@ const W = { pref: 30, sciWeek: 800, sciRef: 800, remoteShort: 250, remoteExtra: 
 // Le jumeau compte pour la couverture du poste d'origine ; un jour de télétravail ne se mélange pas avec une présence sur site.
 const TT_SITE = "Télétravail";
 const TT_SUFFIX = "-TT";
+const TT_MARK = "*";   // affichage : « CD* » = CD en télétravail sur ce poste
 const wPrio = (p) => 1100 - 100 * p;
 
 // Dates = nombre de jours depuis le 01/01/1970 (UTC). Excel : série = jours + 25569.

@@ -10,6 +10,16 @@
 const caseKey = (d, h, code) => `${d}_${h}_${code}`;
 const splitInis = (v) => String(v || "").split("/").map((x) => x.trim().toUpperCase()).filter(Boolean);
 const joinInis = (a) => a.join(" / ");
+// Télétravail : le médecin apparaît sur son poste, marqué d'une étoile (« CD* »), pas dans une colonne à part
+const jumeauTT = (draft, code) => (draft.postes[code + TT_SUFFIX] ? code + TT_SUFFIX : null);
+const postesAffiches = (draft) => draft.ordre.filter((c) => !(c.endsWith(TT_SUFFIX) && draft.postes[c.slice(0, -TT_SUFFIX.length)]));
+function occupants(draft, d, h, code) {   // [{ini, tt}] sur site puis en télétravail
+  const j = jumeauTT(draft, code);
+  return splitInis(draft.cases[caseKey(d, h, code)]).map((ini) => ({ ini, tt: false }))
+    .concat(j ? splitInis(draft.cases[caseKey(d, h, j)]).map((ini) => ({ ini, tt: true })) : []);
+}
+const caseOuverte = (draft, d, h, code) => caseKey(d, h, code) in draft.cases || (jumeauTT(draft, code) && caseKey(d, h, jumeauTT(draft, code)) in draft.cases);
+const texteOccupants = (occ) => occ.map((o) => o.ini + (o.tt ? TT_MARK : "")).join(" / ");
 
 function draftFromResult(pr, R) {
   const P = pr.P;

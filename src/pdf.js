@@ -179,17 +179,16 @@ function weekPdf(pub, lundi) {
   };
 
   // page 1 : par poste
-  const colsPostes = pub.ordre.map((code) => {
+  const colsPostes = postesAffiches(pub).map((code) => {
     const p = pub.postes[code] || { label: code, site: "" };
     return { code, titre: p.label, groupe: p.site, couleur: PDF_SITES[siteIdx(p.site) % PDF_SITES.length], need: p.need || 1 };
   });
   grille(colsPostes, (c, d, h) => {
-    const k = caseKey(d, h, c.code);
-    if (!(k in pub.cases)) return { texte: "—", couleur: "#9AA3B2" };
-    const inis = splitInis(pub.cases[k]);
-    if (!inis.length) return { texte: "FERMÉ", couleur: "#B42318", gras: true, fond: "#FBE3DC", taille: 6.5 };
-    return { texte: inis.join(" / "), gras: true, fond: inis.length < c.need ? "#FCE9D9" : null };
-  }, "Par poste — FERMÉ : poste non pourvu · — : poste non ouvert · fond orange : poste incomplet");
+    if (!caseOuverte(pub, d, h, c.code)) return { texte: "—", couleur: "#9AA3B2" };
+    const occ = occupants(pub, d, h, c.code);
+    if (!occ.length) return { texte: "FERMÉ", couleur: "#B42318", gras: true, fond: "#FBE3DC", taille: 6.5 };
+    return { texte: texteOccupants(occ), gras: true, fond: occ.length < c.need ? "#FCE9D9" : null };
+  }, "Par poste — * : en télétravail · FERMÉ : poste non pourvu · — : poste non ouvert · fond orange : poste incomplet");
 
   // page 2 : par médecin
   const pd = perDoctor(pub);
@@ -200,7 +199,7 @@ function weekPdf(pub, lundi) {
     if (v && v.code) {
       const p = pub.postes[v.code];
       const autre = p && pub.sites.indexOf(p.site) > 0;
-      return { texte: v.doublon ? "DOUBLON" : v.code, gras: true, fond: v.doublon ? "#FBE3DC" : autre ? "#E2EFDA" : null, taille: 7 };
+      return { texte: v.doublon ? "DOUBLON" : v.code.endsWith(TT_SUFFIX) ? v.code.slice(0, -TT_SUFFIX.length) + TT_MARK : v.code, gras: true, fond: v.doublon ? "#FBE3DC" : autre ? "#E2EFDA" : null, taille: 7 };
     }
     if (v && v.statut) return { texte: ST[v.statut] || v.statut, couleur: "#7F7F7F", fond: "#ECEEF1", taille: 6.5 };
     return { texte: "dispo", couleur: "#B3541E", taille: 6.5 };

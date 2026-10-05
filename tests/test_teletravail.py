@@ -169,6 +169,16 @@ with sync_playwright() as p:
     pub = pg.evaluate("S.published")
     B.ok("ZZ" in pub["medecins"], "publication : médecin du fichier absent des paramètres conservé")
     B.ok("ABS" in pub["statuts"].get("SA", {}).values(), "publication : absence propre au fichier conservée")
+    # télétravail affiché sur le poste, avec une étoile (pas de colonne « Télétravail »)
+    pp = wbx["Planning par poste"]
+    entetes = [str(pp.cell(4, c).value or "") for c in range(1, pp.max_column + 1)]
+    etoiles = [c.value for row in pp.iter_rows(min_row=7) for c in row if isinstance(c.value, str) and c.value.endswith("*")]
+    B.ok(not any("TÉLÉTRAVAIL" in e.upper() for e in entetes) and etoiles, f"Excel : télétravail sur le poste avec une étoile ({etoiles[:3]})")
+    B.ok(any(k.endswith("_SCAN-TT") and v for k, v in pub["cases"].items()), "import Excel : « CD* » relu comme télétravail")
+    pg.click("a[data-tab=general]"); pg.wait_for_selector("#vGeneral table.pl", timeout=8000)
+    t = pg.evaluate("""() => ({ ths: [...document.querySelectorAll('#vGeneral th')].map((x) => x.innerText), tt: document.querySelectorAll('#vGeneral i.tt').length })""")
+    B.ok(not any(x.strip().upper() == "TÉLÉTRAVAIL" for x in t["ths"]) and t["tt"] > 0, f"Général : médecins en télétravail sur leur poste, en italique avec étoile ({t['tt']})")
+    pg.click("a[data-tab=qui]"); pg.wait_for_selector("#quiBody table.qui", timeout=8000)
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)

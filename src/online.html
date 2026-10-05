@@ -231,6 +231,8 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
 .note { display:block; font-size:11px; font-style:italic; color:var(--muted); line-height:1.3; margin-top:2px; }
 .day .note { margin:4px 0 0 2px; }
 details.passees { margin-top:14px; } details.passees > summary { cursor:pointer; color:var(--muted); font-weight:600; padding:8px 2px; }
+i.tt { font-style: italic; color: var(--site-tt); font-weight: 700; }
+td.tt { color: var(--site-tt); }
 </style>
 </head>
 <body>
@@ -1407,18 +1409,19 @@ async function fillSubscription(ini) {
 function planningTable(draft, opts) {
   const { mode, week, editable, highlight } = opts;
   const days = draft.jours.filter((d) => week === "all" || mondayOf(d) === week);
-  const sites = draft.sites.filter((s) => draft.ordre.some((c) => draft.postes[c] && draft.postes[c].site === s));
+  const ordre = postesAffiches(draft);   // télétravail : sur le poste, avec une étoile
+  const sites = draft.sites.filter((s) => ordre.some((c) => draft.postes[c] && draft.postes[c].site === s));
   const sc = (site) => "s" + ((draft.sites.indexOf(site) % 3) + 1);
   let head;
   const pd = mode === "medecin" ? perDoctor(draft) : null;
   const docs = mode === "medecin" ? Object.keys(pd) : [];
   if (mode === "poste") {
-    head = `<tr><th class="lead" rowspan="2">Date</th><th rowspan="2">Pér.</th>${sites.map((s) => `<th class="${sc(s)}" colspan="${draft.ordre.filter((c) => draft.postes[c].site === s).length}">${esc(s)}</th>`).join("")}</tr>
-      <tr>${draft.ordre.map((c) => `<th class="${sc(draft.postes[c].site)}" title="${esc(c)}">${esc(draft.postes[c].label)}</th>`).join("")}</tr>`;
+    head = `<tr><th class="lead" rowspan="2">Date</th><th rowspan="2">Pér.</th>${sites.map((s) => `<th class="${sc(s)}" colspan="${ordre.filter((c) => draft.postes[c].site === s).length}">${esc(s)}</th>`).join("")}</tr>
+      <tr>${ordre.map((c) => `<th class="${sc(draft.postes[c].site)}" title="${esc(c)}">${esc(draft.postes[c].label)}</th>`).join("")}</tr>`;
   } else {
     head = `<tr><th class="lead">Date</th><th>Pér.</th>${docs.map((d) => `<th>${esc(d)}</th>`).join("")}</tr>`;
   }
-  const ncol = 2 + (mode === "poste" ? draft.ordre.length : docs.length);
+  const ncol = 2 + (mode === "poste" ? ordre.length : docs.length);
   let body = "";
   const weeksShown = draft.semaines.filter((w) => days.some((d) => mondayOf(d) === w.lundi));
   for (const w of weeksShown) {
@@ -1427,21 +1430,22 @@ function planningTable(draft, opts) {
       const nts = h === "AM" && draft.notes && draft.notes[String(d)];
       let row = `<tr class="${h === "M" ? "m" : ""}"><td class="lead">${h === "M" ? `${JC[weekday(d)]} ${fmtDay(d, false)}` : nts ? `<span class="note">${nts.map(esc).join("<br>")}</span>` : ""}</td><td>${h === "M" ? "M" : "AM"}</td>`;
       if (mode === "poste") {
-        for (const c of draft.ordre) {
+        for (const c of ordre) {
           const k = caseKey(d, h, c);
-          if (!(k in draft.cases)) { row += `<td class="na">—</td>`; continue; }
-          const inis = splitInis(draft.cases[k]);
+          if (!caseOuverte(draft, d, h, c)) { row += `<td class="na">—</td>`; continue; }
+          const occ = occupants(draft, d, h, c);
           const need = (draft.postes[c] && draft.postes[c].need) || 1;
-          const cls = [!inis.length ? "closed" : inis.length < need ? "part" : "", editable ? "ed" : "", highlight && inis.includes(highlight) ? "me" : ""].filter(Boolean).join(" ");
-          row += `<td class="${cls}"${editable ? ` data-k="${k}" tabindex="0"` : ""}>${inis.length ? esc(joinInis(inis)) : "FERMÉ"}</td>`;
+          const cls = [!occ.length ? "closed" : occ.length < need ? "part" : "", editable ? "ed" : "", highlight && occ.some((o) => o.ini === highlight) ? "me" : ""].filter(Boolean).join(" ");
+          row += `<td class="${cls}"${editable ? ` data-k="${k}" tabindex="0"` : ""}>${occ.length ? occ.map((o) => o.tt ? `<i class="tt" title="télétravail">${esc(o.ini)}*</i>` : esc(o.ini)).join(" / ") : "FERMÉ"}</td>`;
         }
       } else {
         for (const ini of docs) {
           const c = pd[ini][`${d}_${h}`];
           if (c && c.code) {
             const p = draft.postes[c.code];
-            const cls = c.doublon ? "dbl" : p ? siteClass(draft, p.site) : "";
-            row += `<td class="${cls}${highlight === ini ? " me" : ""}">${c.doublon ? "DOUBLON" : esc(c.code)}</td>`;
+            const tele = c.code.endsWith(TT_SUFFIX), base = tele ? c.code.slice(0, -TT_SUFFIX.length) : c.code;
+            const cls = c.doublon ? "dbl" : tele ? "tt" : p ? siteClass(draft, p.site) : "";
+            row += `<td class="${cls}${highlight === ini ? " me" : ""}">${c.doublon ? "DOUBLON" : tele ? `<i>${esc(base)}*</i>` : esc(c.code)}</td>`;
           } else if (c && c.statut) row += `<td class="off">${esc(c.statut)}</td>`;
           else row += `<td class="dispo">dispo</td>`;
         }
@@ -1532,15 +1536,14 @@ function renderQui() {
   } else if (S.qui.mode === "poste") {
     let rows = "";
     for (const site of pub.sites) {
-      const codes = pub.ordre.filter((c) => pub.postes[c] && pub.postes[c].site === site);
-      const lignes = codes.filter((c) => match(pub.postes[c].label + " " + site + " " + c)).map((c) => {
+      const codes = postesAffiches(pub).filter((c) => pub.postes[c] && pub.postes[c].site === site);
+      const lignes = codes.filter((c) => match(pub.postes[c].label + " " + site + " " + c + (jumeauTT(pub, c) ? " télétravail" : ""))).map((c) => {
         const cell = (h) => {
-          const k = caseKey(d, h, c);
-          if (!(k in pub.cases)) return `<span class="st">—</span>`;
-          const inis = splitInis(pub.cases[k]);
-          return inis.length ? esc(joinInis(inis)) : `<span class="fe">fermé</span>`;
+          if (!caseOuverte(pub, d, h, c)) return `<span class="st">—</span>`;
+          const occ = occupants(pub, d, h, c);
+          return occ.length ? occ.map((o) => o.tt ? `<i class="tt" title="télétravail">${esc(o.ini)}*</i>` : esc(o.ini)).join(" / ") : `<span class="fe">fermé</span>`;
         };
-        const mine = S.me && [caseKey(d, "M", c), caseKey(d, "AM", c)].some((k) => splitInis(pub.cases[k]).includes(S.me));
+        const mine = S.me && ["M", "AM"].some((h) => occupants(pub, d, h, c).some((o) => o.ini === S.me));
         return `<tr class="${mine ? "me" : ""}"><td>${esc(pub.postes[c].label)}</td><td>${cell("M")}</td><td>${cell("AM")}</td></tr>`;
       });
       if (lignes.length) rows += `<tr class="site"><td colspan="3">${esc(site)}</td></tr>` + lignes.join("");
@@ -1549,7 +1552,7 @@ function renderQui() {
   } else {
     const pd = perDoctor(pub);
     const ST = { OFF: "repos", ABS: "absent", INDISPO: "indisponible" };
-    const cell = (v) => v && v.code ? esc((pub.postes[v.code] || { label: v.code }).label) + (pub.postes[v.code] && pub.sites.indexOf(pub.postes[v.code].site) > 0 ? ` <span class="st">(${esc(pub.postes[v.code].site)})</span>` : "")
+    const cell = (v) => v && v.code ? (v.code.endsWith(TT_SUFFIX) ? `<i class="tt">${esc((pub.postes[v.code] || { label: v.code }).label)}*</i> <span class="st">(télétravail)</span>` : esc((pub.postes[v.code] || { label: v.code }).label) + (pub.postes[v.code] && pub.sites.indexOf(pub.postes[v.code].site) > 0 ? ` <span class="st">(${esc(pub.postes[v.code].site)})</span>` : ""))
       : v && v.statut ? `<span class="st">${ST[v.statut] || v.statut}</span>` : `<span class="st">sans poste</span>`;
     const lignes = Object.keys(pd).filter((ini) => match(ini)).map((ini) =>
       `<tr class="${ini === S.me ? "me" : ""}"><td>${esc(ini)}</td><td>${cell(pd[ini][`${d}_M`])}</td><td>${cell(pd[ini][`${d}_AM`])}</td></tr>`);
@@ -2616,7 +2619,8 @@ $("draftGrid").addEventListener("keydown", (e) => {
 function editCell(td) {
   const k = td.dataset.k;
   const inp = document.createElement("input");
-  inp.type = "text"; inp.value = S.draft.cases[k] || ""; inp.autocapitalize = "characters"; inp.spellcheck = false;
+  const [kd, kh, kc] = k.split("_"), tw = jumeauTT(S.draft, kc);
+  inp.type = "text"; inp.value = texteOccupants(occupants(S.draft, +kd, kh, kc)); inp.autocapitalize = "characters"; inp.spellcheck = false;
   inp.setAttribute("aria-label", "Médecins affectés");
   td.textContent = ""; td.appendChild(inp); inp.focus(); inp.select();
   let done = false;
@@ -2624,7 +2628,10 @@ function editCell(td) {
     if (done) return; done = true;
     if (commit) {
       const v = inp.value.trim();
-      S.draft.cases[k] = /^ferm/i.test(v) ? "" : joinInis(splitInis(v.replace(/[,;+]/g, "/").replace(/\s{2,}/g, " ").split(/\s*\/\s*|\s+/).join("/")));
+      const toks = /^ferm/i.test(v) ? [] : splitInis(v.replace(/[,;+]/g, "/").replace(/\s{2,}/g, " ").split(/\s*\/\s*|\s+/).join("/"));
+      // « CD* » : CD en télétravail sur ce poste (s'il est faisable en télétravail)
+      S.draft.cases[k] = joinInis(toks.filter((x) => !(tw && x.endsWith(TT_MARK))).map((x) => x.replace(TT_MARK, "")));
+      if (tw) S.draft.cases[caseKey(+kd, kh, tw)] = joinInis(toks.filter((x) => x.endsWith(TT_MARK)).map((x) => x.replace(TT_MARK, "")));
       persistDraft();
     }
     renderDraft();
