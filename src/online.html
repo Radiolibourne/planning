@@ -233,6 +233,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
 details.passees { margin-top:14px; } details.passees > summary { cursor:pointer; color:var(--muted); font-weight:600; padding:8px 2px; }
 i.tt { font-style: italic; color: var(--site-tt); font-weight: 700; }
 td.tt { color: var(--site-tt); }
+.note.astreinte { font-style: normal; font-weight: 700; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -1236,8 +1237,11 @@ function renderMon() {
       if (m && a && m.code && m.code === a.code) body = line(m, "M", "AM", "Journée");
       else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Journée</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
       else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "Après-midi");
-      const nts = pub.notes && pub.notes[String(d)];
-      if (nts) body += `<div class="note">${nts.map(esc).join(" · ")}</div>`;
+      // astreinte toujours en premier, bien visible ; puis les autres notes (réunions, staffs…)
+      const nts = (pub.notes && pub.notes[String(d)]) || [];
+      const ast = nts.filter((t) => /^astreinte/i.test(t)), autres = nts.filter((t) => !/^astreinte/i.test(t));
+      if (ast.length) body += `<div class="note astreinte">${ast.map(esc).join(" · ")}</div>`;
+      if (autres.length) body += `<div class="note">${autres.map(esc).join(" · ")}</div>`;
       html += `<div class="day${d === today ? " today" : ""}" ${d === today ? 'id="todayRow"' : ""}><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
     }
     return html;
@@ -1437,7 +1441,7 @@ function planningTable(draft, opts) {
   for (const w of weeksShown) {
     body += `<tr class="week"><td colspan="${ncol}">Semaine du ${fmtDay(w.lundi)} — semaine ${esc(w.type)}</td></tr>`;
     for (const d of days.filter((x) => mondayOf(x) === w.lundi)) for (const h of HALVES) {
-      const nts = h === "AM" && draft.notes && draft.notes[String(d)];
+      const nts = h === "AM" && draft.notes && draft.notes[String(d)] && draft.notes[String(d)].slice().sort((a, b) => /^astreinte/i.test(b) - /^astreinte/i.test(a));
       let row = `<tr class="${h === "M" ? "m" : ""}"><td class="lead">${h === "M" ? `${JC[weekday(d)]} ${fmtDay(d, false)}` : nts ? `<span class="note">${nts.map(esc).join("<br>")}</span>` : ""}</td><td>${h === "M" ? "M" : "AM"}</td>`;
       if (mode === "poste") {
         for (const c of ordre) {

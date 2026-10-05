@@ -481,7 +481,8 @@ function draftFromManuel(S, P) {
         if (v === null || v === "") continue;
         const txt = norm(v);
         if (zone === "note") { if (txt && !/^ne pas modifier/i.test(txt)) ajoutNote(d, txt); continue; }
-        if (zone === "astreinte") { for (const j of jetons(txt)) if (j.ini && h === "M") ajoutNote(d, `Astreinte : ${j.ini}`); continue; }
+        // astreinte : notée même pour un interne ou un médecin absent des paramètres (nom tel qu'écrit)
+        if (zone === "astreinte") { for (const j of jetons(txt)) if (j.ini || j.n) ajoutNote(d, `Astreinte : ${j.ini || j.n}`); continue; }
         if (/maintenance|attente|ferie|ferme/i.test(sansAcc(txt)) && !txt.includes("/")) { if (zone === "poste" && /maintenance/i.test(txt)) ajoutNote(d, txt); continue; }
         if (zone === "abs") {
           for (const j of jetons(txt)) {

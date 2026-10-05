@@ -29,7 +29,7 @@ semaine("DU 2 NOVEMBRE AU 6 NOVEMBRE", "SEMAINE DU 2 NOVEMBRE 2026 AU 6 NOVEMBRE
     (15, 2): "SD", (15, 3): "RAYANN",
     (23, 4): "Réunion de service à 13h30",
     (31, 8): "IB(mat)/DA/ SB(off à récup : le 19/11)",
-    (32, 2): "IA", (32, 8): "OB",
+    (32, 2): "IA", (32, 8): "OB", (32, 10): "Rayann",
 }, fusions=("B7:C7", "D23:E23", "F10:F11", "H31:I31"))
 semaine("DU 9 NOVEMBRE AU 13 NOVEMBRE", "SEMAINE DU 9 NOVEMBRE 2026 AU 13 NOVEMBRE 2026", {
     (10, 2): "DA/OB/SC", (10, 6): "FERIE", (22, 6): "FERIE",
@@ -67,7 +67,7 @@ with sync_playwright() as p:
     B.ok(r["irm"] == ["SD", ""], "interne ignoré (RAYANN)")
     B.ok(r["ib"] == ["ABS", None] and r["da"] == ["ABS", "ABS"] and r["sb"] == "ABS", f"absences : « (mat) » = le matin seulement, parenthèses ignorées ({r['ib']} {r['da']})")
     n = r["notes"] or {}
-    B.ok("Réunion de service à 13h30" in n.get(str(jn(11, 3)), []) and "Astreinte : IA" in n.get(str(jn(11, 2)), []) and "Astreinte : OB" in n.get(str(jn(11, 5)), []),
+    B.ok("Réunion de service à 13h30" in n.get(str(jn(11, 3)), []) and "Astreinte : IA" in n.get(str(jn(11, 2)), []) and "Astreinte : OB" in n.get(str(jn(11, 5)), []) and "Astreinte : Rayann" in n.get(str(jn(11, 6)), []),
          "notes et astreintes reprises")
     B.ok(r["scan2"] == "DA / OB / SC" and r["ignores"] is None, "2e semaine lue ; liste des ignorés non enregistrée dans le planning")
     pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
