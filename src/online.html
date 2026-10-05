@@ -1238,7 +1238,7 @@ function renderMon() {
       else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Journée</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
       else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "Après-midi");
       // astreinte toujours en premier, bien visible ; puis les autres notes (réunions, staffs…)
-      const nts = (pub.notes && pub.notes[String(d)]) || [];
+      const nts = notesDuJour(pub, d);
       const ast = nts.filter((t) => /^astreinte/i.test(t)), autres = nts.filter((t) => !/^astreinte/i.test(t));
       if (ast.length) body += `<div class="note astreinte">${ast.map(esc).join(" · ")}</div>`;
       if (autres.length) body += `<div class="note">${autres.map(esc).join(" · ")}</div>`;
@@ -1441,7 +1441,7 @@ function planningTable(draft, opts) {
   for (const w of weeksShown) {
     body += `<tr class="week"><td colspan="${ncol}">Semaine du ${fmtDay(w.lundi)} — semaine ${esc(w.type)}</td></tr>`;
     for (const d of days.filter((x) => mondayOf(x) === w.lundi)) for (const h of HALVES) {
-      const nts = h === "AM" && draft.notes && draft.notes[String(d)] && draft.notes[String(d)].slice().sort((a, b) => /^astreinte/i.test(b) - /^astreinte/i.test(a));
+      const nts = h === "AM" && notesDuJour(draft, d).length ? notesDuJour(draft, d) : null;
       let row = `<tr class="${h === "M" ? "m" : ""}"><td class="lead">${h === "M" ? `${JC[weekday(d)]} ${fmtDay(d, false)}` : nts ? `<span class="note">${nts.map(esc).join("<br>")}</span>` : ""}</td><td>${h === "M" ? "M" : "AM"}</td>`;
       if (mode === "poste") {
         for (const c of ordre) {
@@ -1513,7 +1513,7 @@ async function downloadPublishedXlsx(msgEl, complet = false) {
   setMsg(msgEl, "Préparation du fichier…");
   try {
     const pr = problemFor(pub.start, pub.end);
-    if (pub.notes) pr.notes = new Map(Object.entries(pub.notes).map(([d, t]) => [+d, t]));
+    if (pub.notes) pr.notes = new Map(Object.keys(pub.notes).map((d) => [+d, notesDuJour(pub, d)]).filter(([, t]) => t.length));
     const R = { assign: assignFromDraft(pr, pub), iterations: 0 };
     const bytes = await exportPlanning(pr, R, checks(pr, R), { equipe: !complet, icsHint: "Chaque médecin retrouve son planning et son calendrier iPhone sur le site du planning." });
     const x = ymd(pub.start);

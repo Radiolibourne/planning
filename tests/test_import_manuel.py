@@ -27,7 +27,7 @@ semaine("DU 2 NOVEMBRE AU 6 NOVEMBRE", "SEMAINE DU 2 NOVEMBRE 2026 AU 6 NOVEMBRE
     (10, 2): "DA/OB*/ INTERNE", (10, 3): "DA/SC", (10, 6): "DB/OC",
     (19, 8): "OA",                                  # salle le jeudi matin -> arthrographies
     (15, 2): "SD", (15, 3): "RAYANN",
-    (23, 4): "Réunion de service à 13h30",
+    (23, 4): "Réunion de service à 13h30", (23, 8): "MDP Bureau", (24, 8): "Staff IRM à 13h30",
     (31, 8): "IB(mat)/DA/ SB(off à récup : le 19/11)",
     (32, 2): "IA", (32, 8): "OB", (32, 10): "Rayann",
 }, fusions=("B7:C7", "D23:E23", "F10:F11", "H31:I31"))
@@ -57,7 +57,7 @@ with sync_playwright() as p:
         scan: c(l, "M", "SCAN"), tt: c(l, "M", "SCAN-TT"), mer: [c(me, "M", "SCAN"), c(me, "AM", "SCAN")], arth: c(j, "M", "ARTH"), si: c(j, "M", "SI"),
         irm: [c(l, "M", "IRM1"), c(l, "AM", "IRM1")], ib: [(d.statuts.IB || {})[j + "_M"], (d.statuts.IB || {})[j + "_AM"]],
         da: [(d.statuts.DA || {})[j + "_M"], (d.statuts.DA || {})[j + "_AM"]], sb: (d.statuts.SB || {})[j + "_M"],
-        notes: d.notes, scan2: c(l2, "M", "SCAN"), ignores: d.ignores }; }""",
+        notes: d.notes, ordre: notesDuJour(d, j), scan2: c(l2, "M", "SCAN"), ignores: d.ignores }; }""",
         [jn(11, 2), jn(11, 5), jn(11, 4), jn(11, 6), jn(11, 9), jn(11, 12)])
     B.ok(r["start"] == jn(11, 2) and r["end"] == jn(11, 13) and not r["ferie"], "période lue dans les onglets, 11 novembre (férié) exclu")
     B.ok(r["blm"] == ["SA", "SA"] and r["blr"] == ["OA", "OA"], f"Blaye : cellule fusionnée sur la journée, 1er nom en mammo, 2e en radio-écho ({r['blm']} {r['blr']})")
@@ -67,7 +67,8 @@ with sync_playwright() as p:
     B.ok(r["irm"] == ["SD", ""], "interne ignoré (RAYANN)")
     B.ok(r["ib"] == ["ABS", None] and r["da"] == ["ABS", "ABS"] and r["sb"] == "ABS", f"absences : « (mat) » = le matin seulement, parenthèses ignorées ({r['ib']} {r['da']})")
     n = r["notes"] or {}
-    B.ok("Réunion de service à 13h30" in n.get(str(jn(11, 3)), []) and "Astreinte : IA" in n.get(str(jn(11, 2)), []) and "Astreinte : OB" in n.get(str(jn(11, 5)), []) and "Astreinte : Rayann" in n.get(str(jn(11, 6)), []),
+    B.ok("Réunion de service à 13h30" in n.get(str(jn(11, 3)), []) and "Astreinte : IA" in n.get(str(jn(11, 2)), []) and "Astreinte : OB" in n.get(str(jn(11, 5)), []) and "Astreinte : Rayann" in n.get(str(jn(11, 6)), [])
+         and r["ordre"][:1] == ["Astreinte : OB"] and "Staff IRM à 13h30" in n.get(str(jn(11, 5)), []) and not any("Bureau" in t for t in sum(n.values(), [])),
          "notes et astreintes reprises")
     B.ok(r["scan2"] == "DA / OB / SC" and r["ignores"] is None, "2e semaine lue ; liste des ignorés non enregistrée dans le planning")
     pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
