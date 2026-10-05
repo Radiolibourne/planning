@@ -100,6 +100,16 @@ def main():
         B.ok(doc.query_selector("#vMon #icsMe") is None, "Mon planning : plus de bouton calendrier (onglet Calendrier)")
         B.ok(doc.locator("#vMon .day").count() == len(ouvres), f"planning personnel : {len(ouvres)} jours ouvrés")
         B.ok("Absent" in doc.inner_text("#vMon"), "congés affichés")
+        # semaine en cours en premier, semaines passées repliées (aujourd'hui simulé au mercredi de la 2e semaine)
+        w2 = doc.evaluate("S.published.semaines[1].lundi")
+        jour = dt.date(1970, 1, 1) + dt.timedelta(days=w2 + 2)
+        p2 = doc.context.new_page()   # horloge simulée pour cette page seulement
+        ms = int(dt.datetime(jour.year, jour.month, jour.day, 10, 0).timestamp() * 1000)
+        p2.add_init_script("(() => { const T = %d, D = Date; class F extends D { constructor(...a) { a.length ? super(...a) : super(T); } static now() { return T; } } window.Date = F; })();" % ms)
+        p2.goto(doc.url.split("#")[0] + "#mon"); p2.wait_for_selector("#vMon .week-h", timeout=8000)
+        r = {"premiere": p2.inner_text("#vMon .week-h"), "passees": p2.locator("#vMon details.passees .week-h").count()}
+        p2.close()
+        B.ok("cette semaine" in r["premiere"] and r["passees"] == 1, f"Mon planning : semaine en cours en premier, semaines passées repliées ({r})")
         doc.click("a[data-tab=cal]"); doc.wait_for_selector("#icsMe", timeout=5000)
         ics = urllib.parse.unquote(doc.get_attribute("#icsMe", "href").split(",", 1)[1])
         B.ok(ics.startswith("BEGIN:VCALENDAR") and ics.count("BEGIN:VEVENT") > 5, "calendrier iPhone généré")

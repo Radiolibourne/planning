@@ -230,6 +230,7 @@ ol.inst li { margin-bottom: 10px; line-height: 1.45; }
 .chk input { width:20px; height:20px; flex:none; margin:0; }
 .note { display:block; font-size:11px; font-style:italic; color:var(--muted); line-height:1.3; margin-top:2px; }
 .day .note { margin:4px 0 0 2px; }
+details.passees { margin-top:14px; } details.passees > summary { cursor:pointer; color:var(--muted); font-weight:600; padding:8px 2px; }
 </style>
 </head>
 <body>
@@ -1203,10 +1204,12 @@ function renderMon() {
     html += `<div class="banner warn">Vous avez signalé une indisponibilité sur ${myConf.reduce((a, c) => a + c.hits.length, 0)} demi-journée(s) où vous êtes affecté(e). L'administrateur est averti et ajustera le planning.</div>`;
   }
   const conflictKeys = new Set(myConf.flatMap((c) => c.hits.map((h) => `${h.d}_${h.h}`)));
-  for (const w of pub.semaines) {
+  // semaine en cours en premier ; semaines passées repliées en bas
+  const semaine = (w) => {
+    let html = "";
     const days = pub.jours.filter((d) => mondayOf(d) === w.lundi);
-    if (!days.length) continue;
-    html += `<div class="week-h">Semaine du ${fmtDay(w.lundi, false)}</div>`;
+    if (!days.length) return "";
+    html += `<div class="week-h">Semaine du ${fmtDay(w.lundi, false)}${w.lundi === mondayOf(today) ? " · cette semaine" : ""}</div>`;
     for (const d of days) {
       const m = pd[`${d}_M`], a = pd[`${d}_AM`];
       const line = (c, h1, h2, lab) => {
@@ -1227,6 +1230,14 @@ function renderMon() {
       if (nts) body += `<div class="note">${nts.map(esc).join(" · ")}</div>`;
       html += `<div class="day${d === today ? " today" : ""}" ${d === today ? 'id="todayRow"' : ""}><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
     }
+    return html;
+  };
+  const passees = pub.semaines.filter((w) => w.lundi + 4 < today);
+  const aVenir = pub.semaines.filter((w) => w.lundi + 4 >= today);
+  if (!aVenir.length) html += pub.semaines.map(semaine).join("");
+  else {
+    html += aVenir.map(semaine).join("");
+    if (passees.length) html += `<details class="passees"><summary>Semaines passées (${passees.length})</summary>${passees.map(semaine).join("")}</details>`;
   }
   v.innerHTML = html;
 }
