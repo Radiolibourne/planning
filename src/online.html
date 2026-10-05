@@ -1210,7 +1210,8 @@ function renderMon() {
   </div>`;
   html += relanceBanner();
   if (myConf.length) {
-    html += `<div class="banner warn">Vous avez signalé une indisponibilité sur ${myConf.reduce((a, c) => a + c.hits.length, 0)} demi-journée(s) où vous êtes affecté(e). L'administrateur est averti et ajustera le planning.</div>`;
+    const quand = myConf.flatMap((c) => c.hits).sort((a, b) => a.d - b.d || (a.h === "M" ? -1 : 1)).map((x) => `${JC[weekday(x.d)].toLowerCase()} ${fmtDay(x.d, false)} ${x.h === "M" ? "matin" : "après-midi"}`);
+    html += `<div class="banner warn">Une absence que vous avez déclarée tombe sur ${quand.length} demi-journée(s) où vous êtes affecté(e) : ${esc(quand.slice(0, 6).join(", "))}${quand.length > 6 ? "…" : ""}. L'administrateur est averti et ajustera le planning.</div>`;
   }
   const conflictKeys = new Set(myConf.flatMap((c) => c.hits.map((h) => `${h.d}_${h.h}`)));
   // semaine en cours en premier ; semaines passées repliées en bas
