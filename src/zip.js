@@ -136,7 +136,17 @@ async function readXlsx(buffer) {
       cells.set(row + "," + col, val);
       maxRow = Math.max(maxRow, row); maxCol = Math.max(maxCol, col);
     }
-    sheets[s.getAttribute("name")] = { cells, maxRow, maxCol, get: (r, c) => cells.has(r + "," + c) ? cells.get(r + "," + c) : null };
+    // cellules fusionnées : getFusion(r, c) renvoie la valeur de la cellule en haut à gauche de la zone
+    const fusion = new Map();
+    if (doc) for (const mc of byTag(doc, "mergeCell")) {
+      const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(mc.getAttribute("ref") || "");
+      if (!m) continue;
+      const c1 = colToNum(m[1]), r1 = +m[2], c2 = colToNum(m[3]), r2 = +m[4];
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (r !== r1 || c !== c1) fusion.set(r + "," + c, r1 + "," + c1);
+    }
+    const get = (r, c) => cells.has(r + "," + c) ? cells.get(r + "," + c) : null;
+    const getFusion = (r, c) => { const k = fusion.get(r + "," + c); return k ? (cells.has(k) ? cells.get(k) : null) : get(r, c); };
+    sheets[s.getAttribute("name")] = { cells, maxRow, maxCol, get, getFusion, fusionne: (r, c) => fusion.has(r + "," + c) };
   }
   return sheets;
 }

@@ -454,7 +454,7 @@ td.tt { color: var(--site-tt); }
             <button class="b" id="editPublished">Modifier le planning publié</button>
             <label class="b" style="cursor:pointer">Importer un planning Excel<input type="file" id="upPlanning" accept=".xlsx" hidden></label>
           </div>
-          <p class="small muted" style="margin:8px 0 0">Importer : un fichier Excel téléchargé depuis ce site (bouton « Excel »), éventuellement retouché.</p>
+          <p class="small muted" style="margin:8px 0 0">Importer : un fichier Excel téléchargé depuis ce site (bouton « Excel »), éventuellement retouché, ou le planning du service fait à la main (un onglet par semaine).</p>
           <div class="msg" id="upPlanningMsg" role="status"></div>
         </div>
         <div id="draftBody" hidden>
@@ -2551,12 +2551,16 @@ $("upPlanning").addEventListener("change", async (e) => {
   if (!f) return;
   const msg = $("upPlanningMsg");
   try {
-    const draft = draftFromPlanningXlsx(await readXlsx(await f.arrayBuffer()), S.P);
+    const classeur = await readXlsx(await f.arrayBuffer());
+    const manuel = !classeur["Planning par poste"] && estPlanningManuel(classeur);
+    if (manuel && !S.P) throw new Error("chargez d'abord les paramètres du service.");
+    const draft = manuel ? draftFromManuel(classeur, S.P) : draftFromPlanningXlsx(classeur, S.P);
+    const ignores = draft.ignores || []; delete draft.ignores;
     try { const n = problemFor(draft.start, draft.end).notes; if (n && n.size && !draft.notes) draft.notes = Object.fromEntries([...n].map(([d, t]) => [String(d), t])); } catch (e) { /* notes facultatives */ }
     if (S.draft && !confirm("Un planning non publié est en cours d'édition. Le remplacer par le fichier importé ?")) return;
     setMsg(msg, "");
     setDraft(draft, `Importé de ${f.name}`);
-    setMsg($("gMsg"), `Planning importé (${fmtDay(draft.start, false)} → ${fmtDay(draft.end, false)}). Vérifiez-le, puis publiez-le.`, "ok");
+    setMsg($("gMsg"), `Planning importé${manuel ? " (planning du service fait à la main)" : ""} (${fmtDay(draft.start, false)} → ${fmtDay(draft.end, false)}). Vérifiez-le, puis publiez-le.${ignores.length ? ` Ignorés (non reconnus) : ${ignores.join(", ")}.` : ""}`, "ok");
     $("draftCard").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) { console.error(err); setMsg(msg, `Fichier refusé : ${err.message}`, "err"); }
 });

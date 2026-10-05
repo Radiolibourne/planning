@@ -20,6 +20,7 @@ etapes = [
     ("Règles et postes", [sys.executable, os.path.join(ICI, "test_reglages.py")]),
     ("Cartes repliables", [sys.executable, os.path.join(ICI, "test_plis.py")]),
     ("Règles du service", [sys.executable, os.path.join(ICI, "test_regles_service.py")]),
+    ("Import du planning fait à la main", [sys.executable, os.path.join(ICI, "test_import_manuel.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

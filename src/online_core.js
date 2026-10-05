@@ -398,3 +398,124 @@ async function calToken(code, ini) {
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode("cal:" + ini)));
   return [...sig].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 24);
 }
+
+// ================================================================ Import du planning Excel « fait main » du service
+// Un onglet par semaine (« DU 2 NOVEMBRE AU 6 NOVEMBRE ») : colonne A = libellé de ligne (poste), colonnes B à K = lundi matin … vendredi après-midi.
+// Lignes reconnues : déplacements Blaye / Sainte-Foy, scanner, scanner interventionnel, IRM 1 / 2 / Blaye / 3 T, salle, échos, mammographie,
+// absences (« (mat) » = le matin seulement), astreinte, notes. « * » = télétravail. Blaye avec deux noms : le 1er en mammo, le 2e en radio-écho.
+// Les postes et médecins sont ceux des paramètres actuels ; les noms longs non reconnus (internes…) sont ignorés et signalés.
+const MANUEL_LIGNES = [
+  [/^interventionnel scanner|^scanner interventionnel/, "SCI"], [/^scanner/, "SCAN"], [/^deplacement blaye/, "@BLAYE"],
+  [/^deplacement (ste|sainte)[ -]?foy/, "SF-RE"], [/^irm 1/, "IRM1"], [/^irm 2/, "IRM2"], [/^irm blaye/, "IRMBL"], [/^irm ?:? ?3 ?t/, "IRM3T"],
+  [/^salle/, "SI"], [/^echographie 1/, "ECH1"], [/^echographie 2/, "ECH2"], [/^mammographie/, "MAM"],
+];
+function estPlanningManuel(S) {
+  return Object.entries(S).some(([nom, ws]) => /^du \d+/i.test(nom.trim()) || /^semaine du/i.test(norm(ws.get(1, 1))));
+}
+function draftFromManuel(S, P) {
+  const sansAcc = (v) => low(v).replace(/[^a-z0-9 :]/g, " ").replace(/\s+/g, " ").trim();
+  const MOISL = MOIS.map((m) => m.normalize("NFD").replace(/[̀-ͯ]/g, ""));
+  const lundiDe = (nom, ws) => {
+    for (const t of [norm(ws.get(1, 1)), nom]) {
+      const m = /du (\d{1,2}) ([a-z]+)(?: (\d{4}))?/.exec(sansAcc(t));
+      if (!m) continue;
+      const mo = MOISL.findIndex((x) => x.startsWith(m[2].slice(0, 4)));
+      if (mo < 0) continue;
+      let y = m[3] ? +m[3] : new Date().getFullYear();
+      if (!m[3] && mo < new Date().getMonth() - 6) y++;
+      const d = dayFromYMD(y, mo + 1, +m[1]);
+      return mondayOf(d);
+    }
+    return null;
+  };
+  const docs = Object.values(P.docs);
+  const ignores = new Set();
+  const medecinDe = (tok) => {
+    const t = sansAcc(tok).replace(/^dr /, "");
+    const d = docs.find((x) => x.ini.toLowerCase() === t) || docs.find((x) => x.nom && sansAcc(x.nom).replace(/^dr /, "") === t);
+    if (d) return d.ini;
+    if (/^[a-z]{2,4}$/.test(t) && t !== "fer") return t.toUpperCase();   // initiales inconnues des paramètres : conservées
+    return null;
+  };
+  // parenthèses retirées avant découpage (« BM(off à récup : le 19/11) ») ; « (mat) » conservé comme marque
+  const jetons = (v) => String(v).replace(/\(([^)]*)\)?/g, (_, x) => (/^\s*mat/i.test(x) ? "§MAT" : "")).replace(/\n/g, "/")
+    .split(/\/|,| et /i).map((x) => x.trim()).filter(Boolean).map((raw) => {
+    const star = raw.includes("*"), mat = raw.includes("§MAT");
+    const n = raw.replace(/§MAT|\*/g, "").trim();
+    return { n, star, mat, ini: medecinDe(n) };
+  });
+  const semaines = [];
+  for (const [nom, ws] of Object.entries(S)) {
+    const lundi = lundiDe(nom, ws);
+    if (lundi !== null && !semaines.some((x) => x.lundi === lundi)) semaines.push({ lundi, ws });
+  }
+  if (!semaines.length) throw new Error("Aucun onglet de semaine reconnu (« DU 2 NOVEMBRE AU 6 NOVEMBRE »).");
+  semaines.sort((a, b) => a.lundi - b.lundi);
+  const start = semaines[0].lundi, end = semaines[semaines.length - 1].lundi + 4;
+  const pr = buildProblem({ ...P, start, end, abs: [] });
+  const draft = draftFromResult(pr, { assign: new Map() });
+  for (const ini of Object.keys(draft.statuts)) draft.statuts[ini] = {};   // repos et absences : ceux du fichier
+  const notes = {};
+  const ajoutNote = (d, t) => { const k = String(d); if (!(notes[k] || []).includes(t)) (notes[k] = notes[k] || []).push(t); };
+  const blaye = P.posteOrder.filter((c) => !P.postes[c].tt && low(P.postes[c].site).startsWith("blaye"));
+  const twin = (c) => (P.postes[c + TT_SUFFIX] ? c + TT_SUFFIX : null);
+  const place = (d, h, code, ini) => { const k = caseKey(d, h, code); const l = splitInis(draft.cases[k]); if (!l.includes(ini)) l.push(ini); draft.cases[k] = joinInis(l); if (!draft.medecins.includes(ini)) draft.medecins.push(ini); };
+  for (const { lundi, ws } of semaines) {
+    const G = (r, c) => (ws.getFusion ? ws.getFusion(r, c) : ws.get(r, c));
+    let courant = null, zone = null;   // poste de la ligne (les lignes sans libellé prolongent la précédente)
+    for (let r = 5; r <= ws.maxRow; r++) {
+      const lab = sansAcc(ws.get(r, 1));
+      if (lab) {
+        const m = MANUEL_LIGNES.find(([re]) => re.test(lab));
+        courant = m ? m[1] : null;
+        zone = lab.startsWith("absence") ? "abs" : lab.startsWith("astreinte") ? "astreinte" : lab.startsWith("note") ? "note" : m ? "poste" : null;
+        if (/^(\+|interpretation|radios)/.test(lab)) zone = null;
+      }
+      if (!zone) continue;
+      for (let c = 2; c <= 11; c++) {
+        const d = lundi + Math.floor((c - 2) / 2), h = c % 2 === 0 ? "M" : "AM";
+        if (P.feries.has(d) || d < start || d > end) continue;
+        // une valeur fusionnée sur plusieurs lignes n'est lue qu'une fois
+        if (ws.fusionne && ws.fusionne(r, c) && r > 1 && G(r - 1, c) === G(r, c) && sansAcc(ws.get(r, 1)) === "") continue;
+        const v = G(r, c);
+        if (v === null || v === "") continue;
+        const txt = norm(v);
+        if (zone === "note") { if (txt && !/^ne pas modifier/i.test(txt)) ajoutNote(d, txt); continue; }
+        if (zone === "astreinte") { for (const j of jetons(txt)) if (j.ini && h === "M") ajoutNote(d, `Astreinte : ${j.ini}`); continue; }
+        if (/maintenance|attente|ferie|ferme/i.test(sansAcc(txt)) && !txt.includes("/")) { if (zone === "poste" && /maintenance/i.test(txt)) ajoutNote(d, txt); continue; }
+        if (zone === "abs") {
+          for (const j of jetons(txt)) {
+            if (!j.ini) { if (j.n) ignores.add(j.n); continue; }
+            if (h === "AM" && j.mat) continue;
+            (draft.statuts[j.ini] = draft.statuts[j.ini] || {})[`${d}_${h}`] = "ABS";
+            if (!j.mat && c % 2 === 0) (draft.statuts[j.ini])[`${d}_AM`] = draft.statuts[j.ini][`${d}_AM`] || "ABS";
+          }
+          continue;
+        }
+        let pos = 0;
+        for (const j of jetons(txt)) {
+          if (!j.ini) { if (j.n && !/maintenance|ferie/i.test(j.n)) ignores.add(j.n); continue; }
+          let code = courant;
+          if (code === "@BLAYE") {
+            const mam = blaye.find((x) => /mam/i.test(x)), re = blaye.find((x) => x !== mam) || mam;
+            code = pos === 0 && mam && (!P.docs[j.ini] || P.docs[j.ini].comp[mam]) ? mam : re;
+          }
+          if (code === "SI" && P.postes.ARTH && !pr.open[pr.slots.findIndex((x) => x.d === d && x.h === h)]?.[pr.pIdx.SI]) code = "ARTH";
+          if (!code || !P.postes[code]) continue;
+          if ((j.star || P.postes[code].remoteOnly) && twin(code)) code = twin(code);
+          place(d, h, code, j.ini);
+          pos++;
+        }
+      }
+    }
+  }
+  // absences : ceux du fichier ; repos fixes repris des paramètres
+  pr.docs.forEach((ini, di) => pr.slots.forEach((sl, s) => {
+    const k = `${sl.d}_${sl.h}`, st = pr.status[di][s];
+    if (st && st !== "ABS" && !(draft.statuts[ini] || {})[k]) (draft.statuts[ini] = draft.statuts[ini] || {})[k] = st;
+  }));
+  if (Object.keys(notes).length) draft.notes = notes; else delete draft.notes;
+  draft.importe = true;
+  draft.ignores = [...ignores].slice(0, 30);
+  return draft;
+}
