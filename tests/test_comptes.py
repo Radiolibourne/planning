@@ -54,6 +54,9 @@ def code_seul():
     return d is None or d.get("codeSeul") is not False
 def lecteur(code, uid): return code == TEAM and (is_admin(uid) or membre(uid) or code_seul())
 def auteur(ini, uid): return (ini == moi(uid).get("ini")) if membre(uid) else code_seul()
+def hors_trous(d1, d2):
+    sa = DB.get(f"espaces/{TEAM}/config/saisie") or {}
+    return all(d2 < t["du"] or d1 > t["au"] for t in sa.get("trous", [])[:5])
 def ouvert(d1, d2):
     pub = DB.get(f"espaces/{TEAM}/planning/publie")
     if pub and d1 <= pub["end"]: return False
@@ -80,7 +83,7 @@ def peut_ecrire(op, path, uid, data):
         if len(s) >= 3 and s[2] == "indispos":
             if op == "del": return is_admin(uid) or (old is not None and auteur(old["ini"], uid) and ouvert(old["d1"], old["d2"]))
             if op == "set" and old is not None: return is_admin(uid) and valid_indispo(data)       # décision de l'administrateur
-            return valid_indispo(data) and (is_admin(uid) or (data.get("statut") == "attente" and auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"])))
+            return valid_indispo(data) and (is_admin(uid) or (data.get("statut") == "attente" and auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"]) and hors_trous(data["d1"], data["d2"])))
         return is_admin(uid)
     if s[0] == "membres": return is_admin(uid)
     if s[0] == "admins": return is_admin(uid) and uid != s[1]

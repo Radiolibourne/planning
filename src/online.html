@@ -558,7 +558,7 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
 
       <div class="card" id="cloCard">
         <h2>Dates limites de dépôt des absences</h2>
-        <p class="sub">Après la date limite, les médecins ne peuvent plus déclarer d'absence sur la période concernée (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus.</p>
+        <p class="sub">Les médecins ne peuvent déclarer une absence que dans ces périodes, jusqu'à leur date limite, ou après la dernière période (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus.</p>
         <ul class="list" id="cloList"></ul>
         <div class="row" style="margin-top:10px">
           <label class="f">Période du<input type="date" id="cDu"></label>
@@ -1000,7 +1000,12 @@ async function enter(code, silent) {
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; updateHeader(); render(); }, onErr));
-  S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => { S.saisie = d; render(); }, onErr));
+  S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => {
+    S.saisie = d; render();
+    // anciennes dates limites sans « trous » : un administrateur les complète une fois (règle de saisie côté serveur)
+    if (S.admin && d && (d.clotures || []).length && !Array.isArray(d.trous))
+      S.store.set(PATHS.saisie(), { ...d, trous: trousSaisie(d.clotures) }).catch(() => {});
+  }, onErr));
   if (S.store.mode === "firebase") S.unsub.push(S.store.watchDoc(PATHS.acces(), (d) => { S.acces = d; render(); }, () => {}));
   // déclarations « aucune absence » : toutes en démonstration (et pour l'admin, via ses abonnements), la sienne sinon
   if (S.store.mode === "demo") S.unsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, () => {}));
@@ -1763,7 +1768,8 @@ document.addEventListener("click", (e) => {
 });
 function renderIndispos() {
   const today = todayDay();
-  const first = S.published && !S.admin ? Math.max(today, S.published.end + 1) : today;
+  let first = S.published && !S.admin ? Math.max(today, S.published.end + 1) : today;
+  if (!S.admin) for (let i = 0; i < 400 && lockReason(first, first, S.published, S.saisie, Date.now(), true); i++) first++;   // 1er jour où une demande est possible
   $("indD1").min = S.admin ? "" : toInput(first);
   // valeur par défaut seulement si le champ est vide : ne jamais remplacer une date saisie
   if (!$("indD1").value) { $("indD1").value = toInput(first); $("indD2").value = toInput(first); }
@@ -1775,6 +1781,8 @@ function renderIndispos() {
     if (c.au < today) continue;
     infos.push(`Période du ${fmtDay(c.du, false)} au ${fmtDay(c.au)} : ${now > c.finMs ? "<b>dépôt clos</b>" : `dépôt ouvert jusqu'au <b>${fmtDay(c.limite)}</b>`}.`);
   }
+  const finP = finPeriodes(S.saisie);
+  if (finP !== null && finP >= today) infos.push(`En dehors de ces périodes, les demandes sont possibles à partir du <b>${fmtDay(finP + 1, false)}</b>.`);
   $("indLock").hidden = !infos.length;
   $("indLock").innerHTML = infos.join("<br>");
   $("indRelance").innerHTML = periodesADeclarer();
@@ -1798,7 +1806,7 @@ $("indForm").addEventListener("submit", async (e) => {
   if (d2 < d1) return setMsg(msg, "La date de fin est avant la date de début.", "err");
   if (d2 - d1 > 366) return setMsg(msg, "Période trop longue (un an maximum).", "err");
   if (!needOnline(msg)) return;
-  const verrou = lockReason(d1, d2, S.published, S.saisie);
+  const verrou = lockReason(d1, d2, S.published, S.saisie, Date.now(), true);
   if (verrou && !S.admin) return setMsg(msg, verrou, "err");
   if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
   // binôme (ex. interventionnels) : jamais absents le même jour
@@ -2008,7 +2016,7 @@ $("accList").addEventListener("click", async (e) => {
 
 async function saveClotures(list, msgEl) {
   if (!needOnline(msgEl)) return;
-  try { await S.store.set(PATHS.saisie(), { clotures: list, majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok"); }
+  try { await S.store.set(PATHS.saisie(), { clotures: list, trous: trousSaisie(list), majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok"); }
   catch (e) { setMsg(msgEl, e.message, "err"); }
 }
 $("cAdd").addEventListener("click", () => {

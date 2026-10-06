@@ -30,6 +30,9 @@ def valid_indispo(d):
     return (keys <= set(d) <= keys | {'statut', 'decidePar', 'decideLe', 'refus'} and d.get('statut', 'acceptee') in ('attente', 'acceptee', 'refusee') and isinstance(d['ini'], str) and len(d['ini']) <= 10 and isinstance(d['d1'], (int, float))
             and isinstance(d['d2'], (int, float)) and d['d2'] >= d['d1'] and d['d2'] - d['d1'] <= 366
             and d['periode'] in ('Journée', 'Matin', 'Après-midi') and isinstance(d['motif'], str) and len(d['motif']) <= 100)
+def hors_trous(d1, d2):
+    sa = DB.get(f'espaces/{TEAM}/config/saisie') or {}
+    return all(d2 < t['du'] or d1 > t['au'] for t in sa.get('trous', [])[:5])
 def ouvert(d1, d2):
     import time as _t
     pub = DB.get(f'espaces/{TEAM}/planning/publie')
@@ -54,7 +57,7 @@ def server(op, a):
     in_ind = len(s) >= 3 and s[2] == 'indispos'
     if not can_read(p): return denied()
     if op == 'add':
-        if not (valid_indispo(a['data']) and (is_admin(uid) or (a['data'].get('statut') == 'attente' and ouvert(a['data']['d1'], a['data']['d2']))) if in_ind else is_admin(uid)): return denied()
+        if not (valid_indispo(a['data']) and (is_admin(uid) or (a['data'].get('statut') == 'attente' and ouvert(a['data']['d1'], a['data']['d2']) and hors_trous(a['data']['d1'], a['data']['d2']))) if in_ind else is_admin(uid)): return denied()
         p = p + '/' + f'id{next(ids)}'
     elif op == 'set':
         if not (is_admin(uid) and (not in_ind or valid_indispo(a['data']))): return denied()   # mise à jour (décision) : administrateur
@@ -186,7 +189,7 @@ with sync_playwright() as pw:
     stored = DB.get(f'espaces/{TEAM}/planning/publie')
     ok(stored and stored.get('publiePar') == 'admin@chl.fr' and len(json.dumps(stored)) < 1_000_000, f'planning publié en base ({len(json.dumps(stored))//1024} Ko, limite Firestore 1 024 Ko)')
     ok(all(v != 'ABS' or True for v in []) and 'ABS' in json.dumps(stored['statuts'].get('DA', {})), 'absence de DA enregistrée dans le planning publié')
-    ok('ouvert(code' in rules and 'request.time.toMillis()' in rules, 'règles : verrou de saisie présent')
+    ok('ouvert(code' in rules and 'horsTrous(code' in rules and 'request.time.toMillis()' in rules, 'règles : verrou de saisie présent')
     dans_periode = ouvres[3]
     from commun import numero_jour
     r = doc.evaluate('''async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos',

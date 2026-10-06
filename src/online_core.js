@@ -134,6 +134,8 @@ function conflicts(draft, indispos) {
 // - période du planning publié : aucune absence ne peut commencer avant ou pendant (d1 <= publie.end)
 // - dates limites de dépôt (config/saisie.clotures, 5 au plus) : {du, au, limite, finMs}
 //   après finMs (fin de la journée « limite », heure de Paris), plus de demande touchant [du, au]
+// - nouvelles demandes : seulement dans une période ouverte, ou après la dernière période définie
+//   (les jours non couverts avant la fin de la dernière période sont des « trous », config/saisie.trous)
 const MAX_CLOTURES = 5;
 
 // Fin de la journée `day` à Paris, en millisecondes (minuit suivant, heure de Paris)
@@ -149,13 +151,28 @@ function parisEndOfDayMs(day) {
   return utcMidnight - offsetH * 3600000;
 }
 
+// Jours non couverts par les périodes de dépôt, jusqu'à la fin de la dernière : [{du, au}] (5 au plus)
+function trousSaisie(clotures) {
+  const iv = (clotures || []).slice(0, MAX_CLOTURES).map((c) => [c.du, c.au]).sort((a, b) => a[0] - b[0]);
+  const out = []; let next = 0;
+  for (const [du, au] of iv) { if (du > next) out.push({ du: next, au: du - 1 }); next = Math.max(next, au + 1); }
+  return out;
+}
+// Fin de la dernière période de dépôt définie (ou null)
+const finPeriodes = (saisie) => { const c = ((saisie && saisie.clotures) || []).slice(0, MAX_CLOTURES); return c.length ? Math.max(...c.map((x) => x.au)) : null; };
+
 // Raison du refus d'une absence [d1, d2], ou null si la saisie est ouverte
-function lockReason(d1, d2, published, saisie, nowMs = Date.now()) {
+// (creation : une nouvelle demande doit en plus tomber dans une période ouverte ou après la dernière)
+function lockReason(d1, d2, published, saisie, nowMs = Date.now(), creation = false) {
   if (published && Number.isFinite(published.end) && d1 <= published.end)
     return `Le planning est publié jusqu'au ${fmtDay(published.end)} : les absences ne peuvent plus être déclarées sur cette période. Contactez l'administrateur.`;
   for (const c of ((saisie && saisie.clotures) || []).slice(0, MAX_CLOTURES)) {
     if (nowMs > c.finMs && d2 >= c.du && d1 <= c.au)
       return `Le dépôt des demandes pour la période du ${fmtDay(c.du, false)} au ${fmtDay(c.au)} est clos depuis le ${fmtDay(c.limite)}. Contactez l'administrateur.`;
+  }
+  if (creation) {
+    const t = trousSaisie(saisie && saisie.clotures).find((x) => d2 >= x.du && d1 <= x.au);
+    if (t) return `Les demandes ne sont pas ouvertes pour le ${fmtDay(Math.max(d1, t.du), false)} : déclarez vos absences dans les périodes ouvertes par l'administrateur, ou à partir du ${fmtDay(finPeriodes(saisie) + 1, false)}. Contactez l'administrateur.`;
   }
   return null;
 }
@@ -271,6 +288,7 @@ function demoStore() {
 function firestoreRules(teamCode, adminUids) {
   const uids = adminUids.map((u) => `'${u}'`).join(", ");
   const cl = [...Array(MAX_CLOTURES).keys()].map((i) => `(c.size() < ${i + 1} || cloture(c[${i}], d1, d2))`).join("\n        && ");
+  const tr = [...Array(MAX_CLOTURES).keys()].map((i) => `(t.size() < ${i + 1} || trou(t[${i}], d1, d2))`).join("\n        && ");
   return `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -299,11 +317,18 @@ service cloud.firestore {
     function saisie(code) { return /databases/$(database)/documents/espaces/$(code)/config/saisie; }
     function apresPublication(code, d1) { return !exists(publie(code)) || d1 > get(publie(code)).data.end; }
     function cloture(k, d1, d2) { return request.time.toMillis() <= k.finMs || d2 < k.du || d1 > k.au; }
+    function trou(t, d1, d2) { return d2 < t.du || d1 > t.au; }
+    function horsTrous(code, d1, d2) {
+      let t = exists(saisie(code)) ? get(saisie(code)).data.get('trous', []) : [];
+      return ${tr};
+    }
     function horsClotures(code, d1, d2) {
       let c = exists(saisie(code)) ? get(saisie(code)).data.clotures : [];
       return ${cl};
     }
     function ouvert(code, d1, d2) { return apresPublication(code, d1) && horsClotures(code, d1, d2); }
+    // Nouvelle demande : en plus, dans une période ouverte par l'administrateur ou après la dernière.
+    function nouvelle(code, d1, d2) { return ouvert(code, d1, d2) && horsTrous(code, d1, d2); }
     // Auteur légitime d'une absence : le médecin lui-même (compte) ou, en transition, quiconque a le code.
     function auteur(code, ini) { return membre() ? ini == moi().ini : codeSeul(code); }
 
@@ -327,7 +352,7 @@ service cloud.firestore {
     match /espaces/{code}/indispos/{id} {
       allow create: if equipe(code) && demandeValide(request.resource.data)
         && (admin() || (request.resource.data.get('statut', '') == 'attente'
-          && auteur(code, request.resource.data.ini) && ouvert(code, request.resource.data.d1, request.resource.data.d2)));
+          && auteur(code, request.resource.data.ini) && nouvelle(code, request.resource.data.d1, request.resource.data.d2)));
       allow update: if equipe(code) && admin() && demandeValide(request.resource.data);
       allow delete: if equipe(code)
         && (admin() || (auteur(code, resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
