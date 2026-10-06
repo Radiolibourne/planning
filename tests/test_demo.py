@@ -173,7 +173,7 @@ def main():
         w = p3_fin + dt.timedelta(days=5)
         doc.fill("#indD1", w.isoformat()); doc.fill("#indD2", w.isoformat()); doc.click("#indSubmit")
         doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('en attente')", timeout=5000)
-        B.ok("possibles à partir du" in doc.inner_text("#indLock"), "médecin : demandes possibles dans une période ouverte et après la dernière")
+        B.ok("Demandes possibles uniquement" in doc.inner_text("#indLock") and "à partir du" in doc.inner_text("#indLock"), "médecin : demandes possibles dans une période ouverte et après la dernière")
         # planning général
         doc.click("a[data-tab=general]"); doc.wait_for_selector("#genBody table")
         B.ok(doc.locator("#genBody td.me, #genBody .dj.me").count() > 0, "cases du médecin encadrées")
