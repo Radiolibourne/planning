@@ -134,6 +134,8 @@ def main():
         B.ok(True, "administrateur : absence tardive enregistrée")
         doc.click("a[data-tab=mon]"); doc.wait_for_selector(".banner.warn", timeout=5000)
         B.ok("absence signalée" in doc.inner_text("#vMon"), "conflit signalé au médecin")
+        doc.click("#confFermer"); doc.wait_for_timeout(300)
+        B.ok(doc.locator("#confBanner").count() == 0 and "absence signalée" not in doc.inner_text("#vMon"), "bandeau de conflit refermé d'une croix")
         adm.click("a[data-tab=admin]")
         adm.wait_for_function("document.querySelector('#admInd').innerText.includes('affecté pendant')", timeout=5000)
         B.ok(True, "conflit signalé à l'administrateur")

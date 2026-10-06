@@ -1229,11 +1229,14 @@ function renderMon() {
     <p class="sub">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} travaillée${nHalf > 1 ? "s" : ""}` : ""}</p>
   </div>`;
   html += relanceBanner();
-  if (myConf.length) {
+  // bandeau refermable (croix) ; il revient si une nouvelle demi-journée est concernée
+  const sigConf = myConf.flatMap((c) => c.hits.map((h) => `${c.indispo.id || ""}:${h.d}${h.h}`)).sort().join(",");
+  const confVu = sigConf && ls.get("planning-radio-conflit-vu") === sigConf;
+  if (myConf.length && !confVu) {
     const quand = myConf.flatMap((c) => c.hits).sort((a, b) => a.d - b.d || (a.h === "M" ? -1 : 1)).map((x) => `${JC[weekday(x.d)].toLowerCase()} ${fmtDay(x.d, false)} ${x.h === "M" ? "matin" : "après-midi"}`);
-    html += `<div class="banner warn">Une absence que vous avez déclarée tombe sur ${quand.length} demi-journée(s) où vous êtes affecté(e) : ${esc(quand.slice(0, 6).join(", "))}${quand.length > 6 ? "…" : ""}. L'administrateur est averti et ajustera le planning.</div>`;
+    html += `<div class="banner warn" id="confBanner" style="position:relative;padding-right:40px"><button type="button" id="confFermer" aria-label="Fermer" style="position:absolute;top:6px;right:6px;border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:inherit;padding:6px">×</button>Une absence que vous avez déclarée tombe sur ${quand.length} demi-journée(s) où vous êtes affecté(e) : ${esc(quand.slice(0, 6).join(", "))}${quand.length > 6 ? "…" : ""}. L'administrateur est averti et ajustera le planning.</div>`;
   }
-  const conflictKeys = new Set(myConf.flatMap((c) => c.hits.map((h) => `${h.d}_${h.h}`)));
+  const conflictKeys = new Set(confVu ? [] : myConf.flatMap((c) => c.hits.map((h) => `${h.d}_${h.h}`)));
   // semaine en cours en premier ; semaines passées repliées en bas
   const semaine = (w) => {
     let html = "";
@@ -1274,6 +1277,7 @@ function renderMon() {
     if (passees.length) html += `<details class="passees"><summary>Semaines passées (${passees.length})</summary>${passees.map(semaine).join("")}</details>`;
   }
   v.innerHTML = html;
+  if ($("confFermer")) $("confFermer").onclick = () => { ls.set("planning-radio-conflit-vu", sigConf); renderMon(); };
   if ($("monMois")) $("monMois").onchange = (e) => { S.monMois = +e.target.value; renderMon(); };
 }
 
