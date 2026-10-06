@@ -20,7 +20,7 @@ function occupants(draft, d, h, code) {   // [{ini, tt}] sur site puis en télé
 }
 const caseOuverte = (draft, d, h, code) => caseKey(d, h, code) in draft.cases || (jumeauTT(draft, code) && caseKey(d, h, jumeauTT(draft, code)) in draft.cases);
 // notes personnelles d'agenda (bureau, CME, directoire…) : pas affichées à l'équipe ; staffs, réunions et astreintes conservés
-const noteVisible = (t) => !/\b(bureau|directoire|cme)\b/i.test(String(t));
+const noteVisible = (t) => !/\b(bureau|directoire|cme)\b|ne pas modifier/i.test(String(t));
 const notesDuJour = (draft, d) => {
   const n = ((draft && draft.notes && draft.notes[String(d)]) || []).filter(noteVisible);
   return n.filter((t) => /^astreinte/i.test(t)).concat(n.filter((t) => !/^astreinte/i.test(t)));   // astreinte en premier
@@ -488,7 +488,10 @@ function draftFromManuel(S, P) {
         const txt = norm(v);
         if (zone === "note") { if (txt && !/^ne pas modifier/i.test(txt) && noteVisible(txt)) ajoutNote(d, txt); continue; }
         // astreinte : notée même pour un interne ou un médecin absent des paramètres (nom tel qu'écrit)
-        if (zone === "astreinte") { for (const j of jetons(txt)) if (j.ini || j.n) ajoutNote(d, `Astreinte : ${j.ini || j.n}`); continue; }
+        if (zone === "astreinte") {   // seulement la ligne « ASTREINTE » (les lignes suivantes sont des consignes)
+          if (sansAcc(ws.get(r, 1)).startsWith("astreinte")) for (const j of jetons(txt)) if ((j.ini || j.n) && (j.ini || j.n).length <= 20) ajoutNote(d, `Astreinte : ${j.ini || j.n}`);
+          continue;
+        }
         if (/maintenance|attente|ferie|ferme/i.test(sansAcc(txt)) && !txt.includes("/")) { if (zone === "poste" && /maintenance/i.test(txt)) ajoutNote(d, txt); continue; }
         if (zone === "abs") {
           for (const j of jetons(txt)) {

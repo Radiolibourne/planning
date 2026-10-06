@@ -97,6 +97,12 @@ with sync_playwright() as p:
     pg.select_option("#monMois", label="décembre 2026"); pg.wait_for_timeout(300)
     nj = pg.locator("#vMon .day").count()
     B.ok(opts == ["novembre 2026", "décembre 2026"] and nj == 5, f"Mon planning : menu des mois, décembre seul affiché ({opts}, {nj} jours)")
+    # Général, vue « Semaine » : postes en lignes, jours en colonnes, astreinte en tête
+    pg.evaluate("S.genView.mode = 'semaine'; S.genView.week = String(%d); location.hash = '#general'" % jn(11, 2))
+    pg.wait_for_selector("#genBody table.sem", timeout=8000)
+    sem = pg.evaluate("""() => ({ ths: [...document.querySelectorAll('#genBody table.sem thead th')].map((x) => x.innerText.split('\\n')[0]),
+      ast: (document.querySelector('#genBody tr.ast') || {}).innerText || '', tt: document.querySelectorAll('#genBody table.sem i.tt').length })""")
+    B.ok(sem["ths"] == ["Poste", "Lun", "Mar", "Mer", "Jeu", "Ven"] and "IA" in sem["ast"] and sem["tt"] > 0, f"Général, vue Semaine ({sem})")
     v = pg.evaluate("""() => { const a = { ...S.published, jours: [100, 101], start: 100, end: 101, cases: { '100_M_SCAN': 'DA' }, statuts: {}, semaines: [{ lundi: mondayOf(100), type: 'A' }] };
         const n = fusionnerPublies(a, S.published, todayDay()); return n.jours.includes(100); }""")
     B.ok(v is False, "jours publiés très anciens retirés")

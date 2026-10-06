@@ -159,7 +159,7 @@ def main():
         B.ok(True, "administrateur : demande refusée, le médecin le voit")
         # planning général
         doc.click("a[data-tab=general]"); doc.wait_for_selector("#genBody table")
-        B.ok(doc.locator("#genBody td.me").count() > 0, "cases du médecin encadrées")
+        B.ok(doc.locator("#genBody td.me, #genBody .dj.me").count() > 0, "cases du médecin encadrées")
         B.ok(doc.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "pas de défilement horizontal sur mobile")
         with doc.expect_download() as d:
             doc.click("#genXlsx")
