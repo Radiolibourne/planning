@@ -253,6 +253,21 @@ table.pl.sem tr.ast td { background: var(--soft); font-weight: 700; }
 .tablewrap.sem { max-height: none; overflow: visible; }
 .tablewrap.sem table.pl thead th { top: 0; }
 table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--muted); font-weight: 400; line-height: 1.25; word-break: break-word; }
+/* Mon planning compact : une semaine tient sur l'écran d'un téléphone */
+#vMon .card.monhead { padding: 12px 14px; margin-bottom: 8px; }
+#vMon .card.monhead h2 { font-size: 18px; }
+#vMon .week-h { margin: 10px 2px 6px; font-size: 15px; }
+#vMon .day { grid-template-columns: 46px 1fr; gap: 10px; padding: 7px 10px; margin-bottom: 5px; border-radius: 12px; }
+#vMon .day .date { padding: 3px 0 4px; font-size: 11px; border-radius: 9px; }
+#vMon .day .date span { font-size: 14px; }
+#vMon .slot { flex-wrap: nowrap; align-items: baseline; gap: 6px; }
+#vMon .slot + .slot { margin-top: 2px; }
+#vMon .slot .t { flex: 0 0 38px; font-size: 11px; }
+#vMon .slot .p { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#vMon .slot .site { font-size: 11px; padding: 0 5px; white-space: nowrap; }
+#vMon .slot .tag { font-size: 10px; }
+#vMon .day .note { margin-top: 2px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#vMon .day > div:last-child { min-width: 0; }
 </style>
 </head>
 <body>
@@ -1223,10 +1238,12 @@ function renderMon() {
   const moisSel = S.monMois;
   const nHalf = Object.entries(pd).filter(([k, c]) => c.code && moisDe(+k.split("_")[0]) === moisSel).length;
   const libMois = (m) => `${MOIS[m % 100 - 1]} ${Math.floor(m / 100)}`;
-  let html = `<div class="card">
-    <h2>Mon planning · ${esc(me)}</h2>
-    ${listeMois.length > 1 ? `<select id="monMois" aria-label="Mois" style="width:auto;margin:4px 0 2px">${listeMois.map((m) => `<option value="${m}"${m === moisSel ? " selected" : ""}>${libMois(m)}</option>`).join("")}</select>` : `<p class="sub" style="margin:0">${libMois(moisSel)}</p>`}
-    <p class="sub">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} travaillée${nHalf > 1 ? "s" : ""}` : ""}</p>
+  let html = `<div class="card monhead">
+    <div class="row" style="align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap">
+      <h2 style="margin:0">Mon planning · ${esc(me)}</h2>
+      ${listeMois.length > 1 ? `<select id="monMois" aria-label="Mois" style="width:auto;min-height:36px;padding:4px 8px;font-size:14px">${listeMois.map((m) => `<option value="${m}"${m === moisSel ? " selected" : ""}>${libMois(m)}</option>`).join("")}</select>` : `<span class="small muted">${libMois(moisSel)}</span>`}
+    </div>
+    <p class="sub" style="margin:4px 0 0;font-size:12px">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} ce mois-ci` : ""}</p>
   </div>`;
   html += relanceBanner();
   // bandeau refermable (croix) ; il revient si une nouvelle demi-journée est concernée
@@ -1250,15 +1267,15 @@ function renderMon() {
         if (c && c.code) {
           const { p, time } = slotLabel(pub, c.code, h1, h2);
           const sc = siteClass(pub, p.site);
-          return `<div class="slot${warn ? " warn" : ""}"><span class="t">${lab} · ${time}</span><span class="p">${esc(p.label)}</span>${sc ? `<span class="site ${sc}">${esc(p.site)}</span>` : ""}${warn ? `<span class="tag err">absence signalée</span>` : ""}</div>`;
+          return `<div class="slot${warn ? " warn" : ""}" title="${esc(p.label)} · ${time}"><span class="t">${lab}</span><span class="p">${esc(libelleCourt(p.label))}</span>${sc ? `<span class="site ${sc}">${esc(p.site)}</span>` : ""}${warn ? `<span class="tag err">absence signalée</span>` : ""}</div>`;
         }
         const st = c && c.statut ? STATUT_LABEL[c.statut] || c.statut : "Sans affectation";
         return `<div class="slot off"><span class="t">${lab}</span><span class="p">${esc(st)}</span></div>`;
       };
       let body;
-      if (m && a && m.code && m.code === a.code) body = line(m, "M", "AM", "Journée");
-      else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Journée</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
-      else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "Après-midi");
+      if (m && a && m.code && m.code === a.code) body = line(m, "M", "AM", "Jour");
+      else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Jour</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
+      else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "AM");
       // astreinte toujours en premier, bien visible ; puis les autres notes (réunions, staffs…)
       const nts = notesDuJour(pub, d);
       const ast = nts.filter((t) => /^astreinte/i.test(t)), autres = nts.filter((t) => !/^astreinte/i.test(t));
