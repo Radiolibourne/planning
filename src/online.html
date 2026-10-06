@@ -268,6 +268,20 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
 #vMon .slot .tag { font-size: 10px; }
 #vMon .day .note { margin-top: 2px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #vMon .day > div:last-child { min-width: 0; }
+/* Général et Qui est posté : en-têtes compacts */
+#vGeneral > .card, #vQui > .card { padding: 12px 12px; }
+#vGeneral h2, #vQui h2 { font-size: 18px; margin: 0 0 2px; }
+#vGeneral .sub, #vQui .sub { font-size: 12px; margin: 0 0 8px; }
+#vGeneral .toolbar, #vQui .toolbar { gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+#vGeneral .seg button, #vQui .seg button { padding: 5px 10px; font-size: 13.5px; min-height: 34px; }
+#vGeneral .toolbar select, #vGeneral .toolbar .b { min-height: 34px; padding: 4px 10px; font-size: 13.5px; width: auto; }
+#vQui .quinav { gap: 6px; margin-bottom: 6px; }
+#vQui .quinav .b { min-height: 36px; padding: 4px 12px; }
+#vQui .quinav input { min-height: 36px; padding: 4px 8px; font-size: 14px; }
+#vQui #quiQ { min-height: 36px; padding: 4px 10px; font-size: 14px; }
+#vGeneral #genMsg:empty { min-height: 0; margin: 0; }
+#vQui h3 { font-size: 15px; margin: 4px 0 6px !important; }
+#vQui .toolbar .x { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -373,7 +387,7 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
   <section id="vQui" hidden>
     <div class="card">
       <h2>Qui est posté ?</h2>
-      <p class="sub" id="quiSub">Choisissez un jour, puis cherchez par poste ou par personne.</p>
+      <p class="sub" id="quiSub" hidden>Choisissez un jour, puis cherchez par poste ou par personne.</p>
       <div id="quiBody"></div>
     </div>
   </section>
@@ -1569,14 +1583,14 @@ function resolveWeek(draft, sel) {
 function renderGeneral() {
   const pub = S.published;
   if (!pub) { $("genTitle").textContent = "Planning général"; $("genSub").textContent = ""; $("genBody").innerHTML = `<div class="empty">Aucun planning publié pour l'instant.</div>`; return; }
-  $("genTitle").textContent = pub.titre;
-  $("genSub").textContent = `Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}. Vos cases sont encadrées.`;
+  $("genTitle").textContent = "Planning général";
+  $("genSub").textContent = `${titreMois(pub.start, pub.end)} · publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}`;
   const week = resolveWeek(pub, S.genView.week);
   $("genBody").innerHTML = `<div class="toolbar">
       <div class="seg" role="group" aria-label="Vue"><button data-mode="semaine" aria-pressed="${S.genView.mode === "semaine"}">Semaine</button><button data-mode="poste" aria-pressed="${S.genView.mode === "poste"}">Tableau</button><button data-mode="medecin" aria-pressed="${S.genView.mode === "medecin"}">Par médecin</button></div>
       <select id="genWeek" aria-label="Semaine">${weekOptions(pub, week)}</select>
-      <button class="b" id="genPdf" type="button" style="min-height:38px;padding:6px 12px">PDF de la semaine</button>
-      ${S.P ? `<button class="b" id="genXlsx" type="button" style="min-height:38px;padding:6px 12px">Excel</button>` : ""}
+      <button class="b" id="genPdf" type="button">PDF</button>
+      ${S.P ? `<button class="b" id="genXlsx" type="button">Excel</button>` : ""}
     </div><div class="msg" id="genMsg" role="status"></div>` + (S.genView.mode === "semaine"
       ? semaineTable(pub, week === "all" ? resolveWeek(pub, "cur") : week, S.me)
       : planningTable(pub, { mode: S.genView.mode, week, editable: false, highlight: S.me }));
