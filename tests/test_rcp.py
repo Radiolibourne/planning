@@ -103,6 +103,9 @@ with sync_playwright() as p:
     pg.evaluate("S.me = 'IA'; location.hash = '#mon'"); pg.wait_for_selector("#vMon .rcpb", timeout=8000)
     t = pg.inner_text("#vMon .rcpb")
     B.ok("RCP" in t and "Pneumo" in t and "16h-17h" in t, f"Mon planning : bandeau RCP ({t})")
+    ab = pg.locator("#vMon .astb")
+    B.ok(ab.count() == 2 and "Vous êtes d'astreinte" in ab.first.inner_text() and "Astreinte : IA" not in pg.inner_text("#vMon"), f"Mon planning : mes astreintes en couleur ({ab.count()})")
+    B.ok("Astreinte : OA" in pg.inner_text("#vMon"), "astreinte d'un collègue : simple note")
     pg.evaluate("S.me = 'OA'; renderMon()")
     B.ok("Séno" in pg.inner_text("#vMon .rcpb") and "13h-14h" in pg.inner_text("#vMon .rcpb") and "LUNDI" not in pg.inner_text("#vMon .rcpb"), "bandeau : horaire sans le jour")
     # Général → RCP
