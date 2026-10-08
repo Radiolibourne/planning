@@ -78,6 +78,12 @@ Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par perso
 - Onglet Astreintes (`renderAstr`) : notes « Astreinte : X » du planning publié, par mois.
 - Test : `tests/test_rcp.py` (fiche PDF fabriquée, médecins fictifs).
 
+### Générateur d'astreintes
+- `src/astreintes.js` (fonctions pures) : `feriesFrance` (calcul de Pâques), `unitesAstreinte` (nuits du lundi au jeudi « S », ou « F » si férié ; week-end vendredi → dimanche « W » pour une seule personne ; férié un vendredi/samedi/dimanche non compté), `genererAstreintes` (glouton puis recuit simulé ; strict : indisponibilités, écart minimum `ecart`, jamais le lundi après son week-end ; équité : 3 compteurs au prorata de la quotité, cibles corrigées par `historiqueAstreintes` sur 12 mois), `controlerAstreintes`.
+- Firestore : `config/astreintes` `{du, au, limite, finMs, participants: [{id, quotite}], ecart, ouvertLe}` (admin) ; `astrIndispo/{ID}` `{ini, jours: [], majLe}` écrit par la personne elle-même tant que `finMs` n'est pas passé (règle `astrOuverte`), toujours par un admin. Internes : participants hors liste des médecins, saisis par l'admin.
+- UI : onglet Astreintes → « Mes indisponibilités d'astreinte » (calendrier à toucher) puis la liste du mois (classeur, week-end sur une ligne, sinon notes du planning publié). Admin → « Générateur d'astreintes » : ouverture, participants, saisie pour quelqu'un, génération, retouches (contrôle en direct), enregistrement dans l'onglet Astreintes du classeur (une ligne par jour, période remplacée).
+- Tests : `tests/test_astreintes.py` ; règles : `tests/test_comptes.py` (doublure `peut_ecrire`).
+
 ### Abonnement calendrier (webcal)
 Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderCal`), pas sur Mon planning.
 - `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore avec la clé de service (`FIREBASE_CLE` ; repli : clé API web, si les règles l'autorisent) et écrit `dist/cal/<jeton>.ics` par médecin.

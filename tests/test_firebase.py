@@ -60,7 +60,13 @@ def server(op, a):
         if not (valid_indispo(a['data']) and (is_admin(uid) or (a['data'].get('statut') == 'attente' and ouvert(a['data']['d1'], a['data']['d2']) and hors_trous(a['data']['d1'], a['data']['d2']))) if in_ind else is_admin(uid)): return denied()
         p = p + '/' + f'id{next(ids)}'
     elif op == 'set':
-        if not (is_admin(uid) and (not in_ind or valid_indispo(a['data']))): return denied()   # mise à jour (décision) : administrateur
+        in_astr = len(s) == 4 and s[2] == 'astrIndispo'
+        if in_astr:
+            import time as _t
+            cfg = DB.get(f'espaces/{TEAM}/config/astreintes') or {}
+            d = a['data']
+            if not (is_admin(uid) or (_t.time() * 1000 <= cfg.get('finMs', 0) and set(d) <= {'ini', 'jours', 'majLe'} and d.get('ini') == s[3] and isinstance(d.get('jours'), list))): return denied()
+        elif not (is_admin(uid) and (not in_ind or valid_indispo(a['data']))): return denied()   # mise à jour (décision) : administrateur
     elif op == 'del':
         old = DB.get(p)
         if not (is_admin(uid) or (in_ind and old and ouvert(old['d1'], old['d2']))): return denied()
@@ -189,7 +195,7 @@ with sync_playwright() as pw:
     stored = DB.get(f'espaces/{TEAM}/planning/publie')
     ok(stored and stored.get('publiePar') == 'admin@chl.fr' and len(json.dumps(stored)) < 1_000_000, f'planning publié en base ({len(json.dumps(stored))//1024} Ko, limite Firestore 1 024 Ko)')
     ok(all(v != 'ABS' or True for v in []) and 'ABS' in json.dumps(stored['statuts'].get('DA', {})), 'absence de DA enregistrée dans le planning publié')
-    ok('ouvert(code' in rules and 'horsTrous(code' in rules and 'request.time.toMillis()' in rules, 'règles : verrou de saisie présent')
+    ok('ouvert(code' in rules and 'horsTrous(code' in rules and 'astrOuverte(code)' in rules and 'request.time.toMillis()' in rules, 'règles : verrou de saisie présent')
     dans_periode = ouvres[3]
     from commun import numero_jour
     r = doc.evaluate('''async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos',

@@ -22,6 +22,7 @@ etapes = [
     ("Règles du service", [sys.executable, os.path.join(ICI, "test_regles_service.py")]),
     ("Import du planning fait à la main", [sys.executable, os.path.join(ICI, "test_import_manuel.py")]),
     ("RCP et astreintes", [sys.executable, os.path.join(ICI, "test_rcp.py")]),
+    ("Générateur d'astreintes", [sys.executable, os.path.join(ICI, "test_astreintes.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

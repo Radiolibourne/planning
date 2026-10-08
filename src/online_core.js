@@ -256,7 +256,7 @@ function demoStore() {
   const notify = () => setTimeout(() => listeners.forEach((l) => l()), 0);
   const collOf = (coll) => Object.keys(mem).filter((k) => k.startsWith(coll + "/") && !k.slice(coll.length + 1).includes("/"))
     .map((k) => ({ id: k.slice(coll.length + 1), ...clone(mem[k]) }));
-  const needAdmin = (path) => { if (!user && !path.includes("/indispos/") && !path.startsWith("declarations/")) throw new StoreError("permission-denied", "Action réservée à l'administrateur."); };
+  const needAdmin = (path) => { if (!user && !path.includes("/indispos/") && !path.includes("/astrIndispo/") && !path.startsWith("declarations/")) throw new StoreError("permission-denied", "Action réservée à l'administrateur."); };
   window.addEventListener("storage", (e) => {
     if (e.key !== KEY) return;
     try { mem = JSON.parse(e.newValue || "{}"); } catch (x) { mem = {}; }
@@ -356,6 +356,17 @@ service cloud.firestore {
       allow update: if equipe(code) && admin() && demandeValide(request.resource.data);
       allow delete: if equipe(code)
         && (admin() || (auteur(code, resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
+    }
+
+    // Indisponibilités d'astreinte : un document par personne (identifiant = initiales), modifiable par elle-même
+    // tant que la saisie ouverte par l'administrateur n'est pas close (config/astreintes.finMs).
+    function astrCfg(code) { return /databases/$(database)/documents/espaces/$(code)/config/astreintes; }
+    function astrOuverte(code) { return exists(astrCfg(code)) && request.time.toMillis() <= get(astrCfg(code)).data.finMs; }
+    match /espaces/{code}/astrIndispo/{ini} {
+      allow write: if equipe(code) && (admin() || (auteur(code, ini) && astrOuverte(code)
+        && request.resource.data.keys().hasOnly(['ini', 'jours', 'majLe'])
+        && request.resource.data.ini == ini
+        && request.resource.data.jours is list && request.resource.data.jours.size() <= 400));
     }
 
     // Comptes validés : chacun lit le sien ; seuls les administrateurs les créent, modifient ou retirent.

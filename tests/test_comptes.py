@@ -84,6 +84,10 @@ def peut_ecrire(op, path, uid, data):
             if op == "del": return is_admin(uid) or (old is not None and auteur(old["ini"], uid) and ouvert(old["d1"], old["d2"]))
             if op == "set" and old is not None: return is_admin(uid) and valid_indispo(data)       # décision de l'administrateur
             return valid_indispo(data) and (is_admin(uid) or (data.get("statut") == "attente" and auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"]) and hors_trous(data["d1"], data["d2"])))
+        if len(s) == 4 and s[2] == "astrIndispo":
+            cfg = DB.get(f"espaces/{TEAM}/config/astreintes") or {}
+            return is_admin(uid) or (op != "del" and auteur(s[3], uid) and time.time() * 1000 <= cfg.get("finMs", 0)
+                                     and set(data) <= {"ini", "jours", "majLe"} and data.get("ini") == s[3] and isinstance(data.get("jours"), list) and len(data["jours"]) <= 400)
         return is_admin(uid)
     if s[0] == "membres": return is_admin(uid)
     if s[0] == "admins": return is_admin(uid) and uid != s[1]
@@ -285,6 +289,16 @@ with sync_playwright() as pw:
     doc.click("#indRelance [data-aucune]")
     doc.wait_for_selector("#indRelance [data-annuler-aucune]", timeout=8000)
     ok(any((v.get("aucune") or {}) for k, v in DB.items() if k == f"declarations/{uid_da}"), "« aucune absence » redéclarée depuis l'onglet Absences")
+    # ---------------- indisponibilités d'astreinte : chacun les siennes, seulement tant que la saisie est ouverte
+    ecrire = lambda qui, path_fin: doc.evaluate("""async ([t, q, p]) => JSON.parse(await window.__fb('set', JSON.stringify({path: 'espaces/' + t + '/astrIndispo/' + p, uid: globalThis.__uid,
+        data: {ini: q, jours: [21000, 21001], majLe: Date.now()}}))).error || 'accepté'""", [TEAM, qui, path_fin])
+    ok(ecrire("DA", "DA") != "accepté", "astreintes : saisie refusée tant que l'administrateur ne l'a pas ouverte")
+    adm.evaluate("(f) => S.store.set(PATHS.astrCfg(), {du: 21000, au: 21180, limite: 21100, finMs: f, participants: [{id: 'DA', quotite: 1}], ecart: 3, ouvertLe: 0})", time.time() * 1000 + 86400000)
+    ok(ecrire("DA", "DA") == "accepté", "astreintes : un médecin enregistre ses indisponibilités")
+    ok(ecrire("DB", "DB") != "accepté" and ecrire("DA", "DB") != "accepté", "astreintes : impossible d'écrire celles d'un collègue")
+    adm.evaluate("(f) => S.store.set(PATHS.astrCfg(), {du: 21000, au: 21180, limite: 21000, finMs: f, participants: [{id: 'DA', quotite: 1}], ecart: 3, ouvertLe: 0})", time.time() * 1000 - 1000)
+    ok(ecrire("DA", "DA") != "accepté", "astreintes : saisie refusée après la date limite")
+    ok(adm.evaluate("async (t) => { await S.store.set(PATHS.astrInd() + '/DA', {ini: 'DA', jours: [21002], majLe: Date.now()}); return 'ok'; }", TEAM) == "ok", "astreintes : l'administrateur peut toujours corriger")
     # ---------------- notifications
     doc.evaluate(STUB_PUSH)
     doc.click("a[data-tab=cal]"); doc.wait_for_selector("#notifOn", timeout=8000)
