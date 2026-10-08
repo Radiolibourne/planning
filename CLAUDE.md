@@ -70,6 +70,14 @@ L'Excel téléchargé par les médecins (onglet Général) ne contient que le pl
 ### Qui est posté ? / PDF de la semaine
 Onglet « Qui est posté » : un jour, par poste (groupé par site) ou par personne, filtre texte. Onglet Général → « PDF de la semaine » (semaine choisie, ou semaine en cours) : 2 pages A4 paysage.
 
+### RCP et astreintes
+- `src/rcp.js` : `pdfMots` lit le texte des PDF (flux non compressés ou FlateDecode, opérateurs Tm/Td/Tj/TJ ; images ignorées), sans bibliothèque externe. Les fiches RCP du service sont des scans Canon avec texte reconnu : un mot par `Tm`, Helvetica WinAnsi.
+- `lireRcp(mots, medecins, alias)` : titre « RCP <MOIS> <ANNÉE> », colonnes = mots de la ligne « SERVICE » (+ 2e ligne, ex. NEURO-/VASCULAIRE), horaires entre l'en-tête et la 1re date, lignes = dates de la colonne de gauche (OCR abîmé toléré : `jourRcp`), cases = initiales (`decouperInitiales`, séparateurs mal lus « I », « l », « ] ») ou noms après Mr/Mme/MT (associés via `alias`, puis le nom de la fiche médecin).
+- Firestore `planning/rcp` : `{items: [{d, service, horaire, ini: []}], alias: {NOM: INI}, majLe}` (écriture admin, lecture équipe). À l'import, les RCP du même mois et des mêmes colonnes (service + horaire) sont remplacées ; plus de 70 jours : retirées.
+- Affichage : bandeau `.rcpb` dans Mon planning (horaire du jour : `horaireRcp`, gère « 1er lundi / 3ème lundi ») ; Général → vue « RCP » ; Admin → carte « RCP du mois » (aperçu, noms à associer, suppression d'un mois).
+- Onglet Astreintes (`renderAstr`) : notes « Astreinte : X » du planning publié, par mois.
+- Test : `tests/test_rcp.py` (fiche PDF fabriquée, médecins fictifs).
+
 ### Abonnement calendrier (webcal)
 Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderCal`), pas sur Mon planning.
 - `outils/calendriers_abonnement.py`, lancé par le workflow **à chaque publication et toutes les heures** (cron `17 * * * *`) : lit `planning/publie` par l'API REST Firestore avec la clé de service (`FIREBASE_CLE` ; repli : clé API web, si les règles l'autorisent) et écrit `dist/cal/<jeton>.ics` par médecin.

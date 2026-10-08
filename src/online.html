@@ -17,7 +17,7 @@
   --closed-bg: #fbe3dc; --closed-ink: #b42318; --part-bg: #fce9d9; --s1: #0e7c86; --s2: #6a4bc4; --s3: #e46a1c;
   --rem1: #ece6fb; --rem2: #fde7d7; --off: #e8eceb; --today: #fff4cf; --focus: #0e7c86; --shadow: 0 1px 0 rgba(0,0,0,.04);
   /* couleur de chaque site : principal, 2e, 3e (même ordre que l'onglet Sites du classeur) */
-  --site0: #0e7c86; --site1: #6a4bc4; --site2: #e46a1c; --site-tt: #3d6fb6; --head: #0e5a63; --head-ink: #ffffff; --head-mark: #ffd34d;
+  --site0: #0e7c86; --site1: #6a4bc4; --site2: #e46a1c; --site-tt: #3d6fb6; --rcp: #c2185b; --head: #0e5a63; --head-ink: #ffffff; --head-mark: #ffd34d;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -25,7 +25,7 @@
     --accent: #5cc6cf; --accent-2: #5cc6cf; --accent-ink: #0b1716; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
     --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --s1: #2f9aa3; --s2: #8a6fe0; --s3: #e8833f;
     --rem1: #2e2748; --rem2: #4a2f1e; --off: #222c2b; --today: #3a3420; --focus: #5cc6cf; --shadow: none;
-    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --site-tt: #4f82c9; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;
+    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --site-tt: #4f82c9; --rcp: #d81b60; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;
   }
 }
 * { box-sizing: border-box; }
@@ -203,7 +203,7 @@ table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
 /* Admin : cartes repliables, dans l'ordre d'usage */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
-#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #cloCard { order: 4; } #accCard { order: 5; }
+#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #rcpCard { order: 4; } #cloCard { order: 4; } #accCard { order: 5; }
 #medCard { order: 6; } #regCard { order: 7; } #paramCard { order: 8; } #statCard { order: 9; } #rulesCard { order: 10; } #setupCard { order: 11; }
 .pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
 .pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
@@ -268,6 +268,19 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
 #vMon .slot .tag { font-size: 10px; }
 #vMon .day .note { margin-top: 2px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #vMon .day > div:last-child { min-width: 0; }
+/* RCP : bandeau bien visible dans Mon planning, tableau dans Général */
+.rcpb { display: flex; align-items: center; gap: 6px; background: var(--rcp); color: #fff; border-radius: 8px; padding: 3px 8px; margin: 0 0 4px; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+.rcpb .rk { background: #fff; color: var(--rcp); border-radius: 4px; padding: 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; }
+.day:has(.rcpb) { box-shadow: inset 4px 0 0 var(--rcp); }
+table.rcpt td, table.rcpt th { padding: 6px 8px; text-align: left; vertical-align: top; font-size: 13.5px; }
+table.rcpt td.jr { white-space: nowrap; font-weight: 700; }
+table.rcpt tr.nouv td { border-top: 2px solid var(--line); }
+table.rcpt .me, table.astt .me { background: var(--rcp); color: #fff; border-radius: 5px; padding: 0 4px; font-weight: 700; }
+table.astt td, table.astt th { padding: 6px 10px; text-align: left; font-size: 14px; }
+table.astt tr.ajd td, table.rcpt tr.ajd td { background: color-mix(in srgb, var(--head-mark) 25%, transparent); }
+#vAstr > .card { padding: 12px 12px; }
+#vAstr h2 { font-size: 18px; margin: 0 0 2px; }
+#vAstr .sub { font-size: 12px; margin: 0 0 8px; }
 /* Général et Qui est posté : en-têtes compacts */
 #vGeneral > .card, #vQui > .card { padding: 12px 12px; }
 #vGeneral h2, #vQui h2 { font-size: 18px; margin: 0 0 2px; }
@@ -301,6 +314,7 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
       <a href="#mon" data-tab="mon">Mon planning</a>
       <a href="#qui" data-tab="qui">Qui est posté</a>
       <a href="#general" data-tab="general">Général</a>
+      <a href="#astreintes" data-tab="astreintes">Astreintes</a>
       <a href="#indispos" data-tab="indispos">Absences</a>
       <a href="#cal" data-tab="cal">Calendrier</a>
       <a href="#admin" data-tab="admin" id="tabAdmin" hidden>Admin</a>
@@ -380,6 +394,15 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
       <h2 id="genTitle">Planning général</h2>
       <p class="sub" id="genSub"></p>
       <div id="genBody"></div>
+    </div>
+  </section>
+
+  <!-- Astreintes du mois -->
+  <section id="vAstr" hidden>
+    <div class="card">
+      <h2>Astreintes</h2>
+      <p class="sub" id="astSub"></p>
+      <div id="astBody"></div>
     </div>
   </section>
 
@@ -554,6 +577,15 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
         <ul class="list" id="accList"></ul>
         <p class="small muted" id="accSans" style="margin-bottom:0"></p>
         <div class="msg" id="accMsg" role="status"></div>
+      </div>
+
+      <div class="card" id="rcpCard">
+        <h2>RCP du mois</h2>
+        <p class="sub">Déposez les fiches RCP (PDF scannés, plusieurs à la fois possible). Chaque radiologue voit ses RCP dans Mon planning ; Général → RCP les affiche toutes.</p>
+        <div class="row"><label class="b" style="cursor:pointer">Importer des fiches RCP (PDF)<input type="file" id="upRcp" accept="application/pdf,.pdf" multiple hidden></label></div>
+        <div id="rcpApercu"></div>
+        <ul class="list" id="rcpListe" style="margin-top:10px"></ul>
+        <div class="msg" id="rcpMsg" role="status"></div>
       </div>
 
       <div class="card" id="cloCard">
@@ -793,7 +825,7 @@ const S = {
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, acces: () => `${base()}/config/acces` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, rcp: () => `${base()}/planning/rcp`, acces: () => `${base()}/config/acces` };
 
 // ------------------------------------------------------------ hors connexion
 function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
@@ -830,7 +862,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 }
 
 // ------------------------------------------------------------ navigation
-const TABS = { mon: "vMon", general: "vGeneral", qui: "vQui", indispos: "vIndispos", cal: "vCal", admin: "vAdmin" };
+const TABS = { mon: "vMon", general: "vGeneral", astreintes: "vAstr", qui: "vQui", indispos: "vIndispos", cal: "vCal", admin: "vAdmin" };
 function currentTab() { const h = location.hash.slice(1); return TABS[h] ? h : "mon"; }
 function show(view) {
   for (const id of ["vCode", "vAuth", "vLoading", ...Object.values(TABS)]) $(id).hidden = id !== view;
@@ -952,7 +984,7 @@ function watchAdminCollections() {
 
 function leaveSpace() {
   S.unsub.forEach((f) => f()); S.unsub = [];
-  S.code = null; S.params = S.P = S.published = S.saisie = null; S.indispos = []; paramsSig = "";
+  S.code = null; S.params = S.P = S.published = S.saisie = S.rcp = null; S.indispos = []; paramsSig = "";
 }
 
 function forgetCode(message) {
@@ -999,6 +1031,7 @@ async function enter(code, silent) {
   };
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
+  S.unsub.push(S.store.watchDoc(PATHS.rcp(), (d) => { S.rcp = d; render(); }, () => {}));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.saisie(), (d) => {
     S.saisie = d; render();
@@ -1216,6 +1249,7 @@ function render() {
   const t = currentTab();
   if (t === "mon") renderMon();
   else if (t === "general") renderGeneral();
+  else if (t === "astreintes") renderAstr();
   else if (t === "qui") renderQui();
   else if (t === "indispos") renderIndispos();
   else if (t === "cal") renderCal();
@@ -1295,6 +1329,9 @@ function renderMon() {
       if (m && a && m.code && m.code === a.code) body = line(m, "M", "AM", "Jour");
       else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Jour</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
       else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "AM");
+      // RCP du médecin ce jour-là : bandeau en tête de la journée
+      const mesRcp = rcpDuJour(d).filter((x) => x.ini.includes(me));
+      if (mesRcp.length) body = mesRcp.map((x) => `<div class="rcpb" title="RCP ${esc(x.service)} ${esc(x.horaire)}"><span class="rk">RCP</span>${esc(libRcp(x.service))} · ${esc(horaireRcp(x.horaire, d))}</div>`).join("") + body;
       // astreinte toujours en premier, bien visible ; puis les autres notes (réunions, staffs…)
       const nts = notesDuJour(pub, d);
       const ast = nts.filter((t) => /^astreinte/i.test(t)), autres = nts.filter((t) => !/^astreinte/i.test(t));
@@ -1585,14 +1622,62 @@ function resolveWeek(draft, sel) {
   return draft.semaines.some((w) => w.lundi === +sel) ? +sel : "all";
 }
 
+// ------------------------------------------------------------ RCP (document planning/rcp : {items: [{d, service, horaire, ini}], alias})
+const rcpItems = () => ((S.rcp && S.rcp.items) || []).filter((x) => Number.isFinite(x.d));
+const rcpDuJour = (d) => rcpItems().filter((x) => x.d === d);
+const RCP_LIB = { SENO: "Séno", GYNECO: "Gynéco", HEMATO: "Hémato", ENDOMETRIOSE: "Endométriose", NEURO: "Neuro", "NEURO-VASCULAIRE": "Neuro-vasculaire", ORL: "ORL", URO: "Uro", DIGESTIF: "Digestif", PNEUMO: "Pneumo", INFECTIEUX: "Infectieux" };
+const libRcp = (s) => RCP_LIB[String(s).toUpperCase()] || String(s).charAt(0).toUpperCase() + String(s).slice(1).toLowerCase();
+// Horaire du jour : « 17h-20h 1er lundi 16h-17h 3ème lundi » → selon le rang du jour dans le mois ; jour de la semaine retiré
+function horaireRcp(h, d) {
+  const s = String(h || ""), rang = Math.ceil(ymd(d).d / 7);
+  const parRang = [...s.matchAll(/(\d{1,2}h\d{0,2}(?:-\d{1,2}h\d{0,2})?)\s+(\d)\s*(?:er|e|ème|eme)\b/gi)];
+  if (parRang.length) { const m = parRang.find((x) => +x[2] === rang); return m ? m[1] : parRang[0][1]; }
+  return s.replace(/\b(lundi|mardi|mercredi|jeudi|vendredi)\b/gi, "").replace(/\s+/g, " ").trim() || s;
+}
+const moisDeJour = (d) => { const x = ymd(d); return x.y * 100 + x.m; };
+const libMoisNum = (m) => `${MOIS[m % 100 - 1]} ${Math.floor(m / 100)}`;
+function rcpTable(mois, me) {
+  const its = rcpItems().filter((x) => moisDeJour(x.d) === mois).sort((a, b) => a.d - b.d || horaireRcp(a.horaire, a.d).localeCompare(horaireRcp(b.horaire, b.d)) || a.service.localeCompare(b.service));
+  if (!its.length) return `<div class="empty small">Aucune RCP pour ce mois.</div>`;
+  const today = todayDay();
+  let html = "", prec = null;
+  for (const x of its) {
+    const n = its.filter((y) => y.d === x.d).length;
+    const rads = x.ini.length ? x.ini.map((i) => (i === me ? `<span class="me">${esc(i)}</span>` : esc(i))).join(" / ") : `<span class="muted">—</span>`;
+    html += `<tr class="${x.d !== prec ? "nouv" : ""}${x.d === today ? " ajd" : ""}">${x.d !== prec ? `<td class="jr" rowspan="${n}">${JC[weekday(x.d)]} ${fmtDay(x.d, false)}</td>` : ""}<td>${esc(libRcp(x.service))}<div class="small muted">${esc(horaireRcp(x.horaire, x.d))}</div></td><td>${rads}</td></tr>`;
+    prec = x.d;
+  }
+  const miennes = me ? its.filter((x) => x.ini.includes(me)).length : 0;
+  return `${me ? `<p class="small" style="margin:0 0 6px">${miennes ? `Vous : <b>${miennes} RCP</b> ce mois-ci.` : "Aucune RCP pour vous ce mois-ci."}</p>` : ""}
+    <div class="tablewrap sem"><table class="rcpt"><thead><tr><th>Date</th><th>RCP</th><th>Radiologue(s)</th></tr></thead><tbody>${html}</tbody></table></div>`;
+}
+function moisRcp() {
+  const liste = [...new Set(rcpItems().map((x) => moisDeJour(x.d)))].sort((a, b) => a - b);
+  const auj = moisDeJour(todayDay());
+  if (!liste.includes(S.genView.rcpMois)) S.genView.rcpMois = liste.includes(auj) ? auj : (liste.find((m) => m > auj) ?? liste[liste.length - 1]);
+  return liste;
+}
+
 function renderGeneral() {
   const pub = S.published;
-  if (!pub) { $("genTitle").textContent = "Planning général"; $("genSub").textContent = ""; $("genBody").innerHTML = `<div class="empty">Aucun planning publié pour l'instant.</div>`; return; }
+  if (!pub && !rcpItems().length) { $("genTitle").textContent = "Planning général"; $("genSub").textContent = ""; $("genBody").innerHTML = `<div class="empty">Aucun planning publié pour l'instant.</div>`; return; }
+  if (!pub) S.genView.mode = "rcp";
+  const modeRcp = S.genView.mode === "rcp";
   $("genTitle").textContent = "Planning général";
-  $("genSub").textContent = `${titreMois(pub.start, pub.end)} · publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}`;
+  $("genSub").textContent = modeRcp ? "Réunions de concertation pluridisciplinaire"
+    : `${titreMois(pub.start, pub.end)} · publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}`;
+  const seg = `<div class="seg" role="group" aria-label="Vue">${pub ? `<button data-mode="semaine" aria-pressed="${S.genView.mode === "semaine"}">Semaine</button><button data-mode="poste" aria-pressed="${S.genView.mode === "poste"}">Tableau</button><button data-mode="medecin" aria-pressed="${S.genView.mode === "medecin"}">Par médecin</button>` : ""}<button data-mode="rcp" aria-pressed="${modeRcp}">RCP</button></div>`;
+  if (modeRcp) {
+    const liste = moisRcp();
+    $("genBody").innerHTML = `<div class="toolbar">${seg}${liste.length > 1 ? `<select id="rcpMois" aria-label="Mois">${liste.map((m) => `<option value="${m}"${m === S.genView.rcpMois ? " selected" : ""}>${libMoisNum(m)}</option>`).join("")}</select>` : ""}</div>`
+      + (liste.length ? rcpTable(S.genView.rcpMois, S.me) : `<div class="empty small">Aucune fiche RCP importée pour l'instant.</div>`);
+    $("genBody").querySelectorAll(".seg button").forEach((b) => b.onclick = () => { S.genView.mode = b.dataset.mode; renderGeneral(); });
+    if ($("rcpMois")) $("rcpMois").onchange = (e) => { S.genView.rcpMois = +e.target.value; renderGeneral(); };
+    return;
+  }
   const week = resolveWeek(pub, S.genView.week);
   $("genBody").innerHTML = `<div class="toolbar">
-      <div class="seg" role="group" aria-label="Vue"><button data-mode="semaine" aria-pressed="${S.genView.mode === "semaine"}">Semaine</button><button data-mode="poste" aria-pressed="${S.genView.mode === "poste"}">Tableau</button><button data-mode="medecin" aria-pressed="${S.genView.mode === "medecin"}">Par médecin</button></div>
+      ${seg}
       <select id="genWeek" aria-label="Semaine">${weekOptions(pub, week)}</select>
       <button class="b" id="genPdf" type="button">PDF</button>
       ${S.P ? `<button class="b" id="genXlsx" type="button">Excel</button>` : ""}
@@ -1611,6 +1696,28 @@ function renderGeneral() {
       setMsg($("genMsg"), week === "all" ? `PDF de la semaine du ${fmtDay(lundi, false)} (choisissez une semaine dans la liste pour une autre).` : "");
     } catch (e) { console.error(e); setMsg($("genMsg"), "PDF impossible : " + e.message, "err"); }
   };
+}
+
+// ------------------------------------------------------------ Astreintes du mois (notes « Astreinte : X » du planning publié)
+function renderAstr() {
+  const pub = S.published;
+  if (!pub) { $("astSub").textContent = ""; $("astBody").innerHTML = `<div class="empty">Aucun planning publié pour l'instant.</div>`; return; }
+  const liste = [...new Set(pub.jours.map(moisDeJour))];
+  const auj = moisDeJour(todayDay());
+  if (!liste.includes(S.astMois)) S.astMois = liste.includes(auj) ? auj : (liste.find((m) => m > auj) ?? liste[liste.length - 1]);
+  const jours = pub.jours.filter((d) => moisDeJour(d) === S.astMois);
+  const lignes = jours.map((d) => ({ d, qui: notesDuJour(pub, d).filter((t) => /^astreinte/i.test(t)).map((t) => t.replace(/^astreinte\s*:?\s*/i, "").trim()).filter(Boolean) })).filter((x) => x.qui.length);
+  const me = S.me, today = todayDay();
+  const compte = {}, forme = {};
+  for (const l of lignes) for (const q of l.qui) { const k = q.toUpperCase(); forme[k] = forme[k] || q; compte[k] = (compte[k] || 0) + 1; }
+  const mien = me ? compte[me.toUpperCase()] || 0 : 0;
+  $("astSub").textContent = `${libMoisNum(S.astMois)} · jours ouvrés du planning publié`;
+  $("astBody").innerHTML = `<div class="toolbar">${liste.length > 1 ? `<select id="astMois" aria-label="Mois" style="width:auto">${liste.map((m) => `<option value="${m}"${m === S.astMois ? " selected" : ""}>${libMoisNum(m)}</option>`).join("")}</select>` : ""}</div>`
+    + (lignes.length ? `${me ? `<p class="small" style="margin:0 0 6px">${mien ? `Vous : <b>${mien} astreinte${mien > 1 ? "s" : ""}</b> ce mois-ci.` : "Aucune astreinte pour vous ce mois-ci."}</p>` : ""}
+      <div class="tablewrap sem"><table class="astt"><thead><tr><th>Date</th><th>Astreinte</th></tr></thead><tbody>${lignes.map((l) => `<tr${l.d === today ? ' class="ajd"' : ""}><td><b>${JC[weekday(l.d)]}</b> ${fmtDay(l.d, false)}</td><td>${l.qui.map((q) => (me && q.toUpperCase() === me.toUpperCase() ? `<span class="me">${esc(q)}</span>` : esc(q))).join(" / ")}</td></tr>`).join("")}</tbody></table></div>
+      <p class="small muted" style="margin:8px 0 0">Répartition : ${Object.entries(compte).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q, n]) => `${esc(forme[q])} ${n}`).join(" · ")}</p>`
+      : `<div class="empty small">Aucune astreinte renseignée pour ce mois.</div>`);
+  if ($("astMois")) $("astMois").onchange = (e) => { S.astMois = +e.target.value; renderAstr(); };
 }
 // Médecins : le planning seul. Administrateurs (onglet Statistiques) : version complète avec synthèse et contrôles.
 async function downloadPublishedXlsx(msgEl, complet = false) {
@@ -1864,6 +1971,7 @@ function renderAdmin() {
   $("adminBody").hidden = !S.admin;
   if (S.store.mode === "demo") $("loginSub").textContent = "Démonstration : saisissez n'importe quelle adresse et n'importe quel mot de passe.";
   if (!S.admin) return;
+  renderRcpAdmin();
   // paramètres
   const p = S.params;
   $("useDefault").hidden = !!p || !window.DEFAULT_PARAMS_B64 || window.DEFAULT_PARAMS_B64.startsWith("/*");
@@ -2043,6 +2151,90 @@ $("cloList").addEventListener("click", (e) => {
   const [du, au, lim] = b.dataset.clo.split("_").map(Number);
   if (!confirm(`Supprimer la date limite du ${fmtDay(lim)} (période du ${fmtDay(du, false)} au ${fmtDay(au, false)}) ?`)) return;
   saveClotures(((S.saisie && S.saisie.clotures) || []).filter((c) => !(c.du === du && c.au === au && c.limite === lim)), $("cloMsg"));
+});
+// ------------------------------------------------------------ Admin : import des fiches RCP (PDF)
+let RCP_ATTENTE = null;   // {lots: [lireRcp + nom], inconnus: [NOM], choix: {NOM: INI}}
+function renderRcpAdmin() {
+  const parMois = {};
+  for (const x of rcpItems()) parMois[moisDeJour(x.d)] = (parMois[moisDeJour(x.d)] || 0) + 1;
+  const ms = Object.keys(parMois).map(Number).sort((a, b) => a - b);
+  $("rcpListe").innerHTML = ms.length ? ms.map((m) => `<li><div class="grow"><b>${libMoisNum(m)}</b> · ${parMois[m]} RCP</div><button class="x" type="button" data-rcp-suppr="${m}">Supprimer</button></li>`).join("")
+    : `<li class="muted small">Aucune RCP enregistrée.</li>`;
+  rcpApercu();
+}
+function rcpApercu() {
+  const el = $("rcpApercu");
+  if (!RCP_ATTENTE) { el.innerHTML = ""; return; }
+  const { lots, inconnus, choix } = RCP_ATTENTE;
+  const liste = [...new Set([...doctorList(), ...Object.values(choix).filter(Boolean)])].sort();
+  const opts = (sel) => `<option value="">— choisir —</option>` + liste.map((i) => `<option${i === sel ? " selected" : ""}>${esc(i)}</option>`).join("") + `<option value="__autre">Autres initiales…</option>`;
+  const lignes = lots.flatMap((l) => l.items.map((it) => ({ d: dayFromYMD(l.an, l.mois, it.jour), c: l.colonnes[it.col], it })))
+    .sort((a, b) => a.d - b.d || a.c.service.localeCompare(b.c.service));
+  const avert = lots.flatMap((l) => l.avert);
+  el.innerHTML = `<div class="banner info" style="margin-top:10px">
+      <b>${lignes.length} RCP lues</b> (${[...new Set(lots.map((l) => libMoisNum(l.an * 100 + l.mois)))].join(", ")}). Vérifiez puis enregistrez : les RCP déjà enregistrées pour les mêmes colonnes et le même mois sont remplacées.
+      ${inconnus.length ? `<p class="small" style="margin:8px 0 4px"><b>Noms à associer à des initiales</b> (retenus pour les prochains imports) :</p>
+        <div class="row" style="gap:6px">${inconnus.map((n) => `<label class="f" style="min-width:140px">${esc(n)}<select data-rcp-alias="${esc(n)}">${opts(choix[n])}</select></label>`).join("")}</div>` : ""}
+      ${avert.length ? `<p class="small" style="margin:8px 0 0;color:var(--warn)">À vérifier : ${avert.map(esc).join(" ; ")}</p>` : ""}
+    </div>
+    <div class="tablewrap sem"><table class="rcpt"><thead><tr><th>Date</th><th>RCP</th><th>Radiologue(s)</th></tr></thead><tbody>
+    ${lignes.map(({ d, c, it }) => `<tr><td class="jr">${JC[weekday(d)]} ${fmtDay(d, false)}</td><td>${esc(libRcp(c.service))}<div class="small muted">${esc(horaireRcp(c.horaire, d))}</div></td><td>${[...it.ini.map(esc), ...it.inconnus.map((n) => (choix[n] ? `<b>${esc(choix[n])}</b>` : `<span class="tag err">${esc(n)} ?</span>`))].join(" / ") || "—"}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="row" style="margin-top:8px"><button class="b primary" id="rcpSave" type="button">Enregistrer les RCP</button><button class="b" id="rcpAnnul" type="button">Annuler</button></div>`;
+  el.querySelectorAll("[data-rcp-alias]").forEach((sel) => sel.onchange = () => {
+    let v = sel.value;
+    if (v === "__autre") v = (prompt(`Initiales de ${sel.dataset.rcpAlias} :`) || "").trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 6);
+    RCP_ATTENTE.choix[sel.dataset.rcpAlias] = v; rcpApercu();
+  });
+  $("rcpAnnul").onclick = () => { RCP_ATTENTE = null; rcpApercu(); setMsg($("rcpMsg"), ""); };
+  $("rcpSave").onclick = rcpEnregistrer;
+}
+$("upRcp").addEventListener("change", async (e) => {
+  const files = [...e.target.files]; e.target.value = "";
+  if (!files.length) return;
+  const msg = $("rcpMsg");
+  setMsg(msg, "Lecture des fiches…");
+  const medecins = {};
+  for (const i of doctorList()) medecins[i] = (S.P && S.P.docs[i] && S.P.docs[i].nom) || "";
+  const alias = (S.rcp && S.rcp.alias) || {};
+  const lots = [], erreurs = [];
+  for (const f of files) {
+    if (f.size > 20e6) { erreurs.push(`${f.name} : fichier trop volumineux`); continue; }
+    try { const res = lireRcp(await pdfMots(new Uint8Array(await f.arrayBuffer())), medecins, alias); res.nom = f.name; lots.push(res); }
+    catch (err) { erreurs.push(`${f.name} : ${err.message}`); }
+  }
+  RCP_ATTENTE = lots.length ? { lots, inconnus: [...new Set(lots.flatMap((l) => l.inconnus))], choix: {} } : null;
+  rcpApercu();
+  setMsg(msg, erreurs.length ? `Non lu : ${erreurs.join(" ; ")}` : "", erreurs.length ? "err" : "");
+});
+async function rcpEnregistrer() {
+  const msg = $("rcpMsg");
+  if (!RCP_ATTENTE || !needOnline(msg)) return;
+  const { lots, inconnus, choix } = RCP_ATTENTE;
+  if (inconnus.some((n) => !choix[n]) && !confirm("Certains noms ne sont pas associés à des initiales : ces RCP seront enregistrées sans ce radiologue. Continuer ?")) return;
+  const alias = { ...((S.rcp && S.rcp.alias) || {}) };
+  for (const [n, v] of Object.entries(choix)) if (v) alias[n] = v;
+  const nouveaux = [], cles = new Set();
+  for (const l of lots) for (const c of l.colonnes) cles.add(`${l.an * 100 + l.mois}|${c.service}|${c.horaire}`);
+  for (const l of lots) for (const it of l.items) {
+    const c = l.colonnes[it.col];
+    nouveaux.push({ d: dayFromYMD(l.an, l.mois, it.jour), service: c.service, horaire: c.horaire,
+      ini: [...new Set([...it.ini, ...it.inconnus.map((n) => choix[n]).filter(Boolean)])] });
+  }
+  const limite = todayDay() - 70;
+  const garder = rcpItems().filter((x) => x.d >= limite && !cles.has(`${moisDeJour(x.d)}|${x.service}|${x.horaire}`));
+  try {
+    await S.store.set(PATHS.rcp(), { items: garder.concat(nouveaux).sort((a, b) => a.d - b.d), alias, majLe: Date.now(), par: (S.auth && S.auth.email) || "" });
+    RCP_ATTENTE = null; rcpApercu();
+    setMsg(msg, `${nouveaux.length} RCP enregistrée(s). Elles apparaissent dans Mon planning de chaque radiologue et dans Général → RCP.`, "ok");
+  } catch (err) { setMsg(msg, err.message, "err"); }
+}
+$("rcpListe").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-rcp-suppr]"); if (!b) return;
+  const m = +b.dataset.rcpSuppr;
+  if (!confirm(`Supprimer toutes les RCP de ${libMoisNum(m)} ?`) || !needOnline($("rcpMsg"))) return;
+  try { await S.store.set(PATHS.rcp(), { ...(S.rcp || {}), items: rcpItems().filter((x) => moisDeJour(x.d) !== m), majLe: Date.now() }); setMsg($("rcpMsg"), "RCP supprimées.", "ok"); }
+  catch (err) { setMsg($("rcpMsg"), err.message, "err"); }
 });
 function refreshRules() {
   if (!S.admin || !S.auth || !S.code) return;
