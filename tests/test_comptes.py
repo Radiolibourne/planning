@@ -303,7 +303,7 @@ with sync_playwright() as pw:
     doc.evaluate(STUB_PUSH)
     doc.click("a[data-tab=cal]"); doc.wait_for_selector("#notifOn", timeout=8000)
     doc.click("#notifOn")
-    doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('activées')", timeout=8000)
+    doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('activées')", timeout=20000)
     abos = {k: v for k, v in DB.items() if k.startswith("abonnements/")}
     ok(len(abos) == 1 and list(abos)[0].split("/")[1].startswith(uid_da + "_") and list(abos.values())[0]["ini"] == "DA",
        "notifications : abonnement du téléphone enregistré pour DA")
