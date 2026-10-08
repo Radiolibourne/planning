@@ -192,7 +192,7 @@ def main():
         with adm.expect_download() as d:
             adm.click("#statXlsx")
         d.value.save_as(os.path.join(SORTIE, "complet.xlsx"))
-        B.ok({"Synthèse", "Contrôles"} <= set(_lw(os.path.join(SORTIE, "complet.xlsx")).sheetnames), "administrateur : Excel complet avec synthèse et contrôles")
+        B.ok(_lw(os.path.join(SORTIE, "complet.xlsx")).sheetnames == ["Statistiques", "Couverture", "Contrôles"], "administrateur : Excel des statistiques (sans les plannings)")
         # exports depuis la copie du planning publié
         adm.click("#editPublished"); adm.wait_for_selector("#draftBody:not([hidden])")
         with adm.expect_download() as d:

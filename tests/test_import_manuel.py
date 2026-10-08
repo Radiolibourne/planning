@@ -113,12 +113,14 @@ with sync_playwright() as p:
     B.ok(pg.input_value("#statPer") == "perso", "statistiques : dates choisies")
     with pg.expect_download() as dl:
         pg.click("#statXlsx")
-    B.ok(dl.value.suggested_filename == "planning_radiologie_2026-11-03_au_2026-11-05.xlsx", f"export Excel de la période ({dl.value.suggested_filename})")
+    B.ok(dl.value.suggested_filename == "statistiques_2026-11-03_au_2026-11-05.xlsx", f"export Excel de la période ({dl.value.suggested_filename})")
     from openpyxl import load_workbook as _lw
     chemin = os.path.join(SORTIE, "periode.xlsx"); dl.value.save_as(chemin)
-    wbp = _lw(chemin); ws = wbp["Planning par poste"] if "Planning par poste" in wbp.sheetnames else wbp.worksheets[0]
-    dates = {c.value.date() for row in ws.iter_rows() for c in row if isinstance(c.value, dt.datetime)}
-    B.ok(dates == {dt.date(2026, 11, 3), dt.date(2026, 11, 4), dt.date(2026, 11, 5)}, f"l'Excel ne contient que la période ({sorted(dates)})")
+    wbp = _lw(chemin); ws = wbp["Statistiques"]
+    B.ok(wbp.sheetnames == ["Statistiques", "Couverture", "Contrôles"] and "Du 03/11/2026 au 05/11/2026" in str(ws["A2"].value) and ws["A4"].value == "Médecin",
+         f"Excel des statistiques seules, pour la période ({wbp.sheetnames})")
+    noms = [ws.cell(r, 1).value for r in range(5, ws.max_row + 1)]
+    B.ok("DA" in noms and noms[-1] == "Total", f"une ligne par médecin et un total ({noms})")
     v = pg.evaluate("""() => { const a = { ...S.published, jours: [100, 101], start: 100, end: 101, cases: { '100_M_SCAN': 'DA' }, statuts: {}, semaines: [{ lundi: mondayOf(100), type: 'A' }] };
         const n = fusionnerPublies(a, S.published, todayDay()); return n.jours.includes(100); }""")
     B.ok(v is False, "jours publiés très anciens retirés")

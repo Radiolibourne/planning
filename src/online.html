@@ -584,7 +584,7 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
           <label class="f">Du<input type="date" id="statDu"></label>
           <label class="f">au<input type="date" id="statAu"></label>
         </div>
-        <div class="row" style="margin-bottom:12px"><button class="b" type="button" id="statXlsx">Excel de la période (avec synthèse et contrôles)</button></div>
+        <div class="row" style="margin-bottom:12px"><button class="b" type="button" id="statXlsx">Excel des statistiques de la période</button></div>
         <div class="tablewrap" id="statTable"></div>
         <div class="grid2" style="margin-top:16px">
           <div><h3 style="margin-top:0">Couverture des postes</h3><div class="cov" id="statCov"></div></div>
@@ -2778,19 +2778,57 @@ function renderStats() {
     return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo, astr: nAstr[ini.toUpperCase()] || 0 };
   }).filter((l) => l.total || l.absent).sort((a, b) => a.ini.localeCompare(b.ini));
   $("statSub").textContent = `Du ${fmtDay(du)} au ${fmtDay(au)} (${joursP.length} jours ouvrés) · ${lignes.length} médecins. Visible par les administrateurs uniquement ; l'Excel des médecins ne contient que le planning.`;
+  S.statData = { du, au, nJours: joursP.length, groupes, lignes, mainSite: pub.mainSite, cov: [], checks: [] };
   const th = (t) => `<th>${esc(t)}</th>`;
   $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Astreintes")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
     ${lignes.map((l) => `<tr><td class="lead">${esc(l.ini)}</td><td>${l.q ? Math.round(l.q * 100) + " %" : "—"}</td><td><b>${l.total}</b></td>${groupes.map((x) => `<td>${l.g[x] || ""}</td>`).join("")}<td>${l.hors || ""}</td><td>${l.tt || ""}</td><td>${l.astr || ""}</td><td>${l.absent || ""}</td><td>${l.dispo || ""}</td></tr>`).join("")}</tbody></table>`;
   if (P) {
     try {
       const pr = problemFor(du, au), R = { assign: assignFromDraft(pr, pub), iterations: 0 };
-      $("statCov").innerHTML = coverage(pr, R).map((c) => { const pct = c.opened ? Math.round(100 * c.filled / c.opened) : 100;
+      const cov = coverage(pr, R), chk = checks(pr, R);
+      S.statData.cov = cov; S.statData.checks = chk;
+      $("statCov").innerHTML = cov.map((c) => { const pct = c.opened ? Math.round(100 * c.filled / c.opened) : 100;
         return `<div>${esc(c.label)}</div><div class="meter ${pct < 60 ? "low" : pct < 90 ? "mid" : ""}"><div style="width:${pct}%"></div></div><div class="pct">${pct} %</div>`; }).join("");
-      $("statChecks").innerHTML = checks(pr, R).map(([lv, t]) => `<li><span class="lvl ${lv}">${lv}</span><span>${esc(t)}</span></li>`).join("");
+      $("statChecks").innerHTML = chk.map(([lv, t]) => `<li><span class="lvl ${lv}">${lv}</span><span>${esc(t)}</span></li>`).join("");
     } catch (e) { $("statChecks").innerHTML = `<li>${esc(e.message)}</li>`; }
   }
 }
-$("statXlsx").addEventListener("click", () => downloadPublishedXlsx($("statMsg"), true, S.statBornes));
+$("statXlsx").addEventListener("click", async () => {
+  const D = S.statData, msg = $("statMsg");
+  if (!D) return;
+  try {
+    const wb = new XWorkbook();
+    const titre = { font: { b: true, sz: 14, color: "1F3864" } }, hd = { font: { b: true, color: "FFFFFF" }, fill: "1F3864", border: "thin", align: "center", wrap: true },
+      cel = { border: "thin", align: "center" }, nom = { border: "thin", font: { b: true } };
+    // 1. statistiques par médecin
+    const ws = wb.add("Statistiques");
+    const entetes = ["Médecin", "Quotité", "Demi-journées", ...D.groupes, `Jours hors ${D.mainSite}`, "Jours télétravail", "Astreintes", "Off / absent", "Sans poste"];
+    ws.cell(1, 1, "Statistiques du planning", titre);
+    ws.cell(2, 1, `Du ${fmtDay(D.du)} au ${fmtDay(D.au)} · ${D.nJours} jours ouvrés · ${D.lignes.length} médecins (en demi-journées sauf mention)`);
+    entetes.forEach((t, k) => { ws.cell(4, k + 1, t, hd); ws.width(k + 1, k ? 12 : 11); });
+    ws.height(4, 42);
+    D.lignes.forEach((l, i) => {
+      const v = [l.ini, l.q || "", l.total, ...D.groupes.map((g) => l.g[g] || 0), l.hors, l.tt, l.astr, l.absent, l.dispo];
+      v.forEach((x, k) => ws.cell(5 + i, k + 1, x, k === 0 ? nom : k === 1 && x ? { ...cel, num: "0%" } : cel));
+    });
+    const fin = 4 + D.lignes.length;
+    ws.cell(fin + 1, 1, "Total", nom);
+    for (let k = 3; k <= entetes.length; k++) ws.cell(fin + 1, k, { f: `SUM(${numToCol(k)}5:${numToCol(k)}${fin})` }, { ...cel, font: { b: true } });
+    ws.freeze = "B5";
+    // 2. couverture des postes
+    const wc = wb.add("Couverture");
+    wc.cell(1, 1, "Couverture des postes", titre); wc.cell(2, 1, `Du ${fmtDay(D.du)} au ${fmtDay(D.au)}`);
+    ["Poste", "Demi-journées ouvertes", "Pourvues", "Taux"].forEach((t, k) => { wc.cell(4, k + 1, t, hd); wc.width(k + 1, k ? 14 : 34); });
+    D.cov.forEach((c, i) => { wc.cell(5 + i, 1, c.label, nom); wc.cell(5 + i, 2, c.opened, cel); wc.cell(5 + i, 3, c.filled, cel); wc.cell(5 + i, 4, c.opened ? c.filled / c.opened : 1, { ...cel, num: "0%" }); });
+    // 3. contrôle des règles
+    const wk = wb.add("Contrôles");
+    wk.cell(1, 1, "Contrôle des règles", titre); wk.cell(2, 1, `Du ${fmtDay(D.du)} au ${fmtDay(D.au)}`);
+    ["Niveau", "Détail"].forEach((t, k) => wk.cell(4, k + 1, t, hd)); wk.width(1, 12); wk.width(2, 110);
+    D.checks.forEach(([lv, t], i) => { wk.cell(5 + i, 1, lv, cel); wk.cell(5 + i, 2, t, { border: "thin", wrap: true }); });
+    saveFile(await wb.build(), `statistiques_${toInput(D.du)}_au_${toInput(D.au)}.xlsx`, XLSX_TYPE);
+    setMsg(msg, "");
+  } catch (e) { console.error(e); setMsg(msg, "Export impossible : " + e.message, "err"); }
+});
 $("statPer").addEventListener("change", (e) => { S.statPer = { mode: e.target.value === "tout" || e.target.value === "perso" ? e.target.value : +e.target.value, du: S.statBornes && S.statBornes[0], au: S.statBornes && S.statBornes[1] }; renderStats(); });
 for (const id of ["statDu", "statAu"]) $(id).addEventListener("change", () => {
   const du = fromInput($("statDu").value), au = fromInput($("statAu").value);
