@@ -131,6 +131,13 @@ with sync_playwright() as p:
     # fichier qui n'est pas une fiche RCP
     pg.set_input_files("#upRcp", PLANNING); pg.wait_for_function("document.querySelector('#rcpMsg').innerText.includes('Non lu')", timeout=8000)
     B.ok("PDF" in pg.inner_text("#rcpMsg"), "fichier non PDF refusé avec un message clair")
+    # apparence choisie sur l'appareil
+    pg.evaluate("location.hash = '#cal'"); pg.wait_for_selector("#appCard")
+    pg.click('#appCard [data-pal="bleu"]'); pg.click('#appCard [data-mode="dark"]')
+    ap = pg.evaluate("[document.documentElement.dataset.pal, document.documentElement.dataset.mode, JSON.parse(localStorage.getItem('planning-radio-apparence')), getComputedStyle(document.documentElement).getPropertyValue('--head').trim()]")
+    B.ok(ap[0] == "bleu" and ap[1] == "dark" and ap[2] == {"pal": "bleu", "mode": "dark"} and ap[3] == "#1a3560", f"apparence : palette et mode retenus sur l'appareil ({ap})")
+    pg.click('#appCard [data-pal="vert"]'); pg.click('#appCard [data-mode="auto"]')
+    B.ok(pg.evaluate("!document.documentElement.dataset.pal && !document.documentElement.dataset.mode"), "apparence : retour aux réglages par défaut")
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)

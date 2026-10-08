@@ -6,28 +6,56 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Planning radio">
 <meta name="theme-color" content="#0e5a63">
+<script>
+// Apparence choisie sur cet appareil : palette (bandeau + fond) et mode clair / sombre / automatique
+try { const a = JSON.parse(localStorage.getItem("planning-radio-apparence") || "{}");
+  if (a.pal && a.pal !== "vert") document.documentElement.dataset.pal = a.pal;
+  if (a.mode === "light" || a.mode === "dark") document.documentElement.dataset.mode = a.mode; } catch (e) { /* réglages par défaut */ }
+</script>
 <title>Planning radiologie</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <link rel="icon" type="image/png" href="favicon-32.png">
 <style>
 :root {
-  --bg: #f4f6f5; --panel: #ffffff; --ink: #13201f; --muted: #5e6b6a; --line: #e2e7e6; --soft: #edf1f0;
+  --bg: #d9e9e7; --panel: #ffffff; --ink: #13201f; --muted: #5e6b6a; --line: #c3d8d5; --soft: #edf1f0;
   --accent: #0e5a63; --accent-2: #0e5a63; --accent-ink: #ffffff; --ok: #2f7d3a; --warn: #b3541e; --err: #b42318;
   --closed-bg: #fbe3dc; --closed-ink: #b42318; --part-bg: #fce9d9; --s1: #0e7c86; --s2: #6a4bc4; --s3: #e46a1c;
-  --rem1: #ece6fb; --rem2: #fde7d7; --off: #e8eceb; --today: #fff4cf; --focus: #0e7c86; --shadow: 0 1px 0 rgba(0,0,0,.04);
+  --rem1: #ece6fb; --rem2: #fde7d7; --off: #e8eceb; --today: #fff4cf; --focus: #0e7c86; --shadow: 0 1px 2px rgba(0,0,0,.10);
   /* couleur de chaque site : principal, 2e, 3e (même ordre que l'onglet Sites du classeur) */
   --site0: #0e7c86; --site1: #6a4bc4; --site2: #e46a1c; --site-tt: #3d6fb6; --rcp: #c2185b; --astr: #d35400; --head: #0e5a63; --head-ink: #ffffff; --head-mark: #ffd34d;
 }
+/* thèmes au choix (Calendrier → Apparence) : couleur du bandeau + fond assorti */
+html[data-pal="bleu"] { --head: #1f4e8c; --accent: #1f4e8c; --accent-2: #1f4e8c; --focus: #1f4e8c; --bg: #dde7f3; --line: #c6d5ea; }
+html[data-pal="bordeaux"] { --head: #8c1c3a; --accent: #8c1c3a; --accent-2: #8c1c3a; --focus: #8c1c3a; --bg: #f6e3e7; --line: #ebcbd3; }
+html[data-pal="violet"] { --head: #4b3a8c; --accent: #4b3a8c; --accent-2: #4b3a8c; --focus: #4b3a8c; --bg: #e8e3f5; --line: #d4cbec; }
+html[data-pal="ardoise"] { --head: #36454f; --accent: #36454f; --accent-2: #36454f; --focus: #36454f; --bg: #e4e7ea; --line: #d0d5da; }
+html[data-pal="terracotta"] { --head: #a3472a; --accent: #a3472a; --accent-2: #a3472a; --focus: #a3472a; --bg: #f6e6dc; --line: #ebd2c2; }
 @media (prefers-color-scheme: dark) {
-  :root {
+  html:not([data-mode="light"]) {
     --bg: #111817; --panel: #1a2322; --ink: #e6eeed; --muted: #97a6a4; --line: #2a3634; --soft: #23302e;
     --accent: #5cc6cf; --accent-2: #5cc6cf; --accent-ink: #0b1716; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
     --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --s1: #2f9aa3; --s2: #8a6fe0; --s3: #e8833f;
     --rem1: #2e2748; --rem2: #4a2f1e; --off: #222c2b; --today: #3a3420; --focus: #5cc6cf; --shadow: none;
-    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --site-tt: #4f82c9; --rcp: #d81b60; --astr: #e8762b; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;
-  }
+    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --site-tt: #4f82c9; --rcp: #d81b60; --astr: #e8762b; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;}
 }
+html[data-mode="dark"] {
+    --bg: #111817; --panel: #1a2322; --ink: #e6eeed; --muted: #97a6a4; --line: #2a3634; --soft: #23302e;
+    --accent: #5cc6cf; --accent-2: #5cc6cf; --accent-ink: #0b1716; --ok: #7cc36a; --warn: #f0a36c; --err: #ff8a80;
+    --closed-bg: #4a2320; --closed-ink: #ffb4a9; --part-bg: #4a3522; --s1: #2f9aa3; --s2: #8a6fe0; --s3: #e8833f;
+    --rem1: #2e2748; --rem2: #4a2f1e; --off: #222c2b; --today: #3a3420; --focus: #5cc6cf; --shadow: none;
+    --site0: #2f9aa3; --site1: #7c62d6; --site2: #e07a34; --site-tt: #4f82c9; --rcp: #d81b60; --astr: #e8762b; --head: #0c3f45; --head-ink: #ffffff; --head-mark: #ffd34d;}
+@media (prefers-color-scheme: dark) { html[data-pal="bleu"]:not([data-mode="light"]) { --head: #1a3560; --accent: #7fb0ec; --accent-2: #7fb0ec; --focus: #7fb0ec; } }
+html[data-pal="bleu"][data-mode="dark"] { --head: #1a3560; --accent: #7fb0ec; --accent-2: #7fb0ec; --focus: #7fb0ec; }
+@media (prefers-color-scheme: dark) { html[data-pal="bordeaux"]:not([data-mode="light"]) { --head: #5c1428; --accent: #f08fa8; --accent-2: #f08fa8; --focus: #f08fa8; } }
+html[data-pal="bordeaux"][data-mode="dark"] { --head: #5c1428; --accent: #f08fa8; --accent-2: #f08fa8; --focus: #f08fa8; }
+@media (prefers-color-scheme: dark) { html[data-pal="violet"]:not([data-mode="light"]) { --head: #33285e; --accent: #b3a2f0; --accent-2: #b3a2f0; --focus: #b3a2f0; } }
+html[data-pal="violet"][data-mode="dark"] { --head: #33285e; --accent: #b3a2f0; --accent-2: #b3a2f0; --focus: #b3a2f0; }
+@media (prefers-color-scheme: dark) { html[data-pal="ardoise"]:not([data-mode="light"]) { --head: #263038; --accent: #a9bac6; --accent-2: #a9bac6; --focus: #a9bac6; } }
+html[data-pal="ardoise"][data-mode="dark"] { --head: #263038; --accent: #a9bac6; --accent-2: #a9bac6; --focus: #a9bac6; }
+@media (prefers-color-scheme: dark) { html[data-pal="terracotta"]:not([data-mode="light"]) { --head: #6e2f1c; --accent: #f0a585; --accent-2: #f0a585; --focus: #f0a585; } }
+html[data-pal="terracotta"][data-mode="dark"] { --head: #6e2f1c; --accent: #f0a585; --accent-2: #f0a585; --focus: #f0a585; }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; -webkit-text-size-adjust: 100%; }
@@ -43,10 +71,12 @@ nav.tabs::-webkit-scrollbar { display: none; }
 nav.tabs a { flex: 0 0 auto; padding: 10px 12px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 3px solid transparent; }
 nav.tabs a[aria-current=page] { color: var(--accent-2); border-bottom-color: var(--accent-2); }
 .demo { background: #fff4d6; color: #6b4e00; font-size: 13px; padding: 7px 0; border-bottom: 1px solid #f0dca0; }
-@media (prefers-color-scheme: dark) { .demo { background: #3a3218; color: #f3d98a; border-color: #5a4c20; } }
+@media (prefers-color-scheme: dark) { html:not([data-mode="light"]) .demo { background: #3a3218; color: #f3d98a; border-color: #5a4c20; } }
+html[data-mode="dark"] .demo { background: #3a3218; color: #f3d98a; border-color: #5a4c20; }
 .demo .wrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .offline { background: #e8ecf3; color: #33415c; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--line); }
-@media (prefers-color-scheme: dark) { .offline { background: #232b38; color: #c7d2e5; } }
+@media (prefers-color-scheme: dark) { html:not([data-mode="light"]) .offline { background: #232b38; color: #c7d2e5; } }
+html[data-mode="dark"] .offline { background: #232b38; color: #c7d2e5; }
 main { padding: 18px 0 70px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
 .card h2 { font-size: 16px; margin: 0 0 4px; }
@@ -176,7 +206,8 @@ nav.tabs a[aria-current=page] { color: #fff; border-bottom-color: var(--head-mar
 main { padding-top: 22px; }
 .card { border: 0; border-radius: 16px; }
 .card h2 { font-size: 19px; font-weight: 800; }
-@media (prefers-color-scheme: dark) { .card { border: 1px solid var(--line); } }
+@media (prefers-color-scheme: dark) { html:not([data-mode="light"]) .card { border: 1px solid var(--line); } }
+html[data-mode="dark"] .card { border: 1px solid var(--line); }
 button.b, a.b, label.b { border-radius: 999px; }
 input[type=date], input[type=time], input[type=number], input[type=text], input[type=email], input[type=password], input[type=search], select, textarea { border-radius: 12px; }
 textarea { border-radius: 10px; }
@@ -185,7 +216,8 @@ textarea { border-radius: 10px; }
 .banner { border-radius: 12px; }
 .week-h { color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 17px; font-weight: 800; margin: 26px 2px 10px; }
 .day { border: 0; border-radius: 16px; grid-template-columns: 54px 1fr; gap: 14px; padding: 12px; margin-bottom: 8px; box-shadow: var(--shadow); }
-@media (prefers-color-scheme: dark) { .day { border: 1px solid var(--line); } }
+@media (prefers-color-scheme: dark) { html:not([data-mode="light"]) .day { border: 1px solid var(--line); } }
+html[data-mode="dark"] .day { border: 1px solid var(--line); }
 .day .date { background: var(--soft); border-radius: 12px; text-align: center; padding: 6px 0 7px; font-size: 12px; font-weight: 700; color: var(--muted); align-self: start; }
 .day:has(.slot:not(.off)) .date { background: var(--site0); color: rgba(255,255,255,.88); }
 .day:has(.site.r1) .date { background: var(--site1); }
@@ -303,6 +335,11 @@ table.astg td.qd { white-space: nowrap; }
 .astrbar { box-shadow: 0 -6px 10px -6px rgba(0,0,0,.15); border-radius: 10px; padding: 8px 10px; }
 table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width: auto; }
 .tag.tS { background: var(--line); } .tag.tW { background: var(--site-tt); color: #fff; } .tag.tF { background: var(--warn); color: #fff; }
+/* Apparence */
+.pals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 10px; }
+.pals button { border: 2px solid transparent; border-radius: 12px; padding: 0; overflow: hidden; cursor: pointer; background: none; text-align: left; }
+.pals button[aria-pressed="true"] { border-color: var(--ink); }
+.pals .ph { display: block; height: 22px; } .pals .pb { display: block; padding: 4px 8px 6px; font-size: 12px; font-weight: 600; color: #13201f; }
 /* Général et Qui est posté : en-têtes compacts */
 #vGeneral > .card, #vQui > .card { padding: 12px 12px; }
 #vGeneral h2, #vQui h2 { font-size: 18px; margin: 0 0 2px; }
@@ -1402,6 +1439,34 @@ function renderMon() {
 }
 
 // Onglet Calendrier : abonnement (mise à jour automatique) ou import ponctuel du mois
+// ------------------------------------------------------------ Apparence (propre à cet appareil)
+const PALETTES = [["vert", "Vert", "#0e5a63", "#d9e9e7"], ["bleu", "Bleu", "#1f4e8c", "#dde7f3"], ["bordeaux", "Bordeaux", "#8c1c3a", "#f6e3e7"],
+  ["violet", "Violet", "#4b3a8c", "#e8e3f5"], ["ardoise", "Ardoise", "#36454f", "#e4e7ea"], ["terracotta", "Terracotta", "#a3472a", "#f6e6dc"]];
+const APP_KEY = "planning-radio-apparence";
+function lireApparence() { try { return { pal: "vert", mode: "auto", ...JSON.parse(localStorage.getItem(APP_KEY) || "{}") }; } catch (e) { return { pal: "vert", mode: "auto" }; } }
+function appliquerApparence(a) {
+  const h = document.documentElement;
+  if (a.pal && a.pal !== "vert") h.dataset.pal = a.pal; else delete h.dataset.pal;
+  if (a.mode === "light" || a.mode === "dark") h.dataset.mode = a.mode; else delete h.dataset.mode;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = getComputedStyle(h).getPropertyValue("--head").trim() || "#0e5a63";
+}
+function apparenceHtml() {
+  const a = lireApparence();
+  return `<div class="card" id="appCard"><h2>Apparence</h2>
+    <p class="sub">Couleurs de l'application sur cet appareil uniquement. Les couleurs des sites, RCP et astreintes restent les mêmes pour tous.</p>
+    <div class="pals">${PALETTES.map(([k, nom, h, bg]) => `<button type="button" data-pal="${k}" aria-pressed="${a.pal === k}"><span class="ph" style="background:${h}"></span><span class="pb" style="background:${bg}">${nom}</span></button>`).join("")}</div>
+    <div class="seg" role="group" aria-label="Mode">${[["auto", "Automatique"], ["light", "Clair"], ["dark", "Sombre"]].map(([k, l]) => `<button type="button" data-mode="${k}" aria-pressed="${a.mode === k}">${l}</button>`).join("")}</div>
+    <p class="small muted" style="margin:6px 0 0">Automatique : clair ou sombre selon le réglage de l'iPhone.</p></div>`;
+}
+function brancherApparence() {
+  const c = $("appCard"); if (!c) return;
+  const maj = (chg) => { const a = { ...lireApparence(), ...chg }; try { localStorage.setItem(APP_KEY, JSON.stringify(a)); } catch (e) { /* non retenu */ } appliquerApparence(a); renderCal(); };
+  c.querySelectorAll("[data-pal]").forEach((b) => b.onclick = () => maj({ pal: b.dataset.pal }));
+  c.querySelectorAll("[data-mode]").forEach((b) => b.onclick = () => maj({ mode: b.dataset.mode }));
+}
+appliquerApparence(lireApparence());
+
 function renderCal() {
   const v = $("vCal");
   const pub = S.published;
@@ -1427,7 +1492,9 @@ function renderCal() {
   if (!estInstalle() && (isIOS || isAndroid)) html += `<div class="card"><h2>Planning radio sur l'écran d'accueil</h2>
       <p class="sub">Une icône sur votre téléphone pour ouvrir le planning en un geste, même sans réseau.</p>
       <button class="b" id="calInstall" type="button">Voir comment faire</button></div>`;
+  html += apparenceHtml();
   v.innerHTML = html;
+  brancherApparence();
   if ($("calWho")) $("calWho").onclick = openWho;
   if ($("calInstall")) $("calInstall").onclick = openInstall;
   if (S.me && pub) fillSubscription(S.me);
