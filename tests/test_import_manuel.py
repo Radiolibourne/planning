@@ -103,6 +103,22 @@ with sync_playwright() as p:
     sem = pg.evaluate("""() => ({ ths: [...document.querySelectorAll('#genBody table.sem thead th')].map((x) => x.innerText.split('\\n')[0]),
       ast: (document.querySelector('#genBody tr.ast') || {}).innerText || '', tt: document.querySelectorAll('#genBody table.sem i.tt').length })""")
     B.ok(sem["ths"] == ["Poste", "Lun", "Mar", "Mer", "Jeu", "Ven"] and "IA" in sem["ast"] and sem["tt"] > 0, f"Général, vue Semaine ({sem})")
+    # statistiques et export par période
+    pg.evaluate("location.hash = '#admin'"); pg.wait_for_selector("#statCard:not([hidden]) #statPer option", state="attached", timeout=8000)
+    pg.select_option("#statPer", label="décembre 2026"); pg.wait_for_function("document.querySelector('#statSub').innerText.startsWith('Du 07/12/2026 au 11/12/2026')", timeout=5000)
+    tout = pg.evaluate("S.published.jours.length")
+    B.ok("(5 jours ouvrés)" in pg.inner_text("#statSub") and pg.input_value("#statDu") == "2026-12-07", f"statistiques : un mois choisi ({pg.inner_text('#statSub')[:60]})")
+    pg.fill("#statDu", "2026-11-03"); pg.fill("#statAu", "2026-11-05"); pg.dispatch_event("#statAu", "change")
+    pg.wait_for_function("document.querySelector('#statSub').innerText.includes('(3 jours ouvrés)')", timeout=5000)
+    B.ok(pg.input_value("#statPer") == "perso", "statistiques : dates choisies")
+    with pg.expect_download() as dl:
+        pg.click("#statXlsx")
+    B.ok(dl.value.suggested_filename == "planning_radiologie_2026-11-03_au_2026-11-05.xlsx", f"export Excel de la période ({dl.value.suggested_filename})")
+    from openpyxl import load_workbook as _lw
+    chemin = os.path.join(SORTIE, "periode.xlsx"); dl.value.save_as(chemin)
+    wbp = _lw(chemin); ws = wbp["Planning par poste"] if "Planning par poste" in wbp.sheetnames else wbp.worksheets[0]
+    dates = {c.value.date() for row in ws.iter_rows() for c in row if isinstance(c.value, dt.datetime)}
+    B.ok(dates == {dt.date(2026, 11, 3), dt.date(2026, 11, 4), dt.date(2026, 11, 5)}, f"l'Excel ne contient que la période ({sorted(dates)})")
     v = pg.evaluate("""() => { const a = { ...S.published, jours: [100, 101], start: 100, end: 101, cases: { '100_M_SCAN': 'DA' }, statuts: {}, semaines: [{ lundi: mondayOf(100), type: 'A' }] };
         const n = fusionnerPublies(a, S.published, todayDay()); return n.jours.includes(100); }""")
     B.ok(v is False, "jours publiés très anciens retirés")

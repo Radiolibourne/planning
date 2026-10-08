@@ -68,7 +68,7 @@ CALCUL = """async (b64) => {
   const P = readParams(await readXlsx(bytes.buffer));
   P.start = dayFromYMD(2026, 11, 2); P.end = dayFromYMD(2026, 11, 27);
   const pr = buildProblem(P);
-  const R = await solve(pr, 12);
+  const R = await solve(pr, 60, undefined, 12345, 3000000);   // nombre d'itérations fixé : même résultat sur toute machine
   const items = checks(pr, R);
   const draft = draftFromResult(pr, R);
   const xl = await exportPlanning(pr, R, items, {});

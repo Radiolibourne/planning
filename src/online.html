@@ -579,7 +579,12 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
       <div class="card" id="statCard" hidden>
         <h2>Statistiques</h2>
         <p class="sub" id="statSub"></p>
-        <div class="row" style="margin-bottom:12px"><button class="b" type="button" id="statXlsx">Excel complet (avec synthèse et contrôles)</button></div>
+        <div class="row" style="margin-bottom:8px;align-items:flex-end">
+          <label class="f" style="min-width:150px">Période<select id="statPer"></select></label>
+          <label class="f">Du<input type="date" id="statDu"></label>
+          <label class="f">au<input type="date" id="statAu"></label>
+        </div>
+        <div class="row" style="margin-bottom:12px"><button class="b" type="button" id="statXlsx">Excel de la période (avec synthèse et contrôles)</button></div>
         <div class="tablewrap" id="statTable"></div>
         <div class="grid2" style="margin-top:16px">
           <div><h3 style="margin-top:0">Couverture des postes</h3><div class="cov" id="statCov"></div></div>
@@ -1983,17 +1988,18 @@ async function enregistrerAstrRes() {
   else setMsg(msg, $("regFormMsg").textContent || "Enregistrement impossible.", "err");
 }
 // Médecins : le planning seul. Administrateurs (onglet Statistiques) : version complète avec synthèse et contrôles.
-async function downloadPublishedXlsx(msgEl, complet = false) {
+async function downloadPublishedXlsx(msgEl, complet = false, periode = null) {
   const pub = S.published;
   if (!pub || !S.P) return;
   setMsg(msgEl, "Préparation du fichier…");
   try {
-    const pr = problemFor(pub.start, pub.end);
+    const [du, au] = periode ? [Math.max(pub.start, periode[0]), Math.min(pub.end, periode[1])] : [pub.start, pub.end];
+    const pr = problemFor(du, au);
     if (pub.notes) pr.notes = new Map(Object.keys(pub.notes).map((d) => [+d, notesDuJour(pub, d)]).filter(([, t]) => t.length));
     const R = { assign: assignFromDraft(pr, pub), iterations: 0 };
     const bytes = await exportPlanning(pr, R, checks(pr, R), { equipe: !complet, icsHint: "Chaque médecin retrouve son planning et son calendrier iPhone sur le site du planning." });
-    const x = ymd(pub.start);
-    saveFile(bytes, `planning_radiologie_${x.y}-${pad2(x.m)}.xlsx`, XLSX_TYPE);
+    const x = ymd(du);
+    saveFile(bytes, periode ? `planning_radiologie_${toInput(du)}_au_${toInput(au)}.xlsx` : `planning_radiologie_${x.y}-${pad2(x.m)}.xlsx`, XLSX_TYPE);
     setMsg(msgEl, "");
   } catch (e) { console.error(e); setMsg(msgEl, "Export impossible : " + e.message, "err"); }
 }
@@ -2731,9 +2737,25 @@ function renderStats() {
   const pub = S.published;
   $("statCard").hidden = !pub;
   if (!pub) return;
-  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}`;
+  // période : tout le planning publié par défaut, ou un mois, ou des dates choisies (bornées au planning publié)
+  const mois = [...new Set(pub.jours.map(moisDeJour))];
+  const bornes = (m) => { const y = Math.floor(m / 100), mm = m % 100; return [dayFromYMD(y, mm, 1), (mm === 12 ? dayFromYMD(y + 1, 1, 1) : dayFromYMD(y, mm + 1, 1)) - 1]; };
+  if (!S.statPer || (S.statPer.mode !== "perso" && S.statPer.mode !== "tout" && !mois.includes(+S.statPer.mode))) S.statPer = { mode: "tout" };
+  let [du, au] = S.statPer.mode === "tout" ? [pub.start, pub.end] : S.statPer.mode === "perso" ? [S.statPer.du, S.statPer.au] : bornes(+S.statPer.mode);
+  du = Math.max(pub.start, du ?? pub.start); au = Math.min(pub.end, au ?? pub.end);
+  if (au < du) au = du;
+  const joursP = pub.jours.filter((d) => d >= du && d <= au);
+  if (joursP.length) { du = joursP[0]; au = joursP[joursP.length - 1]; }
+  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}|${du}|${au}|${S.statPer.mode}|${(S.P && S.P.astreintes || []).length}`;
   if (sig === statsSig) return;
   statsSig = sig;
+  S.statBornes = [du, au];
+  $("statPer").innerHTML = `<option value="tout">Tout le planning publié</option>${mois.map((m) => `<option value="${m}">${libMoisNum(m)}</option>`).join("")}<option value="perso">Dates choisies</option>`;
+  $("statPer").value = String(S.statPer.mode);
+  $("statDu").value = toInput(du); $("statAu").value = toInput(au);
+  $("statDu").min = $("statAu").min = toInput(pub.start); $("statDu").max = $("statAu").max = toInput(pub.end);
+  const astr = astreintesConnues(), nAstr = {};
+  for (const [d, qui] of astr) if (d >= du && d <= au) for (const q of qui) nAstr[q.toUpperCase()] = (nAstr[q.toUpperCase()] || 0) + 1;
   const P = S.P;
   const groupe = (code) => { const base = String(code).replace(/-TT$/, ""); return (P && P.postes[base] && P.postes[base].group) || (pub.postes[code] && pub.postes[code].label) || code; };
   const pd = perDoctor(pub), inis = [...new Set([...(pub.medecins || []), ...Object.keys(pd)])];
@@ -2743,7 +2765,7 @@ function renderStats() {
     const g = Object.fromEntries(groupes.map((x) => [x, 0]));
     let total = 0, absent = 0, dispo = 0;
     const horsSite = new Set(), tt = new Set();
-    for (const d of pub.jours) for (const h of HALVES) {
+    for (const d of joursP) for (const h of HALVES) {
       const c = m[`${d}_${h}`];
       if (c && c.code) {
         total++; g[groupe(c.code)]++;
@@ -2753,22 +2775,28 @@ function renderStats() {
       else dispo++;
     }
     const q = P && P.docs[ini] ? P.docs[ini].quotite : null;
-    return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo };
+    return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo, astr: nAstr[ini.toUpperCase()] || 0 };
   }).filter((l) => l.total || l.absent).sort((a, b) => a.ini.localeCompare(b.ini));
-  $("statSub").textContent = `${pub.titre.replace("Planning du service de radiologie — ", "Planning publié : ")} · ${lignes.length} médecins. Visible par les administrateurs uniquement ; l'Excel des médecins ne contient que le planning.`;
+  $("statSub").textContent = `Du ${fmtDay(du)} au ${fmtDay(au)} (${joursP.length} jours ouvrés) · ${lignes.length} médecins. Visible par les administrateurs uniquement ; l'Excel des médecins ne contient que le planning.`;
   const th = (t) => `<th>${esc(t)}</th>`;
-  $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
-    ${lignes.map((l) => `<tr><td class="lead">${esc(l.ini)}</td><td>${l.q ? Math.round(l.q * 100) + " %" : "—"}</td><td><b>${l.total}</b></td>${groupes.map((x) => `<td>${l.g[x] || ""}</td>`).join("")}<td>${l.hors || ""}</td><td>${l.tt || ""}</td><td>${l.absent || ""}</td><td>${l.dispo || ""}</td></tr>`).join("")}</tbody></table>`;
+  $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Astreintes")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
+    ${lignes.map((l) => `<tr><td class="lead">${esc(l.ini)}</td><td>${l.q ? Math.round(l.q * 100) + " %" : "—"}</td><td><b>${l.total}</b></td>${groupes.map((x) => `<td>${l.g[x] || ""}</td>`).join("")}<td>${l.hors || ""}</td><td>${l.tt || ""}</td><td>${l.astr || ""}</td><td>${l.absent || ""}</td><td>${l.dispo || ""}</td></tr>`).join("")}</tbody></table>`;
   if (P) {
     try {
-      const pr = problemFor(pub.start, pub.end), R = { assign: assignFromDraft(pr, pub), iterations: 0 };
+      const pr = problemFor(du, au), R = { assign: assignFromDraft(pr, pub), iterations: 0 };
       $("statCov").innerHTML = coverage(pr, R).map((c) => { const pct = c.opened ? Math.round(100 * c.filled / c.opened) : 100;
         return `<div>${esc(c.label)}</div><div class="meter ${pct < 60 ? "low" : pct < 90 ? "mid" : ""}"><div style="width:${pct}%"></div></div><div class="pct">${pct} %</div>`; }).join("");
       $("statChecks").innerHTML = checks(pr, R).map(([lv, t]) => `<li><span class="lvl ${lv}">${lv}</span><span>${esc(t)}</span></li>`).join("");
     } catch (e) { $("statChecks").innerHTML = `<li>${esc(e.message)}</li>`; }
   }
 }
-$("statXlsx").addEventListener("click", () => downloadPublishedXlsx($("statMsg"), true));
+$("statXlsx").addEventListener("click", () => downloadPublishedXlsx($("statMsg"), true, S.statBornes));
+$("statPer").addEventListener("change", (e) => { S.statPer = { mode: e.target.value === "tout" || e.target.value === "perso" ? e.target.value : +e.target.value, du: S.statBornes && S.statBornes[0], au: S.statBornes && S.statBornes[1] }; renderStats(); });
+for (const id of ["statDu", "statAu"]) $(id).addEventListener("change", () => {
+  const du = fromInput($("statDu").value), au = fromInput($("statAu").value);
+  if (du === null || au === null) return;
+  S.statPer = { mode: "perso", du: Math.min(du, au), au: Math.max(du, au) }; renderStats();
+});
 
 // ------------------------------------------------------------ Règles et postes : autres onglets du classeur
 const REGLES = [

@@ -716,7 +716,8 @@ function proposeChange(st, d, s, p, rng) {
   return changes;
 }
 
-async function solve(pr, timeLimitSec, onProgress, seed = 12345) {
+// maxIter (facultatif) : nombre d'itérations fixé au lieu du temps (résultat identique sur toute machine, pour les tests)
+async function solve(pr, timeLimitSec, onProgress, seed = 12345, maxIter = null) {
   const rng = makeRng(seed);
   const st = new State(pr);
   const { D, S, docs } = pr;
@@ -753,8 +754,8 @@ async function solve(pr, timeLimitSec, onProgress, seed = 12345) {
 
   while (true) {
     const el = performance.now() - t0;
-    if (el > limit) break;
-    const frac = el / limit;
+    const frac = maxIter ? it / maxIter : el / limit;
+    if (frac >= 1) break;
     // plusieurs cycles de refroidissement
     const cyc = (frac * 3) % 1;
     const T = T0 * Math.pow(T1 / T0, cyc);
