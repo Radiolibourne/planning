@@ -8,8 +8,14 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      veille:
+        description: "Tester la veille (enregistre un signe d'activité tout de suite)"
+        type: boolean
+        default: false
   schedule:
     - cron: "17 * * * *"
+    - cron: "41 5 1,15 * *"   # veille : empêche la mise en pause des tâches planifiées (voir job « veille »)
 
 permissions:
   contents: read
@@ -108,3 +114,26 @@ jobs:
           CODE_EQUIPE: ${{ secrets.CODE_EQUIPE }}
           ADMIN_UID: ${{ secrets.ADMIN_UID }}
         run: python outils/notifications.py
+
+  # Veille : GitHub met en pause les tâches planifiées d'un dépôt public après 60 jours sans modification.
+  # Le 1er et le 15 du mois, si le dernier envoi date de plus de 25 jours, un petit fichier daté est mis à jour
+  # et envoyé : le dépôt reste « actif », calendriers et notifications continuent sans intervention.
+  veille:
+    if: (github.event_name == 'schedule' && github.event.schedule == '41 5 1,15 * *') || (github.event_name == 'workflow_dispatch' && inputs.veille)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Signe d'activité si besoin
+        run: |
+          dernier=$(git log -1 --format=%ct)
+          age=$(( ( $(date +%s) - dernier ) / 86400 ))
+          echo "Dernière modification il y a $age jour(s)."
+          if [ "$age" -lt 25 ] && [ "${{ inputs.veille }}" != "true" ]; then exit 0; fi
+          date -u +"%Y-%m-%d %H:%M UTC" > .github/veille.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/veille.txt
+          git commit -m "Veille automatique : maintien des tâches planifiées (calendriers, notifications)"
+          git push

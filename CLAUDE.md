@@ -90,7 +90,7 @@ Abonnement et import ponctuel se trouvent dans l'onglet **Calendrier** (`renderC
 - `jeton = HMAC-SHA256(code d'équipe, "cal:" + initiales)[:24]` ; la page calcule le même (`calToken`) pour afficher le bouton « S'abonner » (lien `webcal://…`), seulement si le fichier existe déjà.
 - Le code d'équipe vient du **secret GitHub `CODE_EQUIPE`** (Settings → Secrets and variables → Actions). Sans secret, rien n'est produit ; aucune erreur de ce script ne bloque la publication du site (avertissement seulement).
 - Mêmes UID d'événements que l'import ponctuel (`buildIcs`) : les deux doivent rester alignés (test `test_firebase.py`).
-- GitHub désactive les tâches planifiées d'un dépôt public après 60 jours sans activité : dans ce cas, réactiver le workflow dans l'onglet Actions (bouton « Enable workflow »).
+- GitHub désactive les tâches planifiées d'un dépôt public après 60 jours sans activité. Le job `veille` du workflow (cron `41 5 1,15 * *`) l'évite : si le dernier commit date de plus de 25 jours, il met à jour `.github/veille.txt` et le pousse (jeton GitHub, `contents: write` pour ce job seul ; un push fait avec ce jeton ne relance pas le workflow). Si malgré tout le workflow est en pause : onglet Actions → « Enable workflow ».
 - Si le code d'équipe change, les adresses changent : chaque médecin doit se réabonner.
 
 ### Notifications (Web Push)
