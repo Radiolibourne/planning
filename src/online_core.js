@@ -620,6 +620,48 @@ function titreMois(start, end) {
   const lab = (m) => MOIS[m % 12], an = (m) => Math.floor(m / 12);
   return m1 === m2 ? `${lab(m1)} ${an(m1)}` : an(m1) === an(m2) ? `${lab(m1)} – ${lab(m2)} ${an(m2)}` : `${lab(m1)} ${an(m1)} – ${lab(m2)} ${an(m2)}`;
 }
+// ---- Archives : un document par mois publié (espaces/{code}/archives/AAAA-MM), conservé sans limite de durée
+const cleMois = (d) => { const x = ymd(d); return `${x.y}-${String(x.m).padStart(2, "0")}`; };
+function extraireMois(doc, cle) {
+  const dans = (d) => cleMois(d) === cle, jourDe = (k) => +String(k).split("_")[0];
+  const jours = (doc.jours || []).filter(dans);
+  if (!jours.length) return null;
+  const out = { mois: cle, jours, start: jours[0], end: jours[jours.length - 1], cases: {}, statuts: {}, notes: {},
+    postes: doc.postes, ordre: doc.ordre, sites: doc.sites, mainSite: doc.mainSite, medecins: doc.medecins,
+    semaines: (doc.semaines || []).filter((w) => jours.some((d) => mondayOf(d) === w.lundi)), publieLe: doc.publieLe || Date.now() };
+  for (const [k, v] of Object.entries(doc.cases || {})) if (dans(jourDe(k))) out.cases[k] = v;
+  for (const [ini, m] of Object.entries(doc.statuts || {})) for (const [k, v] of Object.entries(m)) if (dans(jourDe(k))) (out.statuts[ini] = out.statuts[ini] || {})[k] = v;
+  for (const [k, v] of Object.entries(doc.notes || {})) if (dans(+k)) out.notes[k] = v;
+  return out;
+}
+// Assemble plusieurs plannings (archives puis planning publié) : pour un jour présent dans plusieurs, le dernier l'emporte
+function assemblerPlannings(docs) {
+  const ds = docs.filter((x) => x && x.jours && x.jours.length);
+  if (!ds.length) return null;
+  const jourDe = (k) => +String(k).split("_")[0];
+  const out = { cases: {}, statuts: {}, notes: {}, postes: {}, ordre: [], sites: [], medecins: [], jours: [], semaines: [] };
+  for (const x of ds) {
+    const js = new Set(x.jours);
+    for (const k of Object.keys(out.cases)) if (js.has(jourDe(k))) delete out.cases[k];
+    for (const m of Object.values(out.statuts)) for (const k of Object.keys(m)) if (js.has(jourDe(k))) delete m[k];
+    Object.assign(out.cases, x.cases || {});
+    for (const [ini, m] of Object.entries(x.statuts || {})) out.statuts[ini] = { ...(out.statuts[ini] || {}), ...m };
+    Object.assign(out.notes, x.notes || {});
+    out.postes = { ...out.postes, ...(x.postes || {}) };
+    for (const c of x.ordre || []) if (!out.ordre.includes(c)) out.ordre.push(c);
+    for (const c of x.sites || []) if (!out.sites.includes(c)) out.sites.push(c);
+    out.medecins = [...new Set(out.medecins.concat(x.medecins || []))];
+    out.jours = [...new Set(out.jours.concat(x.jours))];
+    out.mainSite = x.mainSite || out.mainSite;
+    for (const w of x.semaines || []) { const i = out.semaines.findIndex((y) => y.lundi === w.lundi); if (i >= 0) out.semaines[i] = w; else out.semaines.push(w); }
+    out.publieLe = Math.max(out.publieLe || 0, x.publieLe || 0);
+  }
+  out.jours.sort((a, b) => a - b); out.semaines.sort((a, b) => a.lundi - b.lundi);
+  out.start = out.jours[0]; out.end = out.jours[out.jours.length - 1];
+  out.titre = `Planning du service de radiologie — ${titreMois(out.start, out.end)}`;
+  return out;
+}
+
 function fusionnerPublies(ancien, nouveau, aujourdhui) {
   if (!ancien || !ancien.jours || !ancien.jours.length) return nouveau;
   const garde = (d) => (d < nouveau.start || d > nouveau.end) && d >= mondayOf(aujourdhui) - HISTORIQUE_JOURS;

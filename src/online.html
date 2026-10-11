@@ -239,7 +239,7 @@ table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
 /* Admin : cartes repliables, dans l'ordre d'usage */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
-#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #jourCard { order: 6; } #cloCard { order: 4; } #accCard { order: 5; }
+#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #jourCard { order: 6; } #sauvCard { order: 6; } #cloCard { order: 4; } #accCard { order: 5; }
 #medCard { order: 6; } #regCard { order: 7; } #paramCard { order: 8; } #statCard { order: 9; } #rulesCard { order: 10; } #setupCard { order: 11; }
 .pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
 .pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
@@ -674,6 +674,14 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
         <div class="msg" id="astrMsg" role="status"></div>
       </div>
 
+      <div class="card" id="sauvCard">
+        <h2>Sauvegarde</h2>
+        <p class="sub">Tout le planning dans un fichier à garder en lieu sûr (ordinateur, clé USB) : plannings archivés mois par mois, paramètres, absences, astreintes, RCP, comptes et journal. Un rappel est envoyé aux administrateurs tous les 3 mois.</p>
+        <div id="sauvEtat"></div>
+        <div class="row"><button class="b primary" type="button" id="sauvBtn">Télécharger la sauvegarde (.zip)</button></div>
+        <div class="msg" id="sauvMsg" role="status"></div>
+      </div>
+
       <div class="card" id="jourCard">
         <h2>Journal des modifications</h2>
         <p class="sub">Qui a changé quoi et quand (publications, retouches, absences, paramètres, comptes, astreintes, RCP). Visible par les administrateurs uniquement.</p>
@@ -934,7 +942,7 @@ const S = {
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, acces: () => `${base()}/config/acces` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces` };
 
 // ------------------------------------------------------------ hors connexion
 function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
@@ -1091,6 +1099,7 @@ function watchAdminCollections() {
   S.adminUnsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("admins", (l) => { S.admins = l; render(); }, () => { S.admins = []; }));
   S.adminUnsub.push(S.store.watchColl("journal", (l) => { S.journal = l; renderJournal(); }, () => {}));
+  S.adminUnsub.push(S.store.watchColl(PATHS.archives(), (l) => { S.archives = l; archiverManquants(); render(); }, () => {}));
   S.adminUnsub.push(S.store.watchColl("motifs", (l) => { S.motifs = Object.fromEntries(l.map((x) => [x.id, x])); render(); migrerMotifs(); }, () => {}));
 }
 
@@ -1144,6 +1153,7 @@ async function enter(code, silent) {
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.rcp(), (d) => { S.rcp = d; render(); }, () => {}));
+  S.unsub.push(S.store.watchDoc(PATHS.sauvegarde(), (d) => { S.sauvegarde = d; if (S.admin) renderSauvegarde(); }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.astrCfg(), (d) => { S.astrCfg = d; render(); }, () => {}));
   S.unsub.push(S.store.watchColl(PATHS.astrInd(), (l) => { S.astrInd = l; render(); }, () => {}));
   S.unsub.push(S.store.watchColl(PATHS.indispos(), (list) => { S.indispos = list; updateHeader(); render(); }, onErr));
@@ -2193,6 +2203,50 @@ function renderQui() {
 }
 
 // ------------------------------------------------------------ indisponibilités
+// ------------------------------------------------------------ Sauvegarde complète (administrateurs)
+function renderSauvegarde() {
+  const el = $("sauvEtat"); if (!el) return;
+  const d = S.sauvegarde && S.sauvegarde.derniere;
+  const vieille = !d || Date.now() - d > 90 * 86400000;
+  const nMois = (S.archives || []).length;
+  el.innerHTML = `<div class="banner ${vieille ? "warn" : "info"}" style="margin-bottom:8px">${d ? `Dernière sauvegarde le <b>${new Date(d).toLocaleDateString("fr-FR")}</b>${S.sauvegarde.par ? ` par ${esc(S.sauvegarde.par)}` : ""}.` : "<b>Aucune sauvegarde encore faite.</b>"}${vieille ? " Pensez à en télécharger une." : ""}<br><span class="small">${nMois} mois archivé(s) en ligne.</span></div>`;
+}
+function planningsXlsx(complet) {
+  const wb = new XWorkbook();
+  const hd = { font: { b: true, color: "FFFFFF" }, fill: "1F3864", border: "thin", align: "center", wrap: true };
+  const cel = { border: "thin", align: "center" };
+  for (const cle of [...new Set(complet.jours.map(cleMois))]) {
+    const ws = wb.add(cle);
+    const postes = postesAffiches(complet).filter((c) => complet.postes[c]);
+    ["Date", "Jour", "Demi-journée", ...postes.map((c) => libelleCourt(complet.postes[c].label || c))].forEach((t, k) => { ws.cell(1, k + 1, t, hd); ws.width(k + 1, k < 3 ? 12 : 14); });
+    let r = 2;
+    for (const d of complet.jours.filter((x) => cleMois(x) === cle)) for (const h of HALVES) {
+      ws.cell(r, 1, fmtDay(d), cel); ws.cell(r, 2, JC[weekday(d)], cel); ws.cell(r, 3, h === "M" ? "Matin" : "Après-midi", cel);
+      postes.forEach((c, k) => ws.cell(r, 4 + k, caseOuverte(complet, d, h, c) ? texteOccupants(occupants(complet, d, h, c)) || "fermé" : "—", cel));
+      r++;
+    }
+    ws.freeze = "D2";
+  }
+  return wb.build();
+}
+$("sauvBtn").addEventListener("click", async () => {
+  const msg = $("sauvMsg");
+  setMsg(msg, "Préparation…");
+  try {
+    const complet = planningComplet();
+    const tout = { version: 1, faitLe: new Date().toISOString(), par: (S.auth && S.auth.email) || "",
+      publie: S.published, archives: S.archives || [], absences: S.indispos, motifs: S.motifs, saisie: S.saisie, rcp: S.rcp,
+      astreintes: { reglages: S.astrCfg, indisponibilites: S.astrInd }, comptes: S.membres || [], declarations: S.declarations || [], journal: S.journal || [] };
+    const fichiers = [{ name: "sauvegarde.json", data: JSON.stringify(tout) }];
+    if (S.params && S.params.xlsx) fichiers.push({ name: S.params.nom || "parametres.xlsx", data: b64ToBytes(S.params.xlsx) });
+    if (complet) fichiers.push({ name: "plannings_par_mois.xlsx", data: await planningsXlsx(complet) });
+    saveFile(await writeZip(fichiers), `sauvegarde_planning_${toInput(todayDay())}.zip`, "application/zip");
+    await S.store.set(PATHS.sauvegarde(), { derniere: Date.now(), par: (S.auth && S.auth.email) || "" });
+    journaliser("Sauvegarde téléchargée", `${(S.archives || []).length} mois archivés`);
+    setMsg(msg, "Sauvegarde téléchargée. Rangez-la en lieu sûr : elle contient des données personnelles (comptes, absences).", "ok");
+  } catch (e) { console.error(e); setMsg(msg, "Sauvegarde impossible : " + e.message, "err"); }
+});
+
 // ------------------------------------------------------------ Journal des modifications (administrateurs)
 function journaliser(action, detail = "") {
   if (!S.admin || !S.store) return;
@@ -2417,7 +2471,12 @@ function renderAdmin() {
   if (!S.admin) return;
   renderRcpAdmin();
   renderAstrAdmin();
-  if (S.store.mode === "demo" && !S.journalVu) { S.journalVu = true; S.store.watchColl("journal", (l) => { S.journal = l; renderJournal(); }, () => {}); }
+  if (S.store.mode === "demo" && !S.journalVu) {
+    S.journalVu = true;
+    S.store.watchColl("journal", (l) => { S.journal = l; renderJournal(); }, () => {});
+    S.store.watchColl(PATHS.archives(), (l) => { S.archives = l; archiverManquants(); }, () => {});
+  }
+  renderSauvegarde();
   renderJournal();
   // paramètres
   const p = S.params;
@@ -2906,8 +2965,25 @@ const PLIS_OUVERTES = ["genCard", "draftCard", "indCard"];   // ouvertes par dé
 // ------------------------------------------------------------ Statistiques (administrateurs seulement)
 // Calculées sur le planning publié : vacations par médecin et par groupe de postes, déplacements, télétravail.
 let statsSig = "";
+// Planning complet pour les statistiques : archives de tous les mois, puis planning publié
+function planningComplet() {
+  const arch = (S.archives || []).slice().sort((a, b) => String(a.id || a.mois).localeCompare(String(b.id || b.mois)));
+  return assemblerPlannings([...arch, S.published]) || S.published;
+}
+// mois publiés pas encore archivés (planning publié avant l'archivage) : rangés une fois par un administrateur
+let archivageFait = false;
+function archiverManquants() {
+  if (archivageFait || !S.admin || !S.published || !S.archives) return;
+  archivageFait = true;
+  const deja = new Set(S.archives.map((a) => a.id || a.mois));
+  for (const cle of [...new Set(S.published.jours.map(cleMois))]) {
+    if (deja.has(cle)) continue;
+    const a = extraireMois(S.published, cle);
+    if (a) S.store.set(`${PATHS.archives()}/${cle}`, a).catch(() => {});
+  }
+}
 function renderStats() {
-  const pub = S.published;
+  const pub = planningComplet();
   $("statCard").hidden = !pub;
   if (!pub) return;
   // période : tout le planning publié par défaut, ou un mois, ou des dates choisies (bornées au planning publié)
@@ -2919,7 +2995,7 @@ function renderStats() {
   if (au < du) au = du;
   const joursP = pub.jours.filter((d) => d >= du && d <= au);
   if (joursP.length) { du = joursP[0]; au = joursP[joursP.length - 1]; }
-  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}|${du}|${au}|${S.statPer.mode}|${(S.P && S.P.astreintes || []).length}`;
+  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}|${du}|${au}|${S.statPer.mode}|${(S.P && S.P.astreintes || []).length}|${pub.jours.length}`;
   if (sig === statsSig) return;
   statsSig = sig;
   S.statBornes = [du, au];
@@ -3601,6 +3677,10 @@ $("publishBtn").addEventListener("click", async () => {
   setMsg(msg, "Publication…");
   try {
     await S.store.set(PATHS.planning(), doc);
+    for (const cle of [...new Set(S.draft.jours.map(cleMois))]) {   // archive de chaque mois publié (sans limite de durée)
+      const a = extraireMois(doc, cle);
+      if (a) S.store.set(`${PATHS.archives()}/${cle}`, a).catch((e) => console.warn("archive", e));
+    }
     const nCh = Object.values(ch).reduce((n, l) => n + l.length, 0);
     journaliser("Planning publié", `${titreMois(doc.start, doc.end)}${nouveaux ? ` · ${nouveaux} jour(s) nouveaux` : ""}${nCh ? ` · ${nCh} demi-journée(s) modifiée(s) : ${Object.keys(ch).sort().join(", ")}` : ""}`);
     setDraft(null, "");

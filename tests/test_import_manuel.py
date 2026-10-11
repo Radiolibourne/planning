@@ -4,7 +4,7 @@ Import du planning Excel « fait à la main » (un onglet par semaine, lignes = 
 avec des médecins fictifs : cellules fusionnées, « * » = télétravail, Blaye à deux noms, absences « (mat) », astreinte, notes,
 internes ignorés, jour férié.
 """
-import datetime as dt, os
+import datetime as dt, json, os
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 from commun import Bilan, DIST, SORTIE, chromium
@@ -118,6 +118,29 @@ with sync_playwright() as p:
     sem = pg.evaluate("""() => ({ ths: [...document.querySelectorAll('#genBody table.sem thead th')].map((x) => x.innerText.split('\\n')[0]),
       ast: (document.querySelector('#genBody tr.ast') || {}).innerText || '', tt: document.querySelectorAll('#genBody table.sem i.tt').length })""")
     B.ok(sem["ths"] == ["Poste", "Lun", "Mar", "Mer", "Jeu", "Ven"] and "IA" in sem["ast"] and sem["tt"] > 0, f"Général, vue Semaine ({sem})")
+    # archives : un document par mois publié, conservé ; statistiques sur les archives
+    pg.wait_for_function("(S.archives || []).length >= 2", timeout=8000)
+    arch = pg.evaluate("S.archives.map((a) => a.id).sort()")
+    B.ok(arch[:2] == ["2026-11", "2026-12"], f"archives mensuelles créées à la publication ({arch})")
+    pg.evaluate("""() => { const a = extraireMois(S.published, '2026-11'); const j = (d) => d - 153;
+        const vieux = { ...a, mois: '2026-06', jours: a.jours.map(j), start: j(a.start), end: j(a.end), semaines: a.semaines.map((w) => ({ ...w, lundi: j(w.lundi) })),
+          cases: Object.fromEntries(Object.entries(a.cases).map(([k, v]) => { const [d, ...r] = k.split('_'); return [[j(+d), ...r].join('_'), v]; })), statuts: {}, notes: {} };
+        return S.store.set(PATHS.archives() + '/2026-06', vieux); }""")
+    pg.evaluate("location.hash = '#admin'"); pg.wait_for_function("[...document.querySelectorAll('#statPer option')].some((o) => o.textContent === 'juin 2026')", timeout=8000)
+    B.ok(True, "statistiques : un mois ancien (archivé, plus dans le planning publié) reste disponible")
+    # sauvegarde complète
+    with pg.expect_download() as dl:
+        pg.click("#sauvBtn")
+    import zipfile, io
+    chemin_z = os.path.join(SORTIE, "sauvegarde.zip"); dl.value.save_as(chemin_z)
+    z = zipfile.ZipFile(chemin_z); noms = z.namelist()
+    from openpyxl import load_workbook as _lw2
+    feuilles = _lw2(io.BytesIO(z.read("plannings_par_mois.xlsx"))).sheetnames
+    sv = json.loads(z.read("sauvegarde.json"))
+    B.ok("sauvegarde.json" in noms and any(n.endswith(".xlsx") and "parametres" in n for n in noms) and feuilles[:3] == ["2026-06", "2026-11", "2026-12"] and len(sv["archives"]) >= 3,
+         f"sauvegarde : données, paramètres et plannings par mois ({noms}, {feuilles})")
+    pg.wait_for_function("S.sauvegarde && S.sauvegarde.derniere", timeout=8000)
+    B.ok("Dernière sauvegarde le" in pg.inner_text("#sauvEtat"), "date de la dernière sauvegarde affichée")
     # statistiques et export par période
     pg.evaluate("location.hash = '#admin'"); pg.wait_for_selector("#statCard:not([hidden]) #statPer option", state="attached", timeout=8000)
     pg.select_option("#statPer", label="décembre 2026"); pg.wait_for_function("document.querySelector('#statSub').innerText.startsWith('Du 07/12/2026 au 11/12/2026')", timeout=5000)

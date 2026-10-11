@@ -92,8 +92,16 @@ env, etat2 = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos
 B.ok(env == [] and etat2 == etat, "la nuit : rien envoyé, rien perdu")
 env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, etat, ms(2026, 10, 11, 8))
 B.ok(len(env) == 3 and "novembre 2026" in env[0][1]["body"] and env[0][1]["url"] == "./#mon", "publication : tout le monde prévenu le matin")
-env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, etat, ms(2026, 10, 11, 9))
+env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, etat, ms(2026, 10, 11, 9), sauvegarde={"derniere": ms(2026, 10, 1, 9)})
 B.ok(env == [], "publication : pas de doublon")
+# rappel de sauvegarde : aux seuls administrateurs, après 3 mois, une fois par semaine
+abA = abos + [{"_id": "adm_x", "ini": "AD", "uid": "adm"}]
+env, e3 = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abA, dict(etat), ms(2027, 1, 5, 9), admins={"adm"}, sauvegarde={"derniere": ms(2026, 10, 1, 9)})
+B.ok([a["ini"] for a, c in env if c["tag"] == "sauvegarde"] == ["AD"], "sauvegarde : rappel à l'administrateur après 3 mois")
+env, _ = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abA, e3, ms(2027, 1, 8, 9), admins={"adm"}, sauvegarde={"derniere": ms(2026, 10, 1, 9)})
+B.ok(not any(c["tag"] == "sauvegarde" for a, c in env), "sauvegarde : pas plus d'un rappel par semaine")
+env, _ = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abA, dict(etat), ms(2027, 1, 5, 9), admins={"adm"}, sauvegarde={"derniere": ms(2026, 12, 20, 9)})
+B.ok(not any(c["tag"] == "sauvegarde" for a, c in env), "sauvegarde récente : pas de rappel")
 # republication : seuls les médecins dont le planning a changé sont prévenus, avec les jours
 rep = {**pub, "publieLe": 2500, "publication": {"le": 2500, "nouveauxJours": 0, "modifs": {"DB": [f"{jour(2026, 11, 5)}_M", f"{jour(2026, 11, 5)}_AM", f"{jour(2026, 11, 9)}_M"]}}}
 env, e2 = N.planifier(rep, saisie, indispos, decl, abos, dict(etat), ms(2026, 10, 11, 10))
@@ -115,16 +123,17 @@ e0 = {"publieLe": 2000}
 env, _ = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, e0, ms(2026, 10, 19, 9))
 B.ok(len(env) == 1 and "demain soir" in env[0][1]["body"], "rappel en retard : seul le plus récent est envoyé")
 
+RECENTE = {"derniere": ms(2026, 11, 1, 9)}
 # demandes d'absence : nouvelle demande -> administrateurs ; décision -> médecin concerné
 abos2 = [{"_id": "adm_a", "uid": "adm", "ini": "SA"}, {"_id": "u1_a", "uid": "u1", "ini": "DA"}, {"_id": "u2_b", "uid": "u2", "ini": "DB"}]
 ind = [{"_id": "i1", "ini": "DA", "d1": jour(2026, 12, 3), "d2": jour(2026, 12, 4), "motif": "Congés", "statut": "attente", "creeLe": 5000}]
 e1 = {"publieLe": 2000, "decisionsLe": 0, "demandesLe": 0}
-env, e1 = N.planifier({**pub, "publieLe": 2000}, None, ind, [], abos2, e1, ms(2026, 11, 2, 10), admins={"adm"})
+env, e1 = N.planifier({**pub, "publieLe": 2000}, None, ind, [], abos2, e1, ms(2026, 11, 2, 10), admins={"adm"}, sauvegarde=RECENTE)
 B.ok([a["ini"] for a, _ in env] == ["SA"] and "DA" in env[0][1]["body"] and env[0][1]["url"] == "./#admin", "nouvelle demande : seuls les administrateurs sont prévenus")
 ind[0].update(statut="refusee", decideLe=9000, refus="effectif insuffisant")
-env, e1 = N.planifier({**pub, "publieLe": 2000}, None, ind, [], abos2, e1, ms(2026, 11, 2, 11), admins={"adm"})
+env, e1 = N.planifier({**pub, "publieLe": 2000}, None, ind, [], abos2, e1, ms(2026, 11, 2, 11), admins={"adm"}, sauvegarde=RECENTE)
 B.ok([a["ini"] for a, _ in env] == ["DA"] and "refusée" in env[0][1]["body"] and "effectif insuffisant" in env[0][1]["body"], "décision : seul le médecin concerné est prévenu, avec le motif")
-env, e1 = N.planifier({**pub, "publieLe": 2000}, None, ind, [], abos2, e1, ms(2026, 11, 2, 12), admins={"adm"})
+env, e1 = N.planifier({**pub, "publieLe": 2000}, None, ind, [], abos2, e1, ms(2026, 11, 2, 12), admins={"adm"}, sauvegarde=RECENTE)
 B.ok(env == [], "décision : pas de doublon")
 
 # 5. clé publique pour le site

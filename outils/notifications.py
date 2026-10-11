@@ -124,7 +124,7 @@ def heure_paris(maintenant_ms):
     return dt.datetime.fromtimestamp(maintenant_ms / 1000, ZoneInfo("Europe/Paris"))
 
 
-def planifier(publie, saisie, indispos, declarations, abonnements, etat, maintenant_ms, admins=()):
+def planifier(publie, saisie, indispos, declarations, abonnements, etat, maintenant_ms, admins=(), sauvegarde=None):
     """-> (envois [(abonnement, charge)], nouvel état).
     Premier passage : mémorise sans rien envoyer. Rien n'est envoyé la nuit (avant 8 h, après 20 h, heure de Paris) :
     l'envoi attend le premier passage du matin."""
@@ -205,6 +205,16 @@ def planifier(publie, saisie, indispos, declarations, abonnements, etat, mainten
     etat["demandesLe"] = max([dem0] + [x.get("creeLe") or 0 for x in indispos if x.get("statut") == "attente"])
     # on ne garde que les rappels récents (état compact)
     etat["rappels"] = {k: v for k, v in faits.items() if maintenant_ms - v < 120 * JOUR_MS}
+    # 4. sauvegarde : rappel aux administrateurs si la dernière date de plus de 3 mois (au plus une fois par semaine)
+    jour_ms = 86400000
+    derniere = (sauvegarde or {}).get("derniere") or 0
+    if not premier and maintenant_ms - derniere > 90 * jour_ms and maintenant_ms - (etat.get("rappelSauvegarde") or 0) > 7 * jour_ms:
+        charge = {"title": "Sauvegarde du planning", "body": ("Aucune sauvegarde depuis plus de 3 mois." if derniere else "Aucune sauvegarde encore faite.")
+                  + " Admin → Sauvegarde → Télécharger.", "url": "./#admin", "tag": "sauvegarde"}
+        cibles = [a for a in abonnements if a.get("uid") in admins]
+        if cibles:
+            envois += [(a, charge) for a in cibles]
+            etat["rappelSauvegarde"] = maintenant_ms
     return envois, etat
 
 
@@ -306,7 +316,8 @@ def main():
     admins = {u.strip() for u in os.environ.get("ADMIN_UID", "").replace(";", ",").split(",") if u.strip()}
     admins |= {a["_id"] for a in fs.coll("admins")}
     envois, etat2 = planifier(fs.doc(f"{esp}/planning/publie"), fs.doc(f"{esp}/config/saisie"), fs.coll(f"{esp}/indispos"),
-                              fs.coll("declarations"), abonnements, etat, int(time.time() * 1000), admins)
+                              fs.coll("declarations"), abonnements, etat, int(time.time() * 1000), admins,
+                              fs.doc(f"{esp}/config/sauvegarde") or {})
     prive, sujet = cle_vapid(cle), sujet_vapid()
     ok = expires = echecs = 0
     for a, charge in envois:
