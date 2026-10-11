@@ -74,6 +74,21 @@ with sync_playwright() as p:
     pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
     pg.wait_for_function("S.published && S.published.cases", timeout=10000)
     B.ok(pg.evaluate("S.published.cases[caseKey(%d, 'M', 'SCAN-TT')]" % jn(11, 2)) == "OB", "publication du planning importé")
+    # retouche sur ordinateur : glisser DA (scanner) sur SD (IRM 1) = échange ; republication
+    pg.click("#editPublished"); pg.wait_for_selector("#draftGrid td[data-k] .dz", timeout=8000)
+    src = pg.locator(f'#draftGrid td[data-k="{jn(11, 2)}_M_SCAN"] .dz[data-ini="DA"]')
+    dst = pg.locator(f'#draftGrid td[data-k="{jn(11, 2)}_M_IRM1"] .dz[data-ini="SD"]')
+    B.ok(src.count() == 1 and dst.count() == 1, "ordinateur : initiales glissables dans la grille")
+    src.drag_to(dst)
+    g = pg.evaluate("(d) => [S.draft.cases[caseKey(d, 'M', 'SCAN')], S.draft.cases[caseKey(d, 'M', 'IRM1')], S.annuler.length]", jn(11, 2))
+    B.ok(g[0] == "SD" and g[1] == "DA" and g[2] == 1, f"glisser un médecin sur un autre : échange ({g})")
+    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.publication && S.published.publication.modifs.DA", timeout=10000)
+    pm = pg.evaluate("[S.published.publication, Object.keys(S.published.modifs || {}).sort()]")
+    B.ok(sorted(pm[0]["modifs"]) == ["DA", "SD"] and pm[0]["nouveauxJours"] == 0 and pm[1] == ["DA", "SD"], f"republication : changements par médecin enregistrés ({pm[0]['modifs']})")
+    pg.evaluate("S.me = 'DA'; S.monMois = 202611; location.hash = '#mon'"); pg.wait_for_selector("#vMon .tag.modif", timeout=8000)
+    B.ok(pg.locator("#vMon .tag.modif").count() == 1, "Mon planning : case modifiée signalée")
+    pg.evaluate("location.hash = '#admin'"); pg.wait_for_function("document.querySelector('#jourList').innerText.includes('demi-journée(s) modifiée(s)')", timeout=8000)
+    B.ok("Planning publié" in pg.inner_text("#jourList") and "DA, SD" in pg.inner_text("#jourList"), "journal : publication et médecins concernés")
     # 2e publication (semaine suivante) : la première reste en ligne
     wb2 = Workbook(); wb2.remove(wb2.active)
     globals()["wb"] = wb2

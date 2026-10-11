@@ -308,6 +308,18 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
 .rcpb { display: flex; align-items: center; gap: 6px; background: var(--rcp); color: #fff; border-radius: 8px; padding: 3px 8px; margin: 0 0 4px; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
 .rcpb .rk { background: #fff; color: var(--rcp); border-radius: 4px; padding: 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; }
 .day:has(.rcpb) { box-shadow: inset 4px 0 0 var(--rcp); }
+/* retouches : menu des médecins, glisser-déposer */
+#caseCorps h3 { font-size: 14px; margin: 12px 0 6px; }
+.occs { display: flex; flex-wrap: wrap; gap: 6px; }
+.occ { display: inline-flex; align-items: center; gap: 4px; background: var(--soft); border-radius: 999px; padding: 4px 6px 4px 12px; font-weight: 700; }
+.occ button { border: 0; background: transparent; cursor: pointer; font-size: 14px; padding: 2px 6px; color: var(--muted); }
+.occ button.ech { font-size: 12px; text-decoration: underline; }
+.meds { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.medb { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 6px 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--ink); min-height: 44px; }
+.medb b { font-size: 15px; } .medb span { font-size: 10.5px; color: var(--muted); text-align: center; line-height: 1.15; }
+.medb.ok { border-color: var(--ok); } .medb.ail { border-style: dashed; } .medb.gris { opacity: .5; }
+table.pl.edit .dz { cursor: grab; border-radius: 4px; padding: 0 2px; } table.pl.edit .dz:hover { background: var(--soft); }
+table.pl.edit td.cible { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .tag.modif { background: #fff1b8; color: #6b4e00; border: 1px solid #f0d36a; font-weight: 700; margin-left: 4px; }
 .astb { display: flex; align-items: center; gap: 6px; background: var(--astr); color: #fff; border-radius: 8px; padding: 3px 8px; margin: 0 0 4px; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
 .astb .rk { background: #fff; color: var(--astr); border-radius: 4px; padding: 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; }
@@ -605,6 +617,7 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
             <button class="b primary" id="publishBtn">Publier pour l'équipe</button>
             <button class="b" id="dlDraftXlsx">Excel</button>
             <button class="b" id="dlDraftIcs">Calendriers (.zip)</button>
+            <button class="b" id="undoBtn" type="button" disabled>↶ Annuler</button>
             <button class="b danger" id="discardBtn">Abandonner</button>
           </div>
           <div class="msg" id="pubMsg" role="status"></div>
@@ -841,6 +854,12 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
   </div>
 </div>
 
+<div class="overlay" id="caseOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="caseTitre">
+    <h2 id="caseTitre" style="margin:0 0 8px;font-size:17px"></h2>
+    <div id="caseCorps"></div>
+  </div>
+</div>
 <div class="overlay" id="whoOverlay" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="whoTitle">
     <div id="whoAccount" hidden style="margin-bottom:14px">
@@ -902,6 +921,7 @@ const hhmm = (m) => `${Math.floor(m / 60)}h${pad2(m % 60)}`;
 const JC = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const STATUT_LABEL = { OFF: "Repos", ABS: "Absent", INDISPO: "Indisponible" };
+const GLISSER = typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches;   // glisser-déposer des retouches : ordinateur (souris) seulement
 const setMsg = (el, text, cls = "") => { el.className = "msg " + cls; el.textContent = text || ""; };
 
 // ------------------------------------------------------------ état
@@ -1686,7 +1706,8 @@ function planningTable(draft, opts) {
           const occ = occupants(draft, d, h, c);
           const need = (draft.postes[c] && draft.postes[c].need) || 1;
           const cls = [!occ.length ? "closed" : occ.length < need ? "part" : "", editable ? "ed" : "", highlight && occ.some((o) => o.ini === highlight) ? "me" : ""].filter(Boolean).join(" ");
-          row += `<td class="${cls}"${editable ? ` data-k="${k}" tabindex="0"` : ""}>${occ.length ? occ.map((o) => o.tt ? `<i class="tt" title="télétravail">${esc(o.ini)}*</i>` : esc(o.ini)).join(" / ") : "FERMÉ"}</td>`;
+          const lab = (o) => (o.tt ? `<i class="tt" title="télétravail">${esc(o.ini)}*</i>` : esc(o.ini));
+          row += `<td class="${cls}"${editable ? ` data-k="${k}" tabindex="0"` : ""}>${occ.length ? occ.map((o) => editable && GLISSER ? `<span class="dz" draggable="true" data-ini="${esc(o.ini)}">${lab(o)}</span>` : lab(o)).join(" / ") : "FERMÉ"}</td>`;
         }
       } else {
         for (const ini of docs) {
@@ -2396,6 +2417,8 @@ function renderAdmin() {
   if (!S.admin) return;
   renderRcpAdmin();
   renderAstrAdmin();
+  if (S.store.mode === "demo" && !S.journalVu) { S.journalVu = true; S.store.watchColl("journal", (l) => { S.journal = l; renderJournal(); }, () => {}); }
+  renderJournal();
   // paramètres
   const p = S.params;
   $("useDefault").hidden = !!p || !window.DEFAULT_PARAMS_B64 || window.DEFAULT_PARAMS_B64.startsWith("/*");
@@ -3370,6 +3393,7 @@ $("upPlanning").addEventListener("change", async (e) => {
 });
 
 function setDraft(draft, source) {
+  S.annuler = [];
   S.draft = draft; S.draftSource = source; S.draftPr = null;
   persistDraft();
   renderDraft();
@@ -3411,43 +3435,135 @@ function renderDraft() {
   } else {
     $("dCov").innerHTML = ""; $("dChecks").innerHTML = `<li class="muted">Paramètres indisponibles : contrôles impossibles.</li>`;
   }
+  $("undoBtn").disabled = !S.annuler.length;
+  $("undoBtn").textContent = S.annuler.length ? `↶ Annuler (${S.annuler.length})` : "↶ Annuler";
   const week = resolveWeek(d, S.draftWeek);
   $("draftGrid").innerHTML = `<div class="toolbar"><select id="draftWeekSel" aria-label="Semaine">${weekOptions(d, week)}</select></div>` + planningTable(d, { mode: "poste", week, editable: true });
   $("draftWeekSel").onchange = (e) => { S.draftWeek = e.target.value; renderDraft(); };
 }
+// ------------------------------------------------------------ Retouches du planning : menu au toucher, glisser-déposer (ordinateur), annuler
+S.annuler = [];
+const cleCase = (k) => { const [d, h, ...c] = k.split("_"); return { d: +d, h, code: c.join("_") }; };
+function memoriser() { S.annuler.push(JSON.stringify(S.draft.cases)); if (S.annuler.length > 50) S.annuler.shift(); }
+function ecrireCase(k, liste) {   // liste : [{ini, tt}] ; « tt » va sur le poste jumeau de télétravail s'il existe
+  const { d, h, code } = cleCase(k), tw = jumeauTT(S.draft, code);
+  S.draft.cases[k] = joinInis(liste.filter((o) => !(tw && o.tt)).map((o) => o.ini));
+  if (tw) S.draft.cases[caseKey(d, h, tw)] = joinInis(liste.filter((o) => o.tt).map((o) => o.ini));
+}
+// où est chaque médecin sur cette demi-journée : {INI: code affiché}
+function placesDemiJournee(d, h) {
+  const out = {};
+  for (const c of postesAffiches(S.draft)) for (const o of occupants(S.draft, d, h, c)) out[o.ini] = c;
+  return out;
+}
+function retirerDe(ini, k) { const { d, h, code } = cleCase(k); ecrireCase(k, occupants(S.draft, d, h, code).filter((o) => o.ini !== ini)); }
+function placer(ini, k, tt = false) {   // déplace le médecin : retiré de son autre poste de la même demi-journée
+  const { d, h, code } = cleCase(k);
+  const ail = placesDemiJournee(d, h)[ini];
+  if (ail && ail !== code) retirerDe(ini, caseKey(d, h, ail));
+  const occ = occupants(S.draft, d, h, code).filter((o) => o.ini !== ini);
+  ecrireCase(k, occ.concat([{ ini, tt }]));
+}
+function echanger(a, ka, b, kb) {   // a (case ka) et b (case kb) permutent
+  const A = cleCase(ka), B = cleCase(kb);
+  const occA = occupants(S.draft, A.d, A.h, A.code), occB = occupants(S.draft, B.d, B.h, B.code);
+  const oa = occA.find((o) => o.ini === a), ob = occB.find((o) => o.ini === b);
+  ecrireCase(ka, occA.map((o) => (o.ini === a ? { ini: b, tt: oa.tt } : o)));
+  ecrireCase(kb, occupants(S.draft, B.d, B.h, B.code).map((o) => (o.ini === b ? { ini: a, tt: ob ? ob.tt : false } : o)));
+}
+function apresRetouche() { persistDraft(); renderDraft(); }
+function statutMedecin(ini, d, h) {   // repos, absence… sur cette demi-journée (planning + absences acceptées)
+  const st = S.draft.statuts && S.draft.statuts[ini] && S.draft.statuts[ini][`${d}_${h}`];
+  if (st) return STATUT_LABEL[st] || st;
+  const a = S.indispos.find((x) => statutInd(x) === "acceptee" && String(x.ini).toUpperCase() === ini && d >= x.d1 && d <= x.d2
+    && (x.periode === "Journée" || (x.periode === "Matin") === (h === "M")));
+  return a ? "absent" : "";
+}
+function ouvrirCase(k) {
+  const { d, h, code } = cleCase(k);
+  const p = S.draft.postes[code] || {}, base = code.replace(/-TT$/, "");
+  const occ = occupants(S.draft, d, h, code), places = placesDemiJournee(d, h);
+  const docs = doctorList().map((x) => x.toUpperCase()).filter((x) => !occ.some((o) => o.ini === x)).sort();
+  const comp = (ini) => !S.P || !S.P.docs[ini] || (S.P.docs[ini].comp && S.P.docs[ini].comp[base]);
+  const libre = [], ailleurs = [], gris = [];
+  for (const ini of docs) {
+    const st = statutMedecin(ini, d, h);
+    if (st || !comp(ini)) gris.push({ ini, info: st || "sans compétence" });
+    else if (places[ini]) ailleurs.push({ ini, info: `depuis ${libelleCourt((S.draft.postes[places[ini]] || {}).label || places[ini])}` });
+    else libre.push({ ini, info: comp(ini) === 2 ? "préféré" : "" });
+  }
+  const bouton = (x, cls) => `<button type="button" class="medb ${cls}" data-mettre="${esc(x.ini)}"><b>${esc(x.ini)}</b>${x.info ? `<span>${esc(x.info)}</span>` : ""}</button>`;
+  $("caseTitre").textContent = `${JC[weekday(d)]} ${fmtDay(d, false)} · ${h === "M" ? "matin" : "après-midi"} · ${libelleCourt(p.label || code)}`;
+  $("caseCorps").innerHTML = `
+    <div class="small muted" style="margin:0 0 6px">Sur ce poste :</div>
+    <div class="occs">${occ.length ? occ.map((o) => `<span class="occ">${esc(o.ini)}${o.tt ? "*" : ""}<button type="button" data-oter="${esc(o.ini)}" aria-label="Retirer ${esc(o.ini)}">×</button><button type="button" class="ech" data-echanger="${esc(o.ini)}">Échanger…</button></span>`).join("") : `<span class="muted">Personne (poste fermé)</span>`}</div>
+    <div id="caseEch" hidden class="banner info" style="margin:8px 0"></div>
+    <h3>Disponibles${p.label ? "" : ""}</h3><div class="meds">${libre.map((x) => bouton(x, "ok")).join("") || `<span class="small muted">Aucun</span>`}</div>
+    <h3>Déjà placés ailleurs <span class="small muted" style="font-weight:400">(seront déplacés)</span></h3><div class="meds">${ailleurs.map((x) => bouton(x, "ail")).join("") || `<span class="small muted">Aucun</span>`}</div>
+    <h3>Absents, en repos ou sans la compétence</h3><div class="meds">${gris.map((x) => bouton(x, "gris")).join("") || `<span class="small muted">Aucun</span>`}</div>
+    <details style="margin-top:10px"><summary class="small">Saisie libre (télétravail « CD* », interne…)</summary>
+      <div class="row" style="margin-top:6px"><input type="text" id="caseLibre" value="${esc(texteOccupants(occ))}" autocapitalize="characters" spellcheck="false" style="flex:1"><button class="b" type="button" id="caseLibreOk">OK</button></div></details>
+    <div class="row" style="margin-top:12px"><button class="b" type="button" id="caseVider">Vider (fermer le poste)</button><button class="b primary" type="button" id="caseFini">Terminé</button></div>`;
+  $("caseOverlay").hidden = false;
+  const c = $("caseCorps");
+  let echange = null;
+  c.querySelectorAll("[data-mettre]").forEach((b) => b.onclick = () => {
+    const ini = b.dataset.mettre;
+    if (b.classList.contains("gris") && !confirm(`${ini} : ${b.querySelector("span") ? b.querySelector("span").textContent : ""}. Le placer quand même ?`)) return;
+    memoriser();
+    if (echange) { const ail = placesDemiJournee(d, h)[ini]; if (ail) echanger(echange, k, ini, caseKey(d, h, ail)); else { retirerDe(echange, k); placer(ini, k); } }
+    else placer(ini, k);
+    apresRetouche(); ouvrirCase(k);
+  });
+  c.querySelectorAll("[data-oter]").forEach((b) => b.onclick = () => { memoriser(); retirerDe(b.dataset.oter, k); apresRetouche(); ouvrirCase(k); });
+  c.querySelectorAll("[data-echanger]").forEach((b) => b.onclick = () => {
+    echange = b.dataset.echanger;
+    $("caseEch").hidden = false; $("caseEch").textContent = `Choisissez le médecin qui prend la place de ${echange} : s'il est placé ailleurs, ${echange} prend sa place.`;
+  });
+  $("caseVider").onclick = () => { memoriser(); ecrireCase(k, []); apresRetouche(); ouvrirCase(k); };
+  $("caseLibreOk").onclick = () => {
+    const v = $("caseLibre").value.trim();
+    const toks = /^ferm/i.test(v) ? [] : splitInis(v.replace(/[,;+]/g, "/").replace(/\s{2,}/g, " ").split(/\s*\/\s*|\s+/).join("/"));
+    memoriser(); ecrireCase(k, toks.map((x) => ({ ini: x.replace(TT_MARK, ""), tt: x.endsWith(TT_MARK) }))); apresRetouche(); ouvrirCase(k);
+  };
+  $("caseFini").onclick = fermerCase;
+}
+function fermerCase() { $("caseOverlay").hidden = true; }
+$("caseOverlay").addEventListener("click", (e) => { if (e.target === $("caseOverlay")) fermerCase(); });
 $("draftGrid").addEventListener("click", (e) => {
   const td = e.target.closest("td[data-k]");
-  if (!td || td.querySelector("input")) return;
-  editCell(td);
+  if (td) ouvrirCase(td.dataset.k);
 });
 $("draftGrid").addEventListener("keydown", (e) => {
   const td = e.target.closest && e.target.closest("td[data-k]");
-  if (td && e.target === td && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); editCell(td); }
+  if (td && e.target === td && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ouvrirCase(td.dataset.k); }
 });
-function editCell(td) {
-  const k = td.dataset.k;
-  const inp = document.createElement("input");
-  const [kd, kh, kc] = k.split("_"), tw = jumeauTT(S.draft, kc);
-  inp.type = "text"; inp.value = texteOccupants(occupants(S.draft, +kd, kh, kc)); inp.autocapitalize = "characters"; inp.spellcheck = false;
-  inp.setAttribute("aria-label", "Médecins affectés");
-  td.textContent = ""; td.appendChild(inp); inp.focus(); inp.select();
-  let done = false;
-  const finish = (commit) => {
-    if (done) return; done = true;
-    if (commit) {
-      const v = inp.value.trim();
-      const toks = /^ferm/i.test(v) ? [] : splitInis(v.replace(/[,;+]/g, "/").replace(/\s{2,}/g, " ").split(/\s*\/\s*|\s+/).join("/"));
-      // « CD* » : CD en télétravail sur ce poste (s'il est faisable en télétravail)
-      S.draft.cases[k] = joinInis(toks.filter((x) => !(tw && x.endsWith(TT_MARK))).map((x) => x.replace(TT_MARK, "")));
-      if (tw) S.draft.cases[caseKey(+kd, kh, tw)] = joinInis(toks.filter((x) => x.endsWith(TT_MARK)).map((x) => x.replace(TT_MARK, "")));
-      persistDraft();
-    }
-    renderDraft();
-    const again = $("draftGrid").querySelector(`td[data-k="${k}"]`); if (again) again.focus();
-  };
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); finish(true); } else if (e.key === "Escape") finish(false); });
-  inp.addEventListener("blur", () => finish(true));
-}
+// glisser-déposer (ordinateur) : déposer sur une case = déplacer ; déposer sur un médecin = échanger
+let glisse = null;
+$("draftGrid").addEventListener("dragstart", (e) => {
+  const sp = e.target.closest && e.target.closest(".dz"); if (!sp) return;
+  glisse = { ini: sp.dataset.ini, k: sp.closest("td[data-k]").dataset.k };
+  e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", glisse.ini);
+});
+$("draftGrid").addEventListener("dragover", (e) => { if (glisse && e.target.closest("td[data-k]")) { e.preventDefault(); e.target.closest("td[data-k]").classList.add("cible"); } });
+$("draftGrid").addEventListener("dragleave", (e) => { const td = e.target.closest && e.target.closest("td[data-k]"); if (td) td.classList.remove("cible"); });
+$("draftGrid").addEventListener("drop", (e) => {
+  const td = e.target.closest("td[data-k]"); if (!glisse || !td) return;
+  e.preventDefault();
+  const k = td.dataset.k, sur = e.target.closest(".dz");
+  if (k !== glisse.k || (sur && sur.dataset.ini !== glisse.ini)) {
+    memoriser();
+    if (sur && sur.dataset.ini !== glisse.ini) echanger(glisse.ini, glisse.k, sur.dataset.ini, k);
+    else { const src = cleCase(glisse.k), dst = cleCase(k); retirerDe(glisse.ini, glisse.k); if (src.d === dst.d && src.h === dst.h) placer(glisse.ini, k); else placer(glisse.ini, k); }
+    apresRetouche();
+  }
+  glisse = null;
+});
+$("draftGrid").addEventListener("dragend", () => { glisse = null; document.querySelectorAll("td.cible").forEach((x) => x.classList.remove("cible")); });
+$("undoBtn").addEventListener("click", () => {
+  const prev = S.annuler.pop(); if (!prev || !S.draft) return;
+  S.draft.cases = JSON.parse(prev); apresRetouche();
+});
 $("editPublished").addEventListener("click", () => {
   if (!S.published) return;
   const copy = JSON.parse(JSON.stringify(S.published));

@@ -83,14 +83,30 @@ def main():
               return j >= a && j <= b && v.split('/').map((s) => s.trim()).includes(ini); }).length; }""",
                          [MEDECIN, numero_jour(conge_debut), numero_jour(conge_fin)])
         B.ok(n == 0, f"{MEDECIN} non affecté pendant ses congés")
-        # retouche manuelle
+        # retouche manuelle : menu des médecins
         cell = adm.locator("#draftGrid td[data-k]").first
         k, avant = cell.get_attribute("data-k"), cell.inner_text()
-        cell.click(); adm.keyboard.press("Control+A"); adm.keyboard.type("da oa, zz"); adm.keyboard.press("Enter")
-        B.ok(adm.locator(f'#draftGrid td[data-k="{k}"]').inner_text() == "DA / OA / ZZ", "retouche saisie et normalisée")
+        cell.click(); adm.wait_for_selector("#caseOverlay:not([hidden])")
+        t = adm.inner_text("#caseCorps")
+        B.ok(t.index("Disponibles") < t.index("Déjà placés ailleurs") < t.index("Absents") and "depuis" in t, "menu des médecins : disponibles, puis placés ailleurs (avec leur poste), puis grisés")
+        adm.click("#caseCorps summary"); adm.fill("#caseLibre", "da oa, zz"); adm.click("#caseLibreOk")
+        B.ok(adm.locator(f'#draftGrid td[data-k="{k}"]').inner_text() == "DA / OA / ZZ", "saisie libre normalisée")
         B.ok("ZZ ne figure pas" in adm.inner_text("#dChecks"), "initiales inconnues signalées")
-        adm.locator(f'#draftGrid td[data-k="{k}"]').click(); adm.keyboard.press("Control+A")
-        adm.keyboard.type(avant if avant != "FERMÉ" else ""); adm.keyboard.press("Enter")
+        adm.click('#caseCorps [data-oter="ZZ"]')
+        B.ok(adm.locator(f'#draftGrid td[data-k="{k}"]').inner_text() == "DA / OA", "médecin retiré d'un toucher (×)")
+        # placer un médecin déjà affecté ailleurs : il est déplacé
+        r = adm.evaluate("""(k) => { const { d, h } = cleCase(k); const pl = placesDemiJournee(d, h);
+            const ici = occupants(S.draft, d, h, cleCase(k).code).map((o) => o.ini);
+            const ini = Object.keys(pl).find((x) => pl[x] !== cleCase(k).code && !ici.includes(x)); return ini ? [ini, pl[ini]] : null; }""", k)
+        if r:
+            adm.click(f'#caseCorps [data-mettre="{r[0]}"]')
+            pl = adm.evaluate("(k) => { const { d, h } = cleCase(k); return placesDemiJournee(d, h); }", k)
+            B.ok(pl.get(r[0]) == k.split("_", 2)[2], f"médecin placé ailleurs déplacé ici ({r[0]})")
+        n_avant = adm.evaluate("S.annuler.length")
+        adm.click("#caseFini"); adm.click("#undoBtn")
+        B.ok(adm.evaluate("S.annuler.length") == n_avant - 1, "bouton Annuler : dernière retouche annulée")
+        adm.locator(f'#draftGrid td[data-k="{k}"]').click(); adm.wait_for_selector("#caseOverlay:not([hidden])")
+        adm.click("#caseCorps summary"); adm.fill("#caseLibre", avant if avant != "FERMÉ" else ""); adm.click("#caseLibreOk"); adm.click("#caseFini")
         # publication
         adm.click("#publishBtn")
         adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
