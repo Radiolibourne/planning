@@ -239,7 +239,7 @@ table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
 /* Admin : cartes repliables, dans l'ordre d'usage */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
-#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #cloCard { order: 4; } #accCard { order: 5; }
+#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #jourCard { order: 6; } #cloCard { order: 4; } #accCard { order: 5; }
 #medCard { order: 6; } #regCard { order: 7; } #paramCard { order: 8; } #statCard { order: 9; } #rulesCard { order: 10; } #setupCard { order: 11; }
 .pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
 .pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
@@ -308,6 +308,7 @@ table.pl.sem tr.infos td { font-size: 10px; font-style: italic; color: var(--mut
 .rcpb { display: flex; align-items: center; gap: 6px; background: var(--rcp); color: #fff; border-radius: 8px; padding: 3px 8px; margin: 0 0 4px; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
 .rcpb .rk { background: #fff; color: var(--rcp); border-radius: 4px; padding: 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; }
 .day:has(.rcpb) { box-shadow: inset 4px 0 0 var(--rcp); }
+.tag.modif { background: #fff1b8; color: #6b4e00; border: 1px solid #f0d36a; font-weight: 700; margin-left: 4px; }
 .astb { display: flex; align-items: center; gap: 6px; background: var(--astr); color: #fff; border-radius: 8px; padding: 3px 8px; margin: 0 0 4px; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
 .astb .rk { background: #fff; color: var(--astr); border-radius: 4px; padding: 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; }
 .day:has(.astb) { box-shadow: inset 4px 0 0 var(--astr); background: color-mix(in srgb, var(--astr) 7%, var(--panel)); }
@@ -658,6 +659,13 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
         <p class="sub">1. Ouvrez la saisie des indisponibilités d'astreinte (6 mois). 2. Chacun coche ses jours dans l'onglet Astreintes. 3. Générez : équité semaine / week-end / férié au prorata de la quotité, écart minimum, jamais le lundi après son week-end.</p>
         <div id="astrAdm"></div>
         <div class="msg" id="astrMsg" role="status"></div>
+      </div>
+
+      <div class="card" id="jourCard">
+        <h2>Journal des modifications</h2>
+        <p class="sub">Qui a changé quoi et quand (publications, retouches, absences, paramètres, comptes, astreintes, RCP). Visible par les administrateurs uniquement.</p>
+        <input type="search" id="jourQ" placeholder="Rechercher (médecin, action, administrateur…)" style="margin-bottom:8px">
+        <ul class="list" id="jourList"></ul>
       </div>
 
       <div class="card" id="rcpCard">
@@ -1062,6 +1070,7 @@ function watchAdminCollections() {
   S.adminUnsub.push(S.store.watchColl("demandes", (l) => { S.demandes = l; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("admins", (l) => { S.admins = l; render(); }, () => { S.admins = []; }));
+  S.adminUnsub.push(S.store.watchColl("journal", (l) => { S.journal = l; renderJournal(); }, () => {}));
   S.adminUnsub.push(S.store.watchColl("motifs", (l) => { S.motifs = Object.fromEntries(l.map((x) => [x.id, x])); render(); migrerMotifs(); }, () => {}));
 }
 
@@ -1402,19 +1411,22 @@ function renderMon() {
     html += `<div class="week-h">Semaine du ${fmtDay(w.lundi, false)}${w.lundi === mondayOf(today) ? " · cette semaine" : ""}</div>`;
     for (const d of days) {
       const m = pd[`${d}_M`], a = pd[`${d}_AM`];
+      // case modifiée lors d'une republication récente (10 jours)
+      const mesModifs = (pub.modifs && pub.modifs[me]) || {};
+      const modifie = (h1, h2) => [h1, h2].some((h) => mesModifs[`${d}_${h}`] && Date.now() - mesModifs[`${d}_${h}`] < 10 * 86400000);
       const line = (c, h1, h2, lab) => {
         const warn = [h1, h2].some((h) => conflictKeys.has(`${d}_${h}`));
         if (c && c.code) {
           const { p, time } = slotLabel(pub, c.code, h1, h2);
           const sc = siteClass(pub, p.site);
-          return `<div class="slot${warn ? " warn" : ""}" title="${esc(p.label)} · ${time}"><span class="t">${lab}</span><span class="p">${esc(libelleCourt(p.label))}</span>${sc ? `<span class="site ${sc}">${esc(p.site)}</span>` : ""}${warn ? `<span class="tag err">absence signalée</span>` : ""}</div>`;
+          return `<div class="slot${warn ? " warn" : ""}" title="${esc(p.label)} · ${time}"><span class="t">${lab}</span><span class="p">${esc(libelleCourt(p.label))}</span>${sc ? `<span class="site ${sc}">${esc(p.site)}</span>` : ""}${modifie(h1, h2) ? `<span class="tag modif">modifié</span>` : ""}${warn ? `<span class="tag err">absence signalée</span>` : ""}</div>`;
         }
         const st = c && c.statut ? STATUT_LABEL[c.statut] || c.statut : "Sans affectation";
-        return `<div class="slot off"><span class="t">${lab}</span><span class="p">${esc(st)}</span></div>`;
+        return `<div class="slot off"><span class="t">${lab}</span><span class="p">${esc(st)}</span>${modifie(h1, h2) ? `<span class="tag modif">modifié</span>` : ""}</div>`;
       };
       let body;
       if (m && a && m.code && m.code === a.code) body = line(m, "M", "AM", "Jour");
-      else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Jour</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span></div>`;
+      else if (m && a && m.statut && m.statut === a.statut) body = `<div class="slot off"><span class="t">Jour</span><span class="p">${esc(STATUT_LABEL[m.statut] || m.statut)}</span>${modifie("M", "AM") ? `<span class="tag modif">modifié</span>` : ""}</div>`;
       else body = line(m, "M", "M", "Matin") + line(a, "AM", "AM", "AM");
       // RCP du médecin ce jour-là : bandeau en tête de la journée
       const mesRcp = rcpDuJour(d).filter((x) => x.ini.includes(me));
@@ -1993,6 +2005,7 @@ function renderAstrAdmin() {
       await S.store.set(PATHS.astrCfg(), { du, au, limite: lim, finMs: parisEndOfDayMs(lim), participants, ecart: Math.max(0, Math.min(14, +$("asEcart").value || 0)),
         ouvertLe: nouvelle ? Date.now() : (c.ouvertLe || Date.now()), majLe: Date.now() });
       setMsg(msg, nouvelle ? "Saisie ouverte : chacun voit son calendrier dans l'onglet Astreintes." : "Réglages enregistrés.", "ok");
+      journaliser(nouvelle ? "Saisie des indisponibilités d'astreinte ouverte" : "Réglages des astreintes modifiés", `${fmtDay(du, false)} → ${fmtDay(au)} · avant le ${fmtDay(lim, false)} · ${participants.length} participants`);
     } catch (e) { setMsg(msg, e.message, "err"); }
   };
   if ($("asClore")) $("asClore").onclick = async () => {
@@ -2073,7 +2086,7 @@ async function enregistrerAstrRes() {
   const nouvelles = res.unites.filter((u) => u.qui).flatMap((u) => u.jours.map((d) => [fmtDay(d), u.qui]));
   const rows = garder.concat(nouvelles).sort((a, b) => (asDay(a[0]) ?? 0) - (asDay(b[0]) ?? 0));
   if (!REG.hdr.length) REG.hdr = ONGLETS.Astreintes.creer[2].slice();
-  if (await regSauver(rows)) { ASTR_RES = null; renderAstrRes(); setMsg(msg, `${nouvelles.length} jour(s) d'astreinte enregistré(s). Ils apparaissent dans l'onglet Astreintes et sur le planning.`, "ok"); }
+  if (await regSauver(rows)) { ASTR_RES = null; renderAstrRes(); journaliser("Astreintes générées et enregistrées", `${fmtDay(c.du, false)} → ${fmtDay(c.au)} · ${nouvelles.length} jour(s)`); setMsg(msg, `${nouvelles.length} jour(s) d'astreinte enregistré(s). Ils apparaissent dans l'onglet Astreintes et sur le planning.`, "ok"); }
   else setMsg(msg, $("regFormMsg").textContent || "Enregistrement impossible.", "err");
 }
 // Médecins : le planning seul. Administrateurs (onglet Statistiques) : version complète avec synthèse et contrôles.
@@ -2159,6 +2172,21 @@ function renderQui() {
 }
 
 // ------------------------------------------------------------ indisponibilités
+// ------------------------------------------------------------ Journal des modifications (administrateurs)
+function journaliser(action, detail = "") {
+  if (!S.admin || !S.store) return;
+  S.store.add("journal", { quand: Date.now(), qui: (S.auth && S.auth.email) || "", action: String(action).slice(0, 80), detail: String(detail).slice(0, 500) }).catch(() => {});
+}
+function renderJournal() {
+  const el = $("jourList"); if (!el) return;
+  const q = ($("jourQ").value || "").trim().toLowerCase();
+  const l = (S.journal || []).slice().sort((a, b) => b.quand - a.quand)
+    .filter((x) => !q || `${x.qui} ${x.action} ${x.detail}`.toLowerCase().includes(q)).slice(0, 300);
+  el.innerHTML = l.length ? l.map((x) => `<li style="flex-wrap:wrap"><div class="grow"><b>${esc(x.action)}</b>${x.detail ? ` <span class="small">· ${esc(x.detail)}</span>` : ""}
+      <div class="small muted">${new Date(x.quand).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} · ${esc(x.qui || "—")}</div></div></li>`).join("")
+    : `<li class="small muted">Aucune modification enregistrée${q ? " pour cette recherche" : ""}.</li>`;
+}
+
 // Motifs d'absence : rangés à part (motifs/{id}), lus par l'administrateur (tous) ou l'auteur (les siens)
 S.motifs = {};
 const motifDe = (x) => (x.motif || (S.motifs[x.id] && S.motifs[x.id].motif) || "");
@@ -2330,6 +2358,7 @@ $("indForm").addEventListener("submit", async (e) => {
   $("indSubmit").disabled = true;
   try {
     const id = await S.store.add(PATHS.indispos(), data);
+    if (S.admin) journaliser("Absence enregistrée", `${S.me} · ${fmtDay(d1, false)}${d2 !== d1 ? " → " + fmtDay(d2, false) : ""}`);
     // le motif à part : visible de vous et des administrateurs seulement
     try { await S.store.set(`motifs/${id}`, { ini: S.me, uid: (S.auth && S.auth.uid) || "demo", motif }); S.motifs[id] = { motif }; }
     catch (e2) { console.warn("motif", e2); }
@@ -2342,7 +2371,10 @@ async function deleteIndispo(id, msgEl) {
   const x = S.indispos.find((i) => i.id === id);
   if (!needOnline(msgEl)) return;
   if (!x || !confirm(`Supprimer l'indisponibilité de ${x.ini} (${fmtDay(x.d1, false)}${x.d1 !== x.d2 ? " → " + fmtDay(x.d2, false) : ""}) ?`)) return;
-  try { await S.store.del(`${PATHS.indispos()}/${id}`); S.store.del(`motifs/${id}`).catch(() => {}); }
+  try {
+    await S.store.del(`${PATHS.indispos()}/${id}`); S.store.del(`motifs/${id}`).catch(() => {});
+    if (String(x.ini).toUpperCase() !== S.me) journaliser("Absence supprimée", `${x.ini} · ${fmtDay(x.d1, false)}${x.d2 !== x.d1 ? " → " + fmtDay(x.d2, false) : ""}`);
+  }
   catch (e) { if (msgEl) setMsg(msgEl, e.message, "err"); }
 }
 $("myInd").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) deleteIndispo(b.dataset.del, $("indMsg")); });
@@ -2474,11 +2506,11 @@ $("accPend").addEventListener("click", async (e) => {
       const ini = li.querySelector("[data-ini]").value;
       await S.store.set(`membres/${uid}`, { email: d.email, ini, nom: d.nom, espace: S.code, role: "medecin", valideLe: Date.now(), validePar: (S.auth && S.auth.email) || "" });
       await S.store.del(`demandes/${uid}`);
-      setMsg(msg, `Compte de ${d.nom} validé (${ini}).`, "ok");
+      setMsg(msg, `Compte de ${d.nom} validé (${ini}).`, "ok"); journaliser("Compte validé", `${d.nom} (${ini}) · ${d.email}`);
     } else if (e.target.closest("[data-refuser]")) {
       if (!confirm(`Refuser la demande de ${d.nom} (${d.email}) ?`)) return;
       await S.store.del(`demandes/${uid}`);
-      setMsg(msg, "Demande refusée.", "ok");
+      setMsg(msg, "Demande refusée.", "ok"); journaliser("Demande de compte refusée", `${d.nom} · ${d.email}`);
     }
   } catch (err) { setMsg(msg, err.message, "err"); }
 });
@@ -2487,7 +2519,7 @@ $("accList").addEventListener("change", async (e) => {
   const uid = sel.closest("li").dataset.uid, m = S.membres.find((x) => x.id === uid); if (!m) return;
   if (!confirm(`Attribuer les initiales « ${sel.value || "—"} » à ${m.nom || m.email} ?`)) { renderComptes(); return; }
   const { id, ...data } = m;
-  try { await S.store.set(`membres/${uid}`, { ...data, ini: sel.value }); setMsg($("accMsg"), "Initiales modifiées.", "ok"); }
+  try { await S.store.set(`membres/${uid}`, { ...data, ini: sel.value }); setMsg($("accMsg"), "Initiales modifiées.", "ok"); journaliser("Initiales d'un compte modifiées", `${m.nom || m.email} : ${m.ini || "—"} → ${sel.value || "—"}`); }
   catch (err) { setMsg($("accMsg"), err.message, "err"); }
 });
 $("accList").addEventListener("click", async (e) => {
@@ -2499,23 +2531,24 @@ $("accList").addEventListener("click", async (e) => {
     if (e.target.closest("[data-admin-oui]")) {
       if (!confirm(`Rendre ${qui} administrateur ? Il pourra modifier les paramètres, générer et publier le planning, et gérer les comptes.`)) return;
       await S.store.set(`admins/${uid}`, { email: m.email || "", ini: m.ini || "", ajouteLe: Date.now(), par: (S.auth && S.auth.email) || "" });
-      setMsg(msg, `${qui} est administrateur (effet à sa prochaine ouverture du site).`, "ok");
+      setMsg(msg, `${qui} est administrateur (effet à sa prochaine ouverture du site).`, "ok"); journaliser("Administrateur ajouté", qui);
     } else if (e.target.closest("[data-admin-non]")) {
       if (!confirm(`Retirer les droits d'administrateur de ${qui} ? Son compte reste actif.`)) return;
       await S.store.del(`admins/${uid}`);
-      setMsg(msg, `${qui} n'est plus administrateur.`, "ok");
+      setMsg(msg, `${qui} n'est plus administrateur.`, "ok"); journaliser("Administrateur retiré", qui);
     } else if (e.target.closest("[data-retirer]")) {
       if (!confirm(`Retirer l'accès de ${qui} ? Son compte ne pourra plus rien consulter ni déclarer.`)) return;
       if (S.admins.some((a) => a.id === uid)) await S.store.del(`admins/${uid}`);
       await S.store.del(`membres/${uid}`);
-      setMsg(msg, "Accès retiré.", "ok");
+      setMsg(msg, "Accès retiré.", "ok"); journaliser("Accès retiré", qui);
     }
   } catch (err) { setMsg(msg, err.message, "err"); }
 });
 
 async function saveClotures(list, msgEl) {
   if (!needOnline(msgEl)) return;
-  try { await S.store.set(PATHS.saisie(), { clotures: list, trous: trousSaisie(list), majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok"); }
+  try { await S.store.set(PATHS.saisie(), { clotures: list, trous: trousSaisie(list), majLe: Date.now() }); setMsg(msgEl, "Enregistré.", "ok");
+    journaliser("Dates limites de dépôt modifiées", list.map((c) => `${fmtDay(c.du, false)}→${fmtDay(c.au, false)} avant le ${fmtDay(c.limite, false)}`).join(" ; ") || "aucune"); }
   catch (e) { setMsg(msgEl, e.message, "err"); }
 }
 $("cAdd").addEventListener("click", () => {
@@ -2609,6 +2642,7 @@ async function rcpEnregistrer() {
   try {
     await S.store.set(PATHS.rcp(), { items: garder.concat(nouveaux).sort((a, b) => a.d - b.d), alias, majLe: Date.now(), par: (S.auth && S.auth.email) || "" });
     RCP_ATTENTE = null; rcpApercu();
+    journaliser("RCP importées", `${nouveaux.length} RCP · ${lots.map((l) => l.nom).join(", ")}`);
     setMsg(msg, `${nouveaux.length} RCP enregistrée(s). Elles apparaissent dans Mon planning de chaque radiologue et dans Général → RCP.`, "ok");
   } catch (err) { setMsg(msg, err.message, "err"); }
 }
@@ -2616,7 +2650,7 @@ $("rcpListe").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-rcp-suppr]"); if (!b) return;
   const m = +b.dataset.rcpSuppr;
   if (!confirm(`Supprimer toutes les RCP de ${libMoisNum(m)} ?`) || !needOnline($("rcpMsg"))) return;
-  try { await S.store.set(PATHS.rcp(), { ...(S.rcp || {}), items: rcpItems().filter((x) => moisDeJour(x.d) !== m), majLe: Date.now() }); setMsg($("rcpMsg"), "RCP supprimées.", "ok"); }
+  try { await S.store.set(PATHS.rcp(), { ...(S.rcp || {}), items: rcpItems().filter((x) => moisDeJour(x.d) !== m), majLe: Date.now() }); setMsg($("rcpMsg"), "RCP supprimées.", "ok"); journaliser("RCP supprimées", libMoisNum(m)); }
   catch (err) { setMsg($("rcpMsg"), err.message, "err"); }
 });
 function refreshRules() {
@@ -2651,6 +2685,7 @@ async function decider(id, accepter) {
     await S.store.set(`${PATHS.indispos()}/${id}`, { ...data, statut: accepter ? "acceptee" : "refusee", decidePar: (S.auth && S.auth.email) || "",
       decideLe: Date.now(), ...(accepter ? {} : { refus }) });
     setMsg(msg, accepter ? `Absence de ${x.ini} acceptée.` : `Demande de ${x.ini} refusée.`, "ok");
+    journaliser(accepter ? "Absence acceptée" : "Absence refusée", `${x.ini} · ${fmtDay(x.d1, false)}${x.d2 !== x.d1 ? " → " + fmtDay(x.d2, false) : ""}${refus ? " · " + refus : ""}`);
   } catch (e) { setMsg(msg, e.message, "err"); }
 }
 
@@ -2776,7 +2811,9 @@ async function medEcrire(rows, msgEl) {
   const lignes = [hdr, ...rows.map((r) => hdr.map((_, k) => (r[k] === undefined ? null : r[k]))), ...vides];
   const bytes = await rewriteSheet(b64ToBytes(S.params.xlsx), "Médecins", 4, lignes, (i) => (i === 0 ? 4 : 5));
   MED.hdr = hdr;
-  return saveParams(bytes, S.params.nom || "parametres_planning.xlsx");
+  const ok = await saveParams(bytes, S.params.nom || "parametres_planning.xlsx");
+  if (ok) journaliser("Paramètres : médecins modifiés", rows.map((x) => norm(x[MC.ini])).filter(Boolean).length + " médecins");
+  return ok;
 }
 $("medForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -3133,6 +3170,7 @@ async function regEcrire(onglet, depuis, lignes, styleDe) {
   if (!REG.wb[onglet] && def && def.creer) bytes = await addSheet(bytes, onglet, [[def.creer[0]], [def.creer[1]], [], def.creer[2]]);
   bytes = await rewriteSheet(bytes, onglet, depuis, lignes, styleDe);
   const ok = await saveParams(bytes, S.params.nom || "parametres_planning.xlsx");
+  if (ok) journaliser(`Paramètres : ${onglet}`, "onglet modifié dans le site");
   if (!ok) setMsg($("regFormMsg"), $("paramMsg").textContent || "Enregistrement impossible.", "err");
   else { REG.wb = await readXlsx(bytes.buffer); REG.sig = paramsSig; }
   return ok;
@@ -3212,7 +3250,7 @@ async function importerAstreintes(f) {
   const garder = REG.rows.filter((r) => { const d = asDay(r[0]); return d === null || d < d1 || d > d2; });
   const rows = garder.concat(res.liste.map((x) => [fmtDay(x.d), x.ini])).sort((a, b) => (asDay(a[0]) ?? 0) - (asDay(b[0]) ?? 0));
   if (!REG.hdr.length) REG.hdr = ONGLETS.Astreintes.creer[2].slice();
-  if (await regSauver(rows)) { regListe("Astreintes"); setMsg($("regFormMsg"), `${res.liste.length} astreinte(s) importée(s) du ${fmtDay(d1, false)} au ${fmtDay(d2)}.${res.inconnus.length ? ` Non reconnus : ${res.inconnus.slice(0, 8).join(", ")}.` : ""}`, "ok"); }
+  if (await regSauver(rows)) { regListe("Astreintes"); journaliser("Astreintes importées", `${f.name} · ${res.liste.length} astreinte(s)`); setMsg($("regFormMsg"), `${res.liste.length} astreinte(s) importée(s) du ${fmtDay(d1, false)} au ${fmtDay(d2)}.${res.inconnus.length ? ` Non reconnus : ${res.inconnus.slice(0, 8).join(", ")}.` : ""}`, "ok"); }
 }
 function regFiche(i) {
   REG.edit = i;
@@ -3281,7 +3319,7 @@ $("mDel").addEventListener("click", async () => {
 });
 $("upParams").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = "";
-  if (f) saveParams(new Uint8Array(await f.arrayBuffer()), f.name);
+  if (f && await saveParams(new Uint8Array(await f.arrayBuffer()), f.name)) journaliser("Classeur de paramètres importé", f.name);
 });
 $("useDefault").addEventListener("click", () => saveParams(b64ToBytes(window.DEFAULT_PARAMS_B64), "parametres_planning.xlsx"));
 $("dlParams").addEventListener("click", () => { if (S.params) saveFile(b64ToBytes(S.params.xlsx), S.params.nom || "parametres_planning.xlsx", XLSX_TYPE); });
@@ -3438,11 +3476,17 @@ $("publishBtn").addEventListener("click", async () => {
     doc.statuts = st;
     doc.medecins = [...new Set((doc.medecins || []).concat(ctx.pr.docs))];
   }
+  const ch = changementsPublies(S.published, doc);   // cases modifiées par médecin (jours déjà publiés)
+  const nouveaux = doc.jours.filter((d) => !(S.published && S.published.jours || []).includes(d)).length;
   doc = fusionnerPublies(S.published, doc, todayDay());   // les autres mois publiés restent en ligne
   doc.publieLe = Date.now(); doc.publiePar = (S.auth && S.auth.email) || "";
+  doc.modifs = fusionnerModifs(S.published && S.published.modifs, ch, doc.publieLe, todayDay());
+  doc.publication = { le: doc.publieLe, nouveauxJours: nouveaux, modifs: ch };
   setMsg(msg, "Publication…");
   try {
     await S.store.set(PATHS.planning(), doc);
+    const nCh = Object.values(ch).reduce((n, l) => n + l.length, 0);
+    journaliser("Planning publié", `${titreMois(doc.start, doc.end)}${nouveaux ? ` · ${nouveaux} jour(s) nouveaux` : ""}${nCh ? ` · ${nCh} demi-journée(s) modifiée(s) : ${Object.keys(ch).sort().join(", ")}` : ""}`);
     setDraft(null, "");
     setMsg($("gMsg"), "Planning publié : l'équipe le voit dès maintenant.", "ok");
   } catch (e) { setMsg(msg, e.message, "err"); }

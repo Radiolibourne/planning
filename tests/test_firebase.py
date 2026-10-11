@@ -23,7 +23,7 @@ ok = B.ok
 # ---------------- « serveur » Firestore simulé : applique la même logique que les règles générées
 def denied(): return {'error': 'permission-denied'}
 def seg(path): return path.split('/')
-def can_read(path): s = seg(path); return (len(s) >= 2 and s[0] == 'espaces' and s[1] == TEAM) or (len(s) == 2 and s[0] == 'motifs')
+def can_read(path): s = seg(path); return (len(s) >= 2 and s[0] == 'espaces' and s[1] == TEAM) or (len(s) == 2 and s[0] == 'motifs') or (len(s) >= 1 and s[0] == 'journal')
 def is_admin(uid): return uid in ADMINS
 def valid_indispo(d):
     keys = {'ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'}

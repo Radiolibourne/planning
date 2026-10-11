@@ -81,6 +81,29 @@ function eventsFromDraft(draft, onlyIni) {
 }
 
 // Vue par médecin : {ini: {"<day>_<h>": {code} | {statut}}}
+// Changements entre deux plannings publiés, par médecin, sur les jours présents dans les deux : {INI: ["jour_M", …]}
+function changementsPublies(avant, apres) {
+  if (!avant || !apres || !avant.jours) return {};
+  const ja = new Set(avant.jours), pa = perDoctor(avant), pb = perDoctor(apres);
+  const lib = (c) => (!c ? "" : c.code || c.statut || "");
+  const out = {};
+  for (const ini of new Set([...Object.keys(pa), ...Object.keys(pb)])) {
+    for (const d of apres.jours || []) {
+      if (!ja.has(d)) continue;
+      for (const h of HALVES) { const k = `${d}_${h}`; if (lib((pa[ini] || {})[k]) !== lib((pb[ini] || {})[k])) (out[ini] = out[ini] || []).push(k); }
+    }
+  }
+  return out;
+}
+// Cases modifiées récemment (badge « modifié ») : {INI: {"jour_M": date}}, gardées 10 jours, jamais pour un jour passé
+function fusionnerModifs(anciennes, nouvelles, maintenant, aujourdhui) {
+  const out = {};
+  for (const [ini, m] of Object.entries(anciennes || {})) for (const [k, t] of Object.entries(m || {}))
+    if (maintenant - t < 10 * 86400000 && +k.split("_")[0] >= aujourdhui) (out[ini] = out[ini] || {})[k] = t;
+  for (const [ini, ks] of Object.entries(nouvelles || {})) for (const k of ks) if (+k.split("_")[0] >= aujourdhui) (out[ini] = out[ini] || {})[k] = maintenant;
+  return out;
+}
+
 function perDoctor(draft) {
   const out = {};
   for (const ini of draft.medecins) out[ini] = {};
@@ -378,6 +401,15 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['ini', 'uid', 'motif'])
         && request.resource.data.uid == request.auth.uid && request.resource.data.ini == moi().ini
         && request.resource.data.motif is string && request.resource.data.motif.size() <= 100);
+    }
+
+    // Journal des modifications : lu et écrit par les administrateurs, jamais modifié ; effacé après 400 jours.
+    match /journal/{id} {
+      allow read: if admin();
+      allow create: if admin() && request.resource.data.keys().hasOnly(['quand', 'qui', 'action', 'detail'])
+        && request.resource.data.action is string && request.resource.data.action.size() <= 80
+        && request.resource.data.detail is string && request.resource.data.detail.size() <= 500;
+      allow delete: if admin() && resource.data.quand < request.time.toMillis() - 400 * 86400000;
     }
 
     // Comptes validés : chacun lit le sien ; seuls les administrateurs les créent, modifient ou retirent.

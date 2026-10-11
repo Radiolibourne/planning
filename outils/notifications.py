@@ -141,7 +141,21 @@ def planifier(publie, saisie, indispos, declarations, abonnements, etat, mainten
         titre = str(publie.get("titre", "")).replace("Planning du service de radiologie — ", "").strip()
         charge = {"title": "Planning publié", "body": f"Le planning {titre} est en ligne. Touchez pour voir vos vacations.",
                   "url": "./#mon", "tag": "publication"}
-        envois += [(a, charge) for a in abonnements]
+        pub = publie.get("publication") or {}
+        if pub.get("le") == pl:
+            # republication : chaque médecin dont le planning a changé reçoit le détail ; les autres seulement s'il y a de nouveaux jours
+            modifs = {str(k).upper(): v for k, v in (pub.get("modifs") or {}).items() if v}
+            for a in abonnements:
+                ks = modifs.get(str(a.get("ini", "")).upper())
+                if ks:
+                    jours = sorted({int(str(k).split("_")[0]) for k in ks})
+                    liste = ", ".join(fmt_jour(d) for d in jours[:4]) + ("…" if len(jours) > 4 else "")
+                    envois.append((a, {"title": "Votre planning a changé", "body": f"Modification le {liste}. Touchez pour voir.",
+                                       "url": "./#mon", "tag": "modification"}))
+                elif pub.get("nouveauxJours"):
+                    envois.append((a, charge))
+        else:
+            envois += [(a, charge) for a in abonnements]
     etat["publieLe"] = max(pl, etat.get("publieLe", 0))
     # 2. dates limites de dépôt : 3 jours avant, puis la veille (date limite = dernier jour pour déclarer)
     faits = dict(etat.get("rappels", {}))

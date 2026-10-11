@@ -71,6 +71,7 @@ def peut_lire(path, uid):
     s = path.split("/")
     if s[0] == "espaces":
         return lecteur(s[1], uid)
+    if s[0] == "journal": return is_admin(uid)
     if s[0] == "motifs":
         d = DB.get(path)
         return is_admin(uid) or (d is not None and uid is not None and d.get("uid") == uid)
@@ -92,6 +93,8 @@ def peut_ecrire(op, path, uid, data):
             return is_admin(uid) or (op != "del" and auteur(s[3], uid) and time.time() * 1000 <= cfg.get("finMs", 0)
                                      and set(data) <= {"ini", "jours", "majLe"} and data.get("ini") == s[3] and isinstance(data.get("jours"), list) and len(data["jours"]) <= 400)
         return is_admin(uid)
+    if s[0] == "journal":
+        return is_admin(uid) and op != "set" or (is_admin(uid) and op == "set" and set(data) <= {"quand", "qui", "action", "detail"})
     if s[0] == "motifs":
         if op == "del": return is_admin(uid) or (old is not None and old.get("uid") == uid)
         return is_admin(uid) or (uid is not None and membre(uid) and set(data) <= {"ini", "uid", "motif"} and data.get("uid") == uid

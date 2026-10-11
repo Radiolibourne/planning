@@ -94,6 +94,14 @@ env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos,
 B.ok(len(env) == 3 and "novembre 2026" in env[0][1]["body"] and env[0][1]["url"] == "./#mon", "publication : tout le monde prévenu le matin")
 env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, etat, ms(2026, 10, 11, 9))
 B.ok(env == [], "publication : pas de doublon")
+# republication : seuls les médecins dont le planning a changé sont prévenus, avec les jours
+rep = {**pub, "publieLe": 2500, "publication": {"le": 2500, "nouveauxJours": 0, "modifs": {"DB": [f"{jour(2026, 11, 5)}_M", f"{jour(2026, 11, 5)}_AM", f"{jour(2026, 11, 9)}_M"]}}}
+env, e2 = N.planifier(rep, saisie, indispos, decl, abos, dict(etat), ms(2026, 10, 11, 10))
+B.ok([a["ini"] for a, _ in env] == ["DB"] and env[0][1]["title"] == "Votre planning a changé" and "05/11, 09/11" in env[0][1]["body"],
+     f"republication : notification ciblée aux seuls médecins concernés ({[(a['ini'], c['body']) for a, c in env]})")
+rep2 = {**rep, "publication": {**rep["publication"], "nouveauxJours": 20}}
+env, _ = N.planifier(rep2, saisie, indispos, decl, abos, dict(etat), ms(2026, 10, 11, 10))
+B.ok(sorted((a["ini"], c["tag"]) for a, c in env) == [("DA", "publication"), ("DB", "modification"), ("DC", "publication")], "nouveau mois + modifications : chacun reçoit un seul message adapté")
 env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, etat, ms(2026, 10, 17, 9))
 B.ok([a["ini"] for a, _ in env] == ["DC"] and "le 20/10" in env[0][1]["body"], "J-3 : seul le médecin sans déclaration est relancé")
 env, etat = N.planifier({**pub, "publieLe": 2000}, saisie, indispos, decl, abos, etat, ms(2026, 10, 17, 15))
