@@ -1912,21 +1912,6 @@ const astrCfg = () => (S.astrCfg && Number.isFinite(S.astrCfg.du) ? S.astrCfg : 
 const astrIndDe = (id) => (S.astrInd || []).find((x) => String(x.id).toUpperCase() === String(id).toUpperCase());
 const astrParticipants = () => ((S.astrCfg && S.astrCfg.participants) || []);
 const CALS = {};   // conteneur → {id, set, modifie}
-function calendrierHtml(du, au, set, editable, feries) {
-  let html = "";
-  const p = ymd(du), q = ymd(au);
-  for (let y = p.y, m = p.m; y * 100 + m <= q.y * 100 + q.m; m === 12 ? (y++, m = 1) : m++) {
-    const d1 = dayFromYMD(y, m, 1), nbj = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    let cases = "";
-    for (let k = 0; k < weekday(d1); k++) cases += "<span></span>";
-    for (let j = 1; j <= nbj; j++) {
-      const d = d1 + j - 1, hors = d < du || d > au, ind = set.has(d);
-      cases += `<button type="button" class="cj${ind ? " ind" : ""}${weekday(d) >= 4 ? " we" : ""}${feries.has(d) ? " fer" : ""}" data-j="${d}"${hors || !editable ? " disabled" : ""} aria-pressed="${ind}" title="${fmtDay(d)}${feries.has(d) ? " · " + esc(feries.get(d)) : ""}">${j}</button>`;
-    }
-    html += `<div class="calm"><div class="calt">${MOIS[m - 1]} ${y}</div><div class="calg"><b>L</b><b>M</b><b>M</b><b>J</b><b>V</b><b>S</b><b>D</b>${cases}</div></div>`;
-  }
-  return `<div class="cals">${html}</div>`;
-}
 function editeurAstr(conteneur, id, editable) {
   const c = astrCfg(), el = $(conteneur);
   if (!c || !el) return;

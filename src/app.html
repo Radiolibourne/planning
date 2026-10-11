@@ -47,6 +47,15 @@ h2 .step { display: inline-grid; place-items: center; width: 24px; height: 24px;
 .srcinfo b { font-weight: 600; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+.cals { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin: 8px 0; }
+.calt { font-weight: 700; text-transform: capitalize; margin: 0 0 4px; font-size: 14px; }
+.calg { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.calg > b { font-size: 10.5px; text-align: center; color: var(--muted); font-weight: 600; }
+.calg .cj { min-height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); font-size: 13px; cursor: pointer; }
+.calg .cj.we { background: var(--soft); } .calg .cj.fer { font-weight: 800; text-decoration: underline; }
+.calg .cj.ind { background: var(--err); border-color: var(--err); color: #fff; font-weight: 700; }
+.calg .cj[disabled] { opacity: .35; cursor: default; }
+.tagT { display: inline-block; border-radius: 6px; padding: 0 6px; font-size: 12px; font-weight: 700; background: var(--soft); }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 input[type=date], select {
   font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 170px;
@@ -190,6 +199,29 @@ details summary { cursor: pointer; font-weight: 600; }
     <div class="icslist" id="icsList2"></div>
   </section>
 
+  <section class="card" id="astSec">
+    <h2><span class="step">5</span>Astreintes</h2>
+    <p class="sub">Indisponibilités d'astreinte dans l'onglet « Indisponibilités astreinte » du classeur (à remplir dans Excel, ou ici sur le calendrier), puis génération : week-end du vendredi au dimanche pour un seul médecin, équité semaine / week-end / férié au prorata de la quotité (12 derniers mois compris), écart minimum, jamais le lundi après son week-end.</p>
+    <div class="row">
+      <label class="f">Du<input type="date" id="aDu"></label>
+      <label class="f">Au<input type="date" id="aAu"></label>
+      <label class="f">Écart minimum (jours)<input type="number" id="aEcart" min="0" max="14" value="3" style="width:90px"></label>
+      <label class="f" style="flex-direction:row;align-items:center;gap:6px;color:var(--ink)"><input type="checkbox" id="aGarder" checked> Garder les astreintes déjà saisies</label>
+    </div>
+    <div class="tablewrap" style="margin-top:10px"><table class="pl" id="aTab"></table></div>
+    <div class="row" style="margin-top:8px">
+      <label class="f">Ajouter un interne (nom)<input type="text" id="aNouv" maxlength="20" placeholder="ex. Rayann"></label>
+      <button id="aAjout" type="button">Ajouter</button>
+    </div>
+    <div id="aCal" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="aSaveWb" type="button">Enregistrer les indisponibilités dans le classeur</button>
+      <button class="primary" id="aGen" type="button">Générer les astreintes</button>
+    </div>
+    <div class="status" id="aStatus" role="status"></div>
+    <div id="aRes"></div>
+  </section>
+
   <section class="card help">
     <h2>Mode d'emploi</h2>
     <details open>
@@ -252,6 +284,7 @@ async function loadParams(bytes, name) {
   $("dStart").value = toInputDate(P.start);
   $("dEnd").value = toInputDate(P.end);
   $("btnGen").disabled = false;
+  chargerAstreintes();
 }
 
 function wireDrop(dropId, inputId, handler) {
@@ -268,6 +301,123 @@ wireDrop("drop", "fileParams", async (f) => {
   try { await loadParams(new Uint8Array(await f.arrayBuffer()), f.name); }
   catch (e) { $("status").innerHTML = `<span class="error">${esc(e.message)}</span>`; }
 });
+
+// ------------------------------------------------------------ Astreintes (hors ligne)
+const ONGLET_AI = "Indisponibilités astreinte";
+const AST = { lignes: [], edition: null, res: null, sig: "" };
+function telecharger(bytes, nom) {
+  const a = document.createElement("a");
+  a.href = blobUrl(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); a.download = nom; a.click();
+}
+function chargerAstreintes() {
+  if (!current) return;
+  const sig = current.name + current.bytes.length;
+  if (AST.sig === sig) return renderAst();
+  AST.sig = sig; AST.res = null; AST.edition = null;
+  const ws = current.S[ONGLET_AI], P = current.P;
+  AST.lignes = [];
+  if (ws) for (let r = 5; r <= ws.maxRow; r++) {
+    const id = String(ws.get(r, 1) ?? "").trim().toUpperCase(); if (!id) continue;
+    const q = parseFloat(String(ws.get(r, 2) ?? "1").replace(",", ".").replace("%", "")) || 1;
+    AST.lignes.push({ id, quotite: q > 1 ? q / 100 : q, participe: !/^n/i.test(String(ws.get(r, 3) ?? "Oui").trim()), jours: new Set(lireJoursTexte(ws.get(r, 4))) });
+  }
+  for (const [ini, d] of Object.entries(P.docs)) if (!AST.lignes.some((l) => l.id === ini.toUpperCase())) AST.lignes.push({ id: ini.toUpperCase(), quotite: d.quotite || 1, participe: true, jours: new Set() });
+  const t = todayDay(), x = ymd(t), du = x.m === 12 ? dayFromYMD(x.y + 1, 1, 1) : dayFromYMD(x.y, x.m + 1, 1);
+  const y = ymd(du), m = y.m + 6;
+  if (!$("aDu").value) $("aDu").value = toInputDate(du);
+  if (!$("aAu").value) $("aAu").value = toInputDate(dayFromYMD(y.y + Math.floor((m - 1) / 12), ((m - 1) % 12) + 1, 1) - 1);
+  renderAst();
+}
+function todayDay() { const n = new Date(); return dayFromYMD(n.getFullYear(), n.getMonth() + 1, n.getDate()); }
+function periodeAst() { const du = fromInputDate($("aDu").value), au = fromInputDate($("aAu").value); return du !== null && au !== null && au >= du ? [du, au] : null; }
+function renderAst() {
+  const per = periodeAst();
+  $("aTab").innerHTML = `<thead><tr><th>Personne</th><th>Participe</th><th>Quotité</th><th>Indisponibilités</th><th></th></tr></thead><tbody>${AST.lignes.map((l, i) => {
+    const n = per ? [...l.jours].filter((d) => d >= per[0] && d <= per[1]).length : l.jours.size;
+    return `<tr><td style="text-align:left"><b>${esc(l.id)}</b></td><td><input type="checkbox" data-part="${i}"${l.participe ? " checked" : ""}></td>
+      <td><input type="number" step="0.1" min="0.1" max="1" value="${l.quotite}" data-q="${i}" style="width:70px"></td><td>${n} jour(s)</td>
+      <td><button type="button" data-cal="${i}"${AST.edition === i ? ' class="primary"' : ""}>Calendrier</button></td></tr>`;
+  }).join("")}</tbody>`;
+  $("aTab").querySelectorAll("[data-part]").forEach((c) => c.onchange = () => { AST.lignes[+c.dataset.part].participe = c.checked; });
+  $("aTab").querySelectorAll("[data-q]").forEach((c) => c.onchange = () => { AST.lignes[+c.dataset.q].quotite = Math.min(1, Math.max(0.1, parseFloat(String(c.value).replace(",", ".")) || 1)); });
+  $("aTab").querySelectorAll("[data-cal]").forEach((b) => b.onclick = () => { AST.edition = AST.edition === +b.dataset.cal ? null : +b.dataset.cal; renderAst(); });
+  if (AST.edition === null || !per) $("aCal").innerHTML = "";
+  else {
+    const l = AST.lignes[AST.edition];
+    $("aCal").innerHTML = `<p class="small" style="margin:0"><b>${esc(l.id)}</b> : touchez les jours d'indisponibilité (en rouge). Un jour rouge du vendredi au dimanche bloque le week-end.</p>` + calendrierHtml(per[0], per[1], l.jours, true, feriesPeriode(per[0], per[1], current.P.feries));
+    $("aCal").querySelectorAll(".cj:not([disabled])").forEach((b) => b.onclick = () => { const d = +b.dataset.j; if (l.jours.has(d)) l.jours.delete(d); else l.jours.add(d); renderAst(); });
+  }
+  renderAstRes();
+}
+$("aAjout").addEventListener("click", () => {
+  const n = $("aNouv").value.trim().toUpperCase().replace(/[^A-Z0-9 -]/g, "").slice(0, 20);
+  if (!n || AST.lignes.some((l) => l.id === n)) return;
+  AST.lignes.push({ id: n, quotite: 1, participe: true, jours: new Set() }); $("aNouv").value = ""; renderAst();
+});
+["aDu", "aAu"].forEach((id) => $(id).addEventListener("change", renderAst));
+async function ecrireOnglet(bytes, nom, titre, desc, hdr, rows) {
+  if (!current.S[nom]) bytes = await addSheet(bytes, nom, [[titre], [desc], [], hdr]);
+  const lignes = [hdr, ...rows, ...Array.from({ length: 10 }, () => [])];
+  return rewriteSheet(bytes, nom, 4, lignes, (i) => (i === 0 ? 4 : 5));
+}
+async function sauverIndispos(bytes) {
+  return ecrireOnglet(bytes, ONGLET_AI, "Indisponibilités d'astreinte", "Une ligne par personne (internes compris). Dates : 08/01/2027-10/01/2027 ; 20/01/2027. Participe : Oui / Non.",
+    ["Médecin", "Quotité", "Participe", "Indisponibilités"], AST.lignes.map((l) => [l.id, l.quotite, l.participe ? "Oui" : "Non", ecrireJoursTexte([...l.jours])]));
+}
+$("aSaveWb").addEventListener("click", async () => {
+  if (!current) return;
+  try {
+    const bytes = await sauverIndispos(current.bytes);
+    await loadParams(bytes, current.name); AST.sig = current.name + current.bytes.length;
+    telecharger(bytes, current.name.endsWith(".xlsx") ? current.name : "parametres_planning.xlsx");
+    $("aStatus").innerHTML = "Indisponibilités enregistrées dans le classeur (téléchargé). Gardez ce fichier : il servira aux prochaines générations.";
+  } catch (e) { $("aStatus").innerHTML = `<span class="error">${esc(e.message)}</span>`; }
+});
+$("aGen").addEventListener("click", () => {
+  const per = periodeAst(); if (!current || !per) return;
+  const parts = AST.lignes.filter((l) => l.participe).map((l) => ({ id: l.id, quotite: l.quotite }));
+  const indispo = Object.fromEntries(AST.lignes.map((l) => [l.id, [...l.jours]]));
+  const P = current.P, fixes = new Map();
+  if ($("aGarder").checked) for (const a of P.astreintes || []) if (a.d >= per[0] && a.d <= per[1] && !fixes.has(a.d)) fixes.set(a.d, a.ini.toUpperCase());
+  const ecart = Math.max(0, +$("aEcart").value || 0);
+  const historique = historiqueAstreintes((P.astreintes || []).map((a) => ({ d: a.d, ini: a.ini.toUpperCase() })), per[0], feriesPeriode(per[0] - 366, per[0] - 1, P.feries));
+  const res = genererAstreintes({ du: per[0], au: per[1], participants: parts, indispo, fixes, ecart, feries: P.feries, historique, graine: 12345 });
+  AST.res = { res, indispo, ecart, parts, per };
+  $("aStatus").innerHTML = res.aPourvoir.length ? `<span class="error">${res.aPourvoir.length} astreinte(s) sans personne disponible : à attribuer à la main.</span>` : "Astreintes générées : vérifiez, puis enregistrez-les dans le classeur.";
+  renderAstRes();
+});
+function renderAstRes() {
+  const el = $("aRes");
+  if (!AST.res) { el.innerHTML = ""; return; }
+  const { res, indispo, ecart, parts } = AST.res;
+  const cpt = Object.fromEntries(parts.map((p) => [p.id, { S: 0, W: 0, F: 0 }]));
+  for (const u of res.unites) if (u.qui && cpt[u.qui]) cpt[u.qui][u.type]++;
+  const pbs = controlerAstreintes(res, indispo, ecart);
+  const quand = (u) => u.type === "W" ? `${fmtDay(u.debut, false)} → ${fmtDay(u.fin, false)}` : `${fmtDay(u.debut, false)}${u.ferie ? " · " + esc(u.ferie) : ""}`;
+  el.innerHTML = `<h3 style="font-size:15px;margin:16px 0 6px">Équité (attribué / cible)</h3>
+    <div class="tablewrap"><table class="pl"><thead><tr><th>Personne</th><th>Semaine</th><th>Week-end</th><th>Férié</th></tr></thead><tbody>
+    ${parts.map((p) => `<tr><td style="text-align:left"><b>${esc(p.id)}</b></td>${ASTR_TYPES.map((t) => `<td>${cpt[p.id][t]} / ${(res.cibles[p.id] || {})[t]?.toFixed(1) ?? "–"}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    ${pbs.length ? `<p class="error">${pbs.slice(0, 10).map(esc).join("<br>")}</p>` : ""}
+    <h3 style="font-size:15px;margin:16px 0 6px">Astreintes</h3>
+    <div class="tablewrap"><table class="pl"><tbody>${res.unites.map((u) => `<tr><td style="text-align:left">${quand(u)}</td><td><span class="tagT">${ASTR_LIB[u.type]}</span></td>
+      <td><select data-u="${u.id}"><option value="">— à pourvoir —</option>${parts.map((p) => `<option${u.qui === p.id ? " selected" : ""}>${esc(p.id)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>
+    <div class="row" style="margin-top:10px"><button class="primary" id="aSaveAst" type="button">Enregistrer les astreintes dans le classeur</button></div>`;
+  el.querySelectorAll("[data-u]").forEach((s2) => s2.onchange = () => { res.unites[+s2.dataset.u].qui = s2.value || null; renderAstRes(); });
+  $("aSaveAst").onclick = async () => {
+    try {
+      const [du, au] = AST.res.per, ws = current.S["Astreintes"], garder = [];
+      if (ws) for (let r = 5; r <= ws.maxRow; r++) { const d = asDay(ws.get(r, 1)), q = ws.get(r, 2); if (d !== null && q && (d < du || d > au)) garder.push([fmtDay(d), String(q)]); }
+      const nouv = res.unites.filter((u) => u.qui).flatMap((u) => u.jours.map((d) => [fmtDay(d), u.qui]));
+      const rows = garder.concat(nouv).sort((a, b) => asDay(a[0]) - asDay(b[0]));
+      let bytes = await sauverIndispos(current.bytes);
+      current.S = await readXlsx(bytes.buffer);
+      bytes = await ecrireOnglet(bytes, "Astreintes", "Astreintes", "Une ligne par jour : date et médecin d'astreinte.", ["Date", "Médecin"], rows);
+      await loadParams(bytes, current.name); AST.sig = current.name + current.bytes.length;
+      telecharger(bytes, current.name.endsWith(".xlsx") ? current.name : "parametres_planning.xlsx");
+      $("aStatus").innerHTML = `${nouv.length} jour(s) d'astreinte enregistrés dans le classeur (téléchargé). La génération du planning en tient compte.`;
+    } catch (e) { $("aStatus").innerHTML = `<span class="error">${esc(e.message)}</span>`; }
+  };
+}
 
 $("dlTemplate").addEventListener("click", () => {
   const bytes = current ? current.bytes : b64ToBytes(DEFAULT_PARAMS_B64);

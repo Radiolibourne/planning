@@ -70,7 +70,7 @@ def main():
         "index.html": page_en_ligne(config, "" if config else params_b64),
         "demo.html": page_en_ligne(None, params_b64),
         "generateur-hors-ligne.html": lire("app.html")
-            .replace("/*__LIBS__*/", bibliotheques(["zip.js", "engine.js", "export.js"]), 1)
+            .replace("/*__LIBS__*/", bibliotheques(["zip.js", "engine.js", "export.js", "astreintes.js"]), 1)
             .replace("/*__PARAMS__*/", params_b64, 1),
     }
     for nom, html in pages.items():

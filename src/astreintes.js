@@ -184,3 +184,37 @@ function historiqueAstreintes(liste, du, feries) {
   }
   return { nb, compteurs };
 }
+
+// Calendrier à toucher (mois par mois, lundi en premier) : jours de `set` en rouge ; utilisé en ligne et hors ligne
+function calendrierHtml(du, au, set, editable, feries) {
+  let html = "";
+  const p = ymd(du), q = ymd(au);
+  for (let y = p.y, m = p.m; y * 100 + m <= q.y * 100 + q.m; m === 12 ? (y++, m = 1) : m++) {
+    const d1 = dayFromYMD(y, m, 1), nbj = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    let cases = "";
+    for (let k = 0; k < weekday(d1); k++) cases += "<span></span>";
+    for (let j = 1; j <= nbj; j++) {
+      const d = d1 + j - 1, hors = d < du || d > au, ind = set.has(d);
+      cases += `<button type="button" class="cj${ind ? " ind" : ""}${weekday(d) >= 4 ? " we" : ""}${feries.has(d) ? " fer" : ""}" data-j="${d}"${hors || !editable ? " disabled" : ""} aria-pressed="${ind}" title="${fmtDay(d)}${feries.has(d) ? " · " + esc(feries.get(d)) : ""}">${j}</button>`;
+    }
+    html += `<div class="calm"><div class="calt">${MOIS[m - 1]} ${y}</div><div class="calg"><b>L</b><b>M</b><b>M</b><b>J</b><b>V</b><b>S</b><b>D</b>${cases}</div></div>`;
+  }
+  return `<div class="cals">${html}</div>`;
+}
+
+// Indisponibilités écrites dans le classeur : « 08/01/2027-10/01/2027 ; 20/01/2027 » ↔ liste de jours
+function lireJoursTexte(t) {
+  const out = new Set();
+  for (const morceau of String(t ?? "").split(/[;,\n]+/)) {
+    const m = morceau.trim(); if (!m) continue;
+    const p = m.split(/\s*(?:-|→|\bau\b|\ba\b)\s*(?=\d)/i).map((x) => asDay(x.trim()));
+    if (p.length === 2 && p[0] !== null && p[1] !== null) { for (let d = Math.min(p[0], p[1]); d <= Math.max(p[0], p[1]) && out.size < 1000; d++) out.add(d); }
+    else if (p[0] !== null) out.add(p[0]);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+function ecrireJoursTexte(jours) {
+  const js = [...new Set(jours)].sort((a, b) => a - b), plages = [];
+  for (const d of js) { const p = plages[plages.length - 1]; if (p && d === p[1] + 1) p[1] = d; else plages.push([d, d]); }
+  return plages.map(([a, b]) => (a === b ? fmtDay(a) : `${fmtDay(a)}-${fmtDay(b)}`)).join(" ; ");
+}
