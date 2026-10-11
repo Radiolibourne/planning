@@ -51,7 +51,7 @@ def membre(uid): return uid is not None and f"membres/{uid}" in DB
 def moi(uid): return DB.get(f"membres/{uid}") or {}
 def code_seul():
     d = DB.get(f"espaces/{TEAM}/config/acces")
-    return d is None or d.get("codeSeul") is not False
+    return d is not None and d.get("codeSeul") is True
 def lecteur(code, uid): return code == TEAM and (is_admin(uid) or membre(uid) or code_seul())
 def auteur(ini, uid): return (ini == moi(uid).get("ini")) if membre(uid) else code_seul()
 def hors_trous(d1, d2):
@@ -71,6 +71,9 @@ def peut_lire(path, uid):
     s = path.split("/")
     if s[0] == "espaces":
         return lecteur(s[1], uid)
+    if s[0] == "motifs":
+        d = DB.get(path)
+        return is_admin(uid) or (d is not None and uid is not None and d.get("uid") == uid)
     if s[0] in ("membres", "demandes", "declarations", "admins"):
         return is_admin(uid) or (len(s) == 2 and uid == s[1])
     if s[0] == "abonnements":
@@ -83,12 +86,16 @@ def peut_ecrire(op, path, uid, data):
         if len(s) >= 3 and s[2] == "indispos":
             if op == "del": return is_admin(uid) or (old is not None and auteur(old["ini"], uid) and ouvert(old["d1"], old["d2"]))
             if op == "set" and old is not None: return is_admin(uid) and valid_indispo(data)       # décision de l'administrateur
-            return valid_indispo(data) and (is_admin(uid) or (data.get("statut") == "attente" and auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"]) and hors_trous(data["d1"], data["d2"])))
+            return valid_indispo(data) and (is_admin(uid) or (data.get("statut") == "attente" and auteur(data["ini"], uid) and ouvert(data["d1"], data["d2"]) and hors_trous(data["d1"], data["d2"]) and data.get("motif") == ""))
         if len(s) == 4 and s[2] == "astrIndispo":
             cfg = DB.get(f"espaces/{TEAM}/config/astreintes") or {}
             return is_admin(uid) or (op != "del" and auteur(s[3], uid) and time.time() * 1000 <= cfg.get("finMs", 0)
                                      and set(data) <= {"ini", "jours", "majLe"} and data.get("ini") == s[3] and isinstance(data.get("jours"), list) and len(data["jours"]) <= 400)
         return is_admin(uid)
+    if s[0] == "motifs":
+        if op == "del": return is_admin(uid) or (old is not None and old.get("uid") == uid)
+        return is_admin(uid) or (uid is not None and membre(uid) and set(data) <= {"ini", "uid", "motif"} and data.get("uid") == uid
+                                 and data.get("ini") == moi(uid).get("ini") and len(str(data.get("motif", ""))) <= 100)
     if s[0] == "membres": return is_admin(uid)
     if s[0] == "admins": return is_admin(uid) and uid != s[1]
     if s[0] == "abonnements":
@@ -197,11 +204,8 @@ with sync_playwright() as pw:
                        env={**os.environ, "CODE_EQUIPE": TEAM, "ADMIN_UID": ADMIN_UID})
     ok(r.returncode == 0 and r.stdout == texte, "règles : texte identique entre la page et la publication par GitHub")
     ok("config/acces" in texte and "match /membres/{uid}" in texte, "règles : comptes et interrupteur d'accès provisoire")
-    # interrupteur : accès provisoire désactivé depuis Admin → Comptes
-    ok(adm.is_checked("#accCode"), "accès provisoire autorisé par défaut")
-    adm.uncheck("#accCode")
-    adm.wait_for_function("document.querySelector('#accMsg').innerText.includes('désactivé')", timeout=8000)
-    ok(DB.get(f"espaces/{TEAM}/config/acces", {}).get("codeSeul") is False, "admin : accès par code désactivé d'un clic (sans republier les règles)")
+    # accès provisoire par code : option retirée, désactivé par défaut
+    ok(adm.locator("#accCode").count() == 0 and adm.is_hidden("#authCodeRow") and "data.codeSeul == true" in texte, "accès par code seul retiré (option supprimée, refusé par défaut)")
     # ---------------- médecin : inscription
     doc = page()
     doc.goto("https://planning.test/")
@@ -236,11 +240,18 @@ with sync_playwright() as pw:
     doc.fill("#indD1", x.isoformat()); doc.fill("#indD2", x.isoformat()); doc.click("#indSubmit")
     doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('en attente')", timeout=8000)
     ok(any(v.get("ini") == "DA" for k, v in DB.items() if "/indispos/" in k), "médecin : demande enregistrée à son nom")
+    ok(all(v.get("motif") == "" for k, v in DB.items() if "/indispos/" in k) and any(k.startswith("motifs/") and v.get("ini") == "DA" and v.get("motif") for k, v in DB.items()),
+       "motif rangé à part (absent du document partagé)")
+    doc.wait_for_function("document.querySelector('#myInd').innerText.includes('Congés')", timeout=8000)
+    ok(True, "médecin : voit le motif de sa propre demande")
+    autre = [k for k, v in DB.items() if k.startswith("motifs/")][0]
+    r2 = doc.evaluate("""async (p) => { const o = JSON.parse(await window.__fb('get', JSON.stringify({path: p, uid: 'quelquun-dautre'}))); return o.error || 'lu'; }""", autre)
+    ok(r2 == "permission-denied", "serveur : motif illisible pour un collègue")
     r = doc.evaluate("""async ([t, j]) => JSON.parse(await window.__fb('add', JSON.stringify({path: 'espaces/' + t + '/indispos', uid: globalThis.__uid,
         data: {ini: 'DB', d1: j, d2: j, periode: 'Journée', motif: 'test', creeLe: 1}}))).error || 'accepté'""", [TEAM, numero_jour(x)])
     ok(r == "permission-denied", "serveur : impossible de déclarer une absence au nom d'un collègue")
     # ---------------- accès par simple code : refusé
-    anon = page()
+    anon = page(); anon.add_init_script("window.__CODE_SEUL = true")
     anon.goto("https://planning.test/"); anon.wait_for_selector("#vAuth:not([hidden])"); anon.click("#authCode")
     anon.fill("#codeInput", TEAM); anon.click("#codeForm button")
     anon.wait_for_function("document.querySelector('#codeMsg').innerText.includes('refusé')", timeout=8000)

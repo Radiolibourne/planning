@@ -69,6 +69,7 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 with sync_playwright() as pw:
     b = chromium(pw)
     ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, service_workers="allow")
+    ctx.add_init_script("window.__CODE_SEUL = true")
     erreurs = []
     pg = ctx.new_page()
     pg.expose_function("__fb", lambda op, a: json.dumps(serveur(op, json.loads(a))))

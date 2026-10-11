@@ -181,3 +181,7 @@ Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`,
 - Import d'un planning Excel (Admin → « Importer un planning Excel ») : fichier produit par le bouton Excel du site, éventuellement retouché (`draftFromPlanningXlsx` dans `export.js`). Les postes et horaires viennent de l'onglet Config du fichier : un planning peut contenir des postes absents des paramètres actuels.
 - Internes : pas encore gérés (le service les ajoutera peut-être). Les départs et arrivées de médecins se font dans le classeur (onglet Médecins).
 - Pistes envisagées : onglet « Quotas » générique (min / max par médecin, poste et période). **Échanges de vacations : refusés par le service, ne pas les ajouter.**
+
+### Confidentialité des absences (octobre 2026)
+- Accès par code seul retiré du site : règle `codeSeul` vraie seulement si `config/acces.codeSeul == true` (plus d'interrupteur). Le lien « Accès provisoire » n'apparaît que pour les tests (`window.__CODE_SEUL`).
+- Motif d'absence rangé à part : `motifs/{idAbsence}` `{ini, uid, motif}`, lisible par l'auteur et les admins seulement ; le document `indispos` porte `motif: ""` (exigé par les règles pour une demande de médecin). Les anciens motifs sont déplacés une fois par un admin connecté (`migrerMotifs`). Notification « nouvelle demande » sans le motif.

@@ -23,7 +23,7 @@ ok = B.ok
 # ---------------- « serveur » Firestore simulé : applique la même logique que les règles générées
 def denied(): return {'error': 'permission-denied'}
 def seg(path): return path.split('/')
-def can_read(path): s = seg(path); return len(s) >= 2 and s[0] == 'espaces' and s[1] == TEAM
+def can_read(path): s = seg(path); return (len(s) >= 2 and s[0] == 'espaces' and s[1] == TEAM) or (len(s) == 2 and s[0] == 'motifs')
 def is_admin(uid): return uid in ADMINS
 def valid_indispo(d):
     keys = {'ini', 'd1', 'd2', 'periode', 'motif', 'creeLe'}
@@ -133,7 +133,7 @@ with sync_playwright() as pw:
         pg.on('pageerror', lambda e: fails.append('JS ' + str(e))); pg.on('dialog', lambda d: d.accept())
         return pg
     cA = b.new_context(accept_downloads=True); cA.route('**/*', handle)
-    cD = b.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True); cD.route('**/*', handle)
+    cD = b.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True); cD.route('**/*', handle); cA.add_init_script('window.__CODE_SEUL = true'); cD.add_init_script('window.__CODE_SEUL = true')
     adm, doc = page(cA), page(cD)
     # --- médecin : mauvais code puis bon code
     doc.goto('https://planning.test/index.html')

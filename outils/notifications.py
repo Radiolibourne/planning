@@ -181,7 +181,7 @@ def planifier(publie, saisie, indispos, declarations, abonnements, etat, mainten
     if nouvelles and not premier:
         if len(nouvelles) == 1:
             x = nouvelles[0]
-            corps = f"{x.get('ini', '?')} : {quand_ind(x)} ({x.get('motif', 'absence')}). À accepter ou refuser dans Admin."
+            corps = f"{x.get('ini', '?')} : {quand_ind(x)}. À accepter ou refuser dans Admin."
         else:
             corps = f"{len(nouvelles)} demandes ({', '.join(sorted({str(x.get('ini', '?')) for x in nouvelles}))}) à accepter ou refuser dans Admin."
         charge = {"title": "Nouvelle demande d'absence" if len(nouvelles) == 1 else "Nouvelles demandes d'absence",

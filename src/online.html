@@ -427,7 +427,7 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
           <button class="x" id="authToggle" type="button">Pas encore de compte ? Créer un compte</button>
           <button class="x" id="authForgot" type="button">Mot de passe oublié ?</button>
         </div>
-        <p class="small muted" style="margin:14px 0 0"><button class="x" id="authCode" type="button" style="padding:0">Accès provisoire avec le code d'équipe</button></p>
+        <p class="small muted" id="authCodeRow" hidden style="margin:14px 0 0"><button class="x" id="authCode" type="button" style="padding:0">Accès provisoire avec le code d'équipe</button></p>
       </div>
       <div id="authPending" hidden>
         <h2>Demande envoyée</h2>
@@ -644,8 +644,7 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
         <h2>Comptes <span class="tag err" id="accHeadTag" hidden></span></h2>
         <p class="sub">Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
         <div id="accWarn" class="banner warn small" hidden></div>
-        <label style="display:flex;gap:10px;align-items:flex-start;margin:4px 0 6px;font-size:14px"><input type="checkbox" id="accCode" style="margin-top:3px;width:20px;height:20px">
-          <span><b>Accès provisoire par code d'équipe</b> (sans compte) autorisé.<br><span class="small muted">Décochez quand tous les médecins ont un compte validé : le code seul ne donnera plus accès. Effet immédiat.</span></span></label>
+        
         <h3 style="margin-top:6px">Demandes en attente <span class="tag" id="accPendN">0</span></h3>
         <ul class="list" id="accPend"></ul>
         <h3>Comptes actifs <span class="tag" id="accN">0</span></h3>
@@ -1063,6 +1062,7 @@ function watchAdminCollections() {
   S.adminUnsub.push(S.store.watchColl("demandes", (l) => { S.demandes = l; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("declarations", (l) => { S.declarations = l; render(); }, err));
   S.adminUnsub.push(S.store.watchColl("admins", (l) => { S.admins = l; render(); }, () => { S.admins = []; }));
+  S.adminUnsub.push(S.store.watchColl("motifs", (l) => { S.motifs = Object.fromEntries(l.map((x) => [x.id, x])); render(); migrerMotifs(); }, () => {}));
 }
 
 function leaveSpace() {
@@ -1160,6 +1160,7 @@ function renderAuth() {
   }
 }
 $("authToggle").addEventListener("click", () => { S.signup = !S.signup; setMsg($("authMsg"), ""); renderAuth(); });
+if (window.__CODE_SEUL) $("authCodeRow").hidden = false;   // accès par code seul retiré du site (tests uniquement)
 $("authCode").addEventListener("click", () => { S.entry = "code"; $("codeSub").textContent = "Accès provisoire : saisissez le code d'équipe communiqué par l'administrateur."; route(); });
 ["authLogout1", "authLogout2"].forEach((id) => $(id).addEventListener("click", () => logout()));
 // Connexion, en tenant compte du choix « ordinateur partagé ».
@@ -2158,12 +2159,40 @@ function renderQui() {
 }
 
 // ------------------------------------------------------------ indisponibilités
+// Motifs d'absence : rangés à part (motifs/{id}), lus par l'administrateur (tous) ou l'auteur (les siens)
+S.motifs = {};
+const motifDe = (x) => (x.motif || (S.motifs[x.id] && S.motifs[x.id].motif) || "");
+const motifsDemandes = new Set();
+function chargerMesMotifs(liste) {
+  if (S.admin || !S.store) return;
+  for (const x of liste) {
+    if (x.motif || S.motifs[x.id] || motifsDemandes.has(x.id)) continue;
+    motifsDemandes.add(x.id);
+    S.store.get(`motifs/${x.id}`).then((d) => { if (d) { S.motifs[x.id] = d; renderIndispos(); } }).catch(() => {});
+  }
+}
+// Anciennes absences avec le motif dans le document partagé : l'administrateur les range à part (une fois)
+let motifsMigres = false;
+async function migrerMotifs() {
+  if (motifsMigres || !S.admin || S.legacy || !S.store || S.store.mode !== "firebase" || !S.membres) return;
+  const a = S.indispos.filter((x) => x.motif);
+  if (!a.length) return;
+  motifsMigres = true;
+  for (const x of a) {
+    const m = (S.membres || []).find((y) => String(y.ini).toUpperCase() === String(x.ini).toUpperCase());
+    try {
+      await S.store.set(`motifs/${x.id}`, { ini: x.ini, uid: (m && m.id) || "", motif: x.motif });
+      const { id, ...reste } = x;
+      await S.store.set(`${PATHS.indispos()}/${x.id}`, { ...reste, motif: "" });
+    } catch (e) { console.warn("motif", e); }
+  }
+}
 function indLine(x, canDelete, showIni, sansMotif) {
   const same = x.d1 === x.d2;
   const when = same ? `le ${JC[weekday(x.d1)].toLowerCase()} ${fmtDay(x.d1)}` : `du ${fmtDay(x.d1, false)} au ${fmtDay(x.d2)}`;
   const st = statutInd(x);
   const tag = st === "attente" ? ` <span class="tag">en attente</span>` : st === "refusee" ? ` <span class="tag err">refusée</span>` : x.statut === "acceptee" ? ` <span class="tag ok">acceptée</span>` : "";
-  return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}${tag}</div><div class="small muted">${sansMotif ? "absent" : esc(x.motif)}${st === "refusee" && x.refus ? ` · motif du refus : ${esc(x.refus)}` : ""}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">${st === "attente" ? "Annuler la demande" : "Supprimer"}</button>` : ""}</li>`;
+  return `<li>${showIni ? `<span class="ini">${esc(x.ini)}</span>` : ""}<div class="grow"><div><b>${esc(when)}</b>${x.periode !== "Journée" ? ` · ${esc(x.periode.toLowerCase())}` : ""}${tag}</div><div class="small muted">${sansMotif ? "absent" : esc(motifDe(x) || "Absence")}${st === "refusee" && x.refus ? ` · motif du refus : ${esc(x.refus)}` : ""}</div></div>${canDelete ? `<button class="x" data-del="${esc(x.id)}">${st === "attente" ? "Annuler la demande" : "Supprimer"}</button>` : ""}</li>`;
 }
 const lockOf = (x) => lockReason(x.d1, x.d2, S.published, S.saisie);
 
@@ -2264,6 +2293,7 @@ function renderIndispos() {
   $("myIndTitle").textContent = S.me ? `Mes indisponibilités (${S.me})` : "Mes indisponibilités";
   const sorted = S.indispos.slice().sort((a, b) => a.d1 - b.d1 || String(a.ini).localeCompare(b.ini));
   const mine = sorted.filter((x) => String(x.ini).toUpperCase() === S.me && x.d2 >= today);
+  chargerMesMotifs(mine);
   $("myInd").innerHTML = mine.length ? mine.map((x) => indLine(x, !!S.admin || !lockOf(x), false)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
   const team = sorted.filter((x) => x.d2 >= today && statutInd(x) !== "refusee");
   $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true, !S.admin)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
@@ -2294,11 +2324,15 @@ $("indForm").addEventListener("submit", async (e) => {
   }
   const prec = $("indPrec").value.trim().slice(0, 60);
   // un administrateur enregistre directement une absence acceptée ; un médecin envoie une demande à valider
-  const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: $("indMotif").value + (prec ? ` — ${prec}` : ""), creeLe: Date.now(),
+  const motif = $("indMotif").value + (prec ? ` — ${prec}` : "");
+  const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: "", creeLe: Date.now(),
     statut: S.admin ? "acceptee" : "attente" };
   $("indSubmit").disabled = true;
   try {
-    await S.store.add(PATHS.indispos(), data);
+    const id = await S.store.add(PATHS.indispos(), data);
+    // le motif à part : visible de vous et des administrateurs seulement
+    try { await S.store.set(`motifs/${id}`, { ini: S.me, uid: (S.auth && S.auth.uid) || "demo", motif }); S.motifs[id] = { motif }; }
+    catch (e2) { console.warn("motif", e2); }
     setMsg(msg, S.admin ? "Absence enregistrée (acceptée)." : "Demande envoyée : en attente de validation par l'administrateur.", "ok");
     $("indPrec").value = "";
   } catch (err) { setMsg(msg, err.message, "err"); }
@@ -2308,7 +2342,7 @@ async function deleteIndispo(id, msgEl) {
   const x = S.indispos.find((i) => i.id === id);
   if (!needOnline(msgEl)) return;
   if (!x || !confirm(`Supprimer l'indisponibilité de ${x.ini} (${fmtDay(x.d1, false)}${x.d1 !== x.d2 ? " → " + fmtDay(x.d2, false) : ""}) ?`)) return;
-  try { await S.store.del(`${PATHS.indispos()}/${id}`); }
+  try { await S.store.del(`${PATHS.indispos()}/${id}`); S.store.del(`motifs/${id}`).catch(() => {}); }
   catch (e) { if (msgEl) setMsg(msgEl, e.message, "err"); }
 }
 $("myInd").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) deleteIndispo(b.dataset.del, $("indMsg")); });
@@ -2404,7 +2438,6 @@ function renderComptes() {
   if (!comptesActifs()) return;
   const warn = S.legacy ? "Comptes inactifs : republiez les règles de sécurité (carte « Règles de sécurité à jour » ci-dessous) pour les activer." : S.accErr;
   $("accWarn").hidden = !warn; $("accWarn").textContent = warn || "";
-  $("accCode").checked = !(S.acces && S.acces.codeSeul === false);
   const docs = doctorList();
   const opts = (sel) => [...new Set([...docs, sel].filter(Boolean))].map((d) => `<option${d === sel ? " selected" : ""}>${esc(d)}</option>`).join("");
   const dem = S.demandes.slice().sort((a, b) => a.creeLe - b.creeLe);
@@ -2431,14 +2464,6 @@ function renderComptes() {
   const sans = docs.filter((d) => !mem.some((m) => String(m.ini).toUpperCase() === d));
   $("accSans").textContent = sans.length ? `Médecins sans compte : ${sans.join(", ")}.` : (docs.length ? "Tous les médecins ont un compte." : "");
 }
-$("accCode").addEventListener("change", async (e) => {
-  const on = e.target.checked, msg = $("accMsg");
-  const txt = on ? "Réautoriser l'accès par simple code d'équipe (sans compte) ?"
-    : "Désactiver l'accès par code d'équipe ? Seuls les comptes validés pourront consulter le planning et déclarer des absences.";
-  if (!needOnline(msg) || !confirm(txt)) { e.target.checked = !on; return; }
-  try { await S.store.set(PATHS.acces(), { codeSeul: on, majLe: Date.now(), par: (S.auth && S.auth.email) || "" }); setMsg(msg, on ? "Accès par code réautorisé." : "Accès par code désactivé.", "ok"); }
-  catch (err) { e.target.checked = !on; setMsg(msg, err.message, "err"); }
-});
 $("accPend").addEventListener("click", async (e) => {
   const li = e.target.closest("li[data-uid]"); if (!li) return;
   const uid = li.dataset.uid, d = S.demandes.find((x) => x.id === uid); if (!d) return;
@@ -3263,7 +3288,7 @@ $("dlParams").addEventListener("click", () => { if (S.params) saveFile(b64ToByte
 
 // Génération
 function problemFor(start, end) {
-  const P = { ...S.P, abs: S.P.abs.concat(onlineAbs(S.indispos)), start, end };
+  const P = { ...S.P, abs: S.P.abs.concat(onlineAbs(S.indispos.map((x) => ({ ...x, motif: motifDe(x) })))), start, end };
   return buildProblem(P);
 }
 $("gBtn").addEventListener("click", async () => {

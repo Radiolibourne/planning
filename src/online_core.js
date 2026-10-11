@@ -256,7 +256,7 @@ function demoStore() {
   const notify = () => setTimeout(() => listeners.forEach((l) => l()), 0);
   const collOf = (coll) => Object.keys(mem).filter((k) => k.startsWith(coll + "/") && !k.slice(coll.length + 1).includes("/"))
     .map((k) => ({ id: k.slice(coll.length + 1), ...clone(mem[k]) }));
-  const needAdmin = (path) => { if (!user && !path.includes("/indispos/") && !path.includes("/astrIndispo/") && !path.startsWith("declarations/")) throw new StoreError("permission-denied", "Action réservée à l'administrateur."); };
+  const needAdmin = (path) => { if (!user && !path.includes("/indispos/") && !path.includes("/astrIndispo/") && !path.startsWith("declarations/") && !path.startsWith("motifs/")) throw new StoreError("permission-denied", "Action réservée à l'administrateur."); };
   window.addEventListener("storage", (e) => {
     if (e.key !== KEY) return;
     try { mem = JSON.parse(e.newValue || "{}"); } catch (x) { mem = {}; }
@@ -308,7 +308,8 @@ service cloud.firestore {
     // Accès provisoire par simple code d'équipe (sans compte) : autorisé tant que l'administrateur
     // ne l'a pas désactivé dans le site (Admin → Comptes), document espaces/{code}/config/acces.
     function acces(code) { return /databases/$(database)/documents/espaces/$(code)/config/acces; }
-    function codeSeul(code) { return !exists(acces(code)) || get(acces(code)).data.codeSeul != false; }
+    // Désactivé par défaut (option retirée du site) : seulement si config/acces.codeSeul vaut explicitement true.
+    function codeSeul(code) { return exists(acces(code)) && get(acces(code)).data.codeSeul == true; }
     function lecteur(code) { return equipe(code) && (admin() || membre() || codeSeul(code)); }
 
     // Saisie des absences ouverte pour [d1, d2] : après la période publiée
@@ -352,7 +353,8 @@ service cloud.firestore {
     match /espaces/{code}/indispos/{id} {
       allow create: if equipe(code) && demandeValide(request.resource.data)
         && (admin() || (request.resource.data.get('statut', '') == 'attente'
-          && auteur(code, request.resource.data.ini) && nouvelle(code, request.resource.data.d1, request.resource.data.d2)));
+          && auteur(code, request.resource.data.ini) && nouvelle(code, request.resource.data.d1, request.resource.data.d2)
+          && request.resource.data.motif == ''));   // motif rangé à part (motifs/{id}), invisible des collègues
       allow update: if equipe(code) && admin() && demandeValide(request.resource.data);
       allow delete: if equipe(code)
         && (admin() || (auteur(code, resource.data.ini) && ouvert(code, resource.data.d1, resource.data.d2)));
@@ -367,6 +369,15 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['ini', 'jours', 'majLe'])
         && request.resource.data.ini == ini
         && request.resource.data.jours is list && request.resource.data.jours.size() <= 400));
+    }
+
+    // Motifs d'absence : lisibles seulement par leur auteur et les administrateurs (identifiant = celui de l'absence).
+    match /motifs/{id} {
+      allow read, delete: if admin() || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow create, update: if admin() || (request.auth != null && membre()
+        && request.resource.data.keys().hasOnly(['ini', 'uid', 'motif'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.ini == moi().ini
+        && request.resource.data.motif is string && request.resource.data.motif.size() <= 100);
     }
 
     // Comptes validés : chacun lit le sien ; seuls les administrateurs les créent, modifient ou retirent.
