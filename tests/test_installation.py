@@ -28,7 +28,7 @@ with sync_playwright() as p:
     pg.click("#instDone")
     pg.reload(); pg.wait_for_selector("#vMon:not([hidden])"); pg.wait_for_timeout(2000)
     B.ok(pg.is_hidden("#installOverlay"), "« C'est fait » : plus jamais affiché")
-    pg.click("a[data-tab=cal]"); pg.wait_for_timeout(500)
+    pg.click("#gearBtn"); pg.wait_for_timeout(500)
     if pg.query_selector("#calInstall"):
         pg.click("#calInstall"); B.ok(pg.is_visible("#installOverlay"), "onglet Calendrier : marche à suivre accessible à tout moment")
     else:

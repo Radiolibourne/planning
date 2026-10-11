@@ -301,7 +301,7 @@ with sync_playwright() as pw:
     ok(adm.evaluate("async (t) => { await S.store.set(PATHS.astrInd() + '/DA', {ini: 'DA', jours: [21002], majLe: Date.now()}); return 'ok'; }", TEAM) == "ok", "astreintes : l'administrateur peut toujours corriger")
     # ---------------- notifications
     doc.evaluate(STUB_PUSH)
-    doc.click("a[data-tab=cal]"); doc.wait_for_selector("#notifOn", timeout=8000)
+    doc.click("#gearBtn"); doc.wait_for_selector("#notifOn", timeout=8000)
     doc.click("#notifOn")
     doc.wait_for_function("document.querySelector('#notifMsg').innerText.includes('activées')", timeout=20000)
     abos = {k: v for k, v in DB.items() if k.startswith("abonnements/")}

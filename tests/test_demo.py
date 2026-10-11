@@ -110,7 +110,7 @@ def main():
         r = {"premiere": p2.inner_text("#vMon .week-h"), "passees": p2.locator("#vMon details.passees .week-h").count()}
         p2.close()
         B.ok("cette semaine" in r["premiere"] and r["passees"] == 1, f"Mon planning : semaine en cours en premier, semaines passées repliées ({r})")
-        doc.click("a[data-tab=cal]"); doc.wait_for_selector("#icsMe", timeout=5000)
+        doc.click("#gearBtn"); doc.wait_for_selector("#icsMe", timeout=5000)
         ics = urllib.parse.unquote(doc.get_attribute("#icsMe", "href").split(",", 1)[1])
         B.ok(ics.startswith("BEGIN:VCALENDAR") and ics.count("BEGIN:VEVENT") > 5, "calendrier iPhone généré")
         # verrou : période publiée fermée aux médecins
