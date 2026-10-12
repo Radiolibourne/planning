@@ -24,6 +24,7 @@ etapes = [
     ("RCP et astreintes", [sys.executable, os.path.join(ICI, "test_rcp.py")]),
     ("Générateur d'astreintes", [sys.executable, os.path.join(ICI, "test_astreintes.py")]),
     ("Hors ligne : astreintes", [sys.executable, os.path.join(ICI, "test_hors_ligne_astreintes.py")]),
+    ("Compteurs de congés", [sys.executable, os.path.join(ICI, "test_conges.py")]),
 ]
 resultats = []
 for nom, cmd in etapes:

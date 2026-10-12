@@ -55,11 +55,11 @@ def main():
         B.ok(doc.inner_text("#meBtn") == f"Vous : {MEDECIN}", "initiales mémorisées")
         doc.click("a[data-tab=indispos]")
         doc.fill("#indD1", conge_debut.isoformat()); doc.fill("#indD2", conge_fin.isoformat())
-        doc.select_option("#indMotif", "Congés"); doc.fill("#indPrec", "vacances")
+        doc.select_option("#indMotif", "Congés annuels (CA)"); doc.fill("#indPrec", "vacances")
         doc.click("#indSubmit")
         doc.wait_for_function("document.querySelector('#indMsg').innerText.includes('en attente de validation')")
         doc.wait_for_function(f"document.querySelector('#myInd').innerText.includes('{conge_debut:%d/%m}')")
-        B.ok("Congés — vacances" in doc.inner_text("#myInd") and "en attente" in doc.inner_text("#myInd"), "demande d'absence listée « en attente »")
+        B.ok("Congés annuels (CA) — vacances" in doc.inner_text("#myInd") and "en attente" in doc.inner_text("#myInd"), "demande d'absence listée « en attente »")
         doc.fill("#indD1", conge_fin.isoformat()); doc.fill("#indD2", conge_debut.isoformat()); doc.click("#indSubmit")
         B.ok("avant la date" in doc.inner_text("#indMsg"), "dates incohérentes refusées")
         # --- administrateur : génération sur le mois suivant

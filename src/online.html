@@ -239,7 +239,7 @@ table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
 /* Admin : cartes repliables, dans l'ordre d'usage */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
-#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #jourCard { order: 6; } #sauvCard { order: 6; } #cloCard { order: 4; } #accCard { order: 5; }
+#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #jourCard { order: 6; } #sauvCard { order: 6; } #congCard { order: 5; } #cloCard { order: 4; } #accCard { order: 5; }
 #medCard { order: 6; } #regCard { order: 7; } #paramCard { order: 8; } #statCard { order: 9; } #rulesCard { order: 10; } #setupCard { order: 11; }
 .pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
 .pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
@@ -371,6 +371,17 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
   .glisser { display: none !important; }
   #vMon, #vQui, #vIndispos, #vCal, #vAstr { max-width: 900px; margin-left: auto; margin-right: auto; }
 }
+/* Compteurs de congés */
+.congs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.cong { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--panel); }
+.cong .t { font-size: 12px; color: var(--muted); font-weight: 600; }
+.cong .n { font-size: 26px; font-weight: 800; line-height: 1.1; }
+.cong .r { font-size: 11.5px; font-weight: 700; margin-bottom: 4px; }
+.cong .d { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.cong.neg .n { color: var(--err); }
+table.congt td, table.congt th { padding: 5px 8px; font-size: 13px; text-align: center; white-space: nowrap; }
+table.congt td:first-child { text-align: left; font-weight: 700; }
+table.congt input { width: 64px; min-height: 30px; padding: 2px 4px; font-size: 13px; }
 /* Apparence */
 .pals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 10px; }
 .pals button { border: 2px solid transparent; border-radius: 12px; padding: 0; overflow: hidden; cursor: pointer; background: none; text-align: left; }
@@ -520,6 +531,10 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
   <section id="vCal" hidden></section>
 
   <section id="vIndispos" hidden>
+    <div class="card" id="congMoiCard" hidden>
+      <div class="row" style="align-items:center;justify-content:space-between;gap:8px"><h2 style="margin:0">Mes congés</h2><select id="congMoiAn" style="width:auto;min-height:34px;padding:2px 8px"></select></div>
+      <div id="congMoi"></div>
+    </div>
     <div class="card">
       <h2>Signaler une indisponibilité</h2>
       <p class="sub">Congés, formation, congrès… L'administrateur en tient compte à la prochaine génération du planning.</p>
@@ -535,10 +550,11 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
         </div>
         <div class="row" style="margin-top:10px">
           <label class="f">Motif
-            <select id="indMotif"><option>Congés</option><option>Formation</option><option>Congrès</option><option>Récupération</option><option>Autre</option></select>
+            <select id="indMotif"><option>Congés annuels (CA)</option><option>RTT</option><option>Formation</option><option>Congrès</option><option>Récupération</option><option>Autre</option></select>
           </label>
           <label class="f" style="flex:2 1 200px">Précision (facultatif)<input type="text" id="indPrec" maxlength="60" placeholder="Pas de motif médical (ex. congrès SFR)"></label>
         </div>
+        <p class="small" id="indCout" style="margin:10px 0 0" hidden></p>
         <div class="row" style="margin-top:12px"><button class="b primary" type="submit" id="indSubmit">Ajouter</button></div>
         <div class="msg" id="indMsg" role="status"></div>
       </form>
@@ -697,6 +713,20 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
         <div id="sauvEtat"></div>
         <div class="row"><button class="b primary" type="button" id="sauvBtn">Télécharger la sauvegarde (.zip)</button></div>
         <div class="msg" id="sauvMsg" role="status"></div>
+      </div>
+
+      <div class="card" id="congCard">
+        <h2>Compteurs de congés</h2>
+        <p class="sub">Absences acceptées décomptées : congés annuels, RTT et formation. Règle du off pour les CA et RTT (un off par semaine où des jours sont posés). Droits au prorata de la quotité, modifiables par médecin, avec report et jours pris hors du site.</p>
+        <div class="row" style="align-items:flex-end;margin-bottom:8px">
+          <label class="f">Année<select id="congAn" style="width:auto"></select></label>
+          <label class="f">CA (temps plein)<input type="number" id="congDefCA" step="0.5" min="0" style="width:80px"></label>
+          <label class="f">RTT<input type="number" id="congDefRTT" step="0.5" min="0" style="width:80px"></label>
+          <label class="f">Formation<input type="number" id="congDefFORM" step="0.5" min="0" style="width:80px"></label>
+          <button class="b" type="button" id="congDefOk">Enregistrer les droits par défaut</button>
+        </div>
+        <div class="tablewrap" id="congTab"></div>
+        <div class="msg" id="congMsg" role="status"></div>
       </div>
 
       <div class="card" id="jourCard">
@@ -959,7 +989,7 @@ const S = {
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, conges: () => `${base()}/config/conges`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces` };
 
 // ------------------------------------------------------------ hors connexion
 function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
@@ -1170,6 +1200,7 @@ async function enter(code, silent) {
   S.unsub.push(S.store.watchDoc(PATHS.params(), (d) => { S.params = d; parseParams(); updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.rcp(), (d) => { S.rcp = d; render(); }, () => {}));
+  S.unsub.push(S.store.watchDoc(PATHS.conges(), (d) => { S.conges = d; render(); }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.sauvegarde(), (d) => { S.sauvegarde = d; if (S.admin) renderSauvegarde(); }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.astrCfg(), (d) => { S.astrCfg = d; render(); }, () => {}));
   S.unsub.push(S.store.watchColl(PATHS.astrInd(), (l) => { S.astrInd = l; render(); }, () => {}));
@@ -2277,6 +2308,107 @@ $("sauvBtn").addEventListener("click", async () => {
   } catch (e) { console.error(e); setMsg(msg, "Sauvegarde impossible : " + e.message, "err"); }
 });
 
+// ------------------------------------------------------------ Compteurs de congés
+const anneeCourante = () => ymd(todayDay()).y;
+function congesDe(ini, an, extra = null) {
+  const I = String(ini).toUpperCase();
+  const doc = S.P && (S.P.docs[ini] || S.P.docs[I]);
+  const feries = feriesPeriode(dayFromYMD(an, 1, 1), dayFromYMD(an, 12, 31), S.P && S.P.feries);
+  const liste = (st) => S.indispos.filter((x) => String(x.ini).toUpperCase() === I && st.includes(statutInd(x)))
+    .map((x) => ({ d1: x.d1, d2: x.d2, periode: x.periode, type: typeConge(motifDe(x)) })).filter((x) => x.type);
+  const pris = decompteConges(liste(["acceptee"]), doc, an, feries, S.P && S.P.refA);
+  const avecAttente = decompteConges(liste(["acceptee", "attente"]), doc, an, feries, S.P && S.P.refA);
+  const reg = (S.conges && S.conges.annees && S.conges.annees[an] && S.conges.annees[an][I]) || {};
+  const droits = droitsConges(reg, doc ? doc.quotite : 1, S.conges && S.conges.defauts);
+  let avecDemande = null;
+  if (extra) avecDemande = decompteConges(liste(["acceptee", "attente"]).concat([extra]), doc, an, feries, S.P && S.P.refA);
+  return { pris, attente: Object.fromEntries(CONGE_TYPES.map((t) => [t, Math.round((avecAttente[t] - pris[t]) * 2) / 2])), droits, avecAttente, avecDemande };
+}
+const nb = (x) => String(Math.round(x * 2) / 2).replace(".", ",");
+function anneesConges() {
+  const ans = new Set([anneeCourante() - 1, anneeCourante(), anneeCourante() + 1]);
+  for (const x of S.indispos) { ans.add(ymd(x.d1).y); ans.add(ymd(x.d2).y); }
+  return [...ans].filter((a) => a >= anneeCourante() - 2 && a <= anneeCourante() + 1).sort((a, b) => b - a);
+}
+function renderCongesMoi() {
+  const card = $("congMoiCard");
+  if (!S.me || !S.P) { card.hidden = true; return; }
+  card.hidden = false;
+  const ans = anneesConges();
+  if (!ans.includes(S.congMoiAn)) S.congMoiAn = anneeCourante();
+  $("congMoiAn").innerHTML = ans.map((a) => `<option${a === S.congMoiAn ? " selected" : ""}>${a}</option>`).join("");
+  $("congMoiAn").onchange = (e) => { S.congMoiAn = +e.target.value; renderCongesMoi(); };
+  chargerMesMotifs(S.indispos.filter((x) => String(x.ini).toUpperCase() === S.me));
+  const c = congesDe(S.me, S.congMoiAn);
+  $("congMoi").innerHTML = `<div class="congs">${CONGE_TYPES.map((t) => {
+    const total = c.droits[t].droit + c.droits[t].report, pris = c.pris[t] + c.droits[t].ajust, reste = total - pris;
+    return `<div class="cong${reste < 0 ? " neg" : ""}"><div class="t">${CONGE_LIB[t]}</div><div class="n">${nb(reste)}</div><div class="r">jour${Math.abs(reste) > 1 ? "s" : ""} restant${Math.abs(reste) > 1 ? "s" : ""}</div>
+      <div class="d">${nb(pris)} pris sur ${nb(total)}${c.droits[t].report ? ` (dont ${nb(c.droits[t].report)} reportés)` : ""}${c.attente[t] ? `<br>+ ${nb(c.attente[t])} en attente` : ""}</div></div>`;
+  }).join("")}</div>
+  <p class="small muted" style="margin:8px 0 0">Absences acceptées en ${S.congMoiAn}. Règle du service : pour les CA et RTT, votre jour off est décompté dès qu'un jour est posé dans la semaine.</p>`;
+}
+function majCoutDemande() {
+  const el = $("indCout"); if (!el) return;
+  const d1 = fromInput($("indD1").value), d2 = fromInput($("indD2").value), type = typeConge($("indMotif").value);
+  if (!S.me || !S.P || d1 === null || d2 === null || d2 < d1 || !type) { el.hidden = true; return; }
+  const an = ymd(d1).y;
+  const c = congesDe(S.me, an, { d1, d2, periode: $("indPer").value, type });
+  const delta = Math.round((c.avecDemande[type] - c.avecAttente[type]) * 2) / 2;
+  const offs = c.avecDemande.jours.filter((j) => j.off && j.d >= mondayOf(d1) && j.d <= mondayOf(d2) + 6 && !c.avecAttente.jours.some((k) => k.d === j.d && k.off));
+  const total = c.droits[type].droit + c.droits[type].report, reste = total - c.pris[type] - c.droits[type].ajust - c.attente[type] - delta;
+  el.hidden = false;
+  el.innerHTML = `Décompte : <b>${nb(delta)} jour${delta > 1 ? "s" : ""} de ${CONGE_LIB[type]}</b>${offs.length ? ` (dont votre jour off : ${offs.map((j) => `${JC[weekday(j.d)].toLowerCase()} ${fmtDay(j.d, false)}`).join(", ")})` : ""} · il vous en resterait ${nb(reste)}.`;
+}
+["indD1", "indD2", "indPer", "indMotif"].forEach((id) => $(id).addEventListener("change", majCoutDemande));
+function renderCongesAdmin() {
+  const tab = $("congTab"); if (!tab || !S.P) return;
+  if (tab.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+  const ans = anneesConges();
+  if (!ans.includes(S.congAn)) S.congAn = anneeCourante();
+  $("congAn").innerHTML = ans.map((a) => `<option${a === S.congAn ? " selected" : ""}>${a}</option>`).join("");
+  const def = { ...DROITS_DEFAUT, ...((S.conges && S.conges.defauts) || {}) };
+  for (const t of CONGE_TYPES) if (document.activeElement !== $("congDef" + t)) $("congDef" + t).value = def[t];
+  const inis = Object.keys(S.P.docs).sort();
+  tab.innerHTML = `<table class="pl congt"><thead><tr><th>Médecin</th>${CONGE_TYPES.map((t) => `<th>${CONGE_LIB[t]}<br><span class="small">pris / droits</span></th><th>Reste</th>`).join("")}<th></th></tr></thead><tbody>
+    ${inis.map((ini) => {
+      const c = congesDe(ini, S.congAn);
+      if (S.congEdit === ini) {
+        const r = (S.conges && S.conges.annees && S.conges.annees[S.congAn] && S.conges.annees[S.congAn][ini]) || {};
+        const champ = (k, v, ph) => `<input type="number" step="0.5" data-k="${k}" value="${v ?? ""}" placeholder="${ph}" title="${k}">`;
+        return `<tr data-ini="${esc(ini)}"><td>${esc(ini)}</td>${CONGE_TYPES.map((t) => `<td colspan="2" style="text-align:left">droits ${champ(t, r[t], nb(c.droits[t].droit))} report ${champ("report" + t, r["report" + t], "0")} déjà pris ${champ("aj" + t, r["aj" + t], "0")}</td>`).join("")}
+          <td><button class="b primary" data-cong-ok type="button" style="min-height:32px;padding:3px 10px">OK</button> <button class="x" data-cong-annul type="button">Annuler</button></td></tr>`;
+      }
+      return `<tr data-ini="${esc(ini)}"><td>${esc(ini)}</td>${CONGE_TYPES.map((t) => {
+        const total = c.droits[t].droit + c.droits[t].report, pris = c.pris[t] + c.droits[t].ajust, reste = total - pris;
+        return `<td>${nb(pris)} / ${nb(total)}${c.attente[t] ? ` <span class="small muted">(+${nb(c.attente[t])})</span>` : ""}</td><td${reste < 0 ? ' style="color:var(--err);font-weight:700"' : ""}>${nb(reste)}</td>`;
+      }).join("")}<td><button class="x" data-cong-edit type="button">Modifier</button></td></tr>`;
+    }).join("")}</tbody></table>
+    <p class="small muted" style="margin:6px 0 0">Entre parenthèses : demandes en attente. « Déjà pris » : jours posés hors du site (avant sa mise en service).</p>`;
+}
+$("congAn").addEventListener("change", (e) => { S.congAn = +e.target.value; renderCongesAdmin(); });
+async function sauverConges(maj, quoi) {
+  const msg = $("congMsg");
+  if (!needOnline(msg)) return false;
+  try { await S.store.set(PATHS.conges(), { ...(S.conges || {}), ...maj(JSON.parse(JSON.stringify(S.conges || {}))), majLe: Date.now() }); setMsg(msg, "Enregistré.", "ok"); journaliser("Compteurs de congés", quoi); return true; }
+  catch (e) { setMsg(msg, e.message, "err"); return false; }
+}
+$("congDefOk").addEventListener("click", () => {
+  const defauts = Object.fromEntries(CONGE_TYPES.map((t) => [t, Math.max(0, parseFloat($("congDef" + t).value) || 0)]));
+  sauverConges(() => ({ defauts }), `droits par défaut : ${CONGE_TYPES.map((t) => `${t} ${defauts[t]}`).join(", ")}`);
+});
+$("congTab").addEventListener("click", async (e) => {
+  const tr = e.target.closest("tr[data-ini]"); if (!tr) return;
+  const ini = tr.dataset.ini;
+  if (e.target.closest("[data-cong-edit]")) { S.congEdit = ini; renderCongesAdmin(); }
+  else if (e.target.closest("[data-cong-annul]")) { S.congEdit = null; renderCongesAdmin(); }
+  else if (e.target.closest("[data-cong-ok]")) {
+    const reg = {};
+    tr.querySelectorAll("input[data-k]").forEach((i) => { if (i.value !== "") reg[i.dataset.k] = parseFloat(i.value) || 0; });
+    const an = String(S.congAn);
+    if (await sauverConges((c) => { const annees = c.annees || {}; annees[an] = { ...(annees[an] || {}), [ini]: reg }; return { annees }; }, `${ini} ${an} : ${JSON.stringify(reg)}`)) { S.congEdit = null; renderCongesAdmin(); }
+  }
+});
+
 // ------------------------------------------------------------ Journal des modifications (administrateurs)
 function journaliser(action, detail = "") {
   if (!S.admin || !S.store) return;
@@ -2423,6 +2555,7 @@ function renderIndispos() {
   $("indSubmit").disabled = !S.me;
   if (!S.me) setMsg($("indMsg"), "Choisissez d'abord vos initiales (bouton « Qui êtes-vous ? » en haut).", "err");
   else if ($("indMsg").classList.contains("err") && $("indMsg").textContent.startsWith("Choisissez")) setMsg($("indMsg"), "");
+  renderCongesMoi(); majCoutDemande();
   $("myIndTitle").textContent = S.me ? `Mes indisponibilités (${S.me})` : "Mes indisponibilités";
   const sorted = S.indispos.slice().sort((a, b) => a.d1 - b.d1 || String(a.ini).localeCompare(b.ini));
   const mine = sorted.filter((x) => String(x.ini).toUpperCase() === S.me && x.d2 >= today);
@@ -2507,6 +2640,7 @@ function renderAdmin() {
     S.store.watchColl(PATHS.archives(), (l) => { S.archives = l; archiverManquants(); }, () => {});
   }
   renderSauvegarde();
+  renderCongesAdmin();
   renderJournal();
   // paramètres
   const p = S.params;
