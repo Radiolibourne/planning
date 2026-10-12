@@ -3,7 +3,9 @@
 // (modifiables par médecin), plus un report éventuel et un ajustement (jours pris hors du site).
 // Règle du service (CA et RTT) : dès qu'un médecin pose au moins un jour dans une semaine, un jour off de la semaine
 // est décompté aussi (une semaine entière = 5 jours ; 1 jour posé en gardant son off = 2 jours). Un seul off par semaine,
-// temps partiel compris. Jours fériés jamais décomptés. Demi-journée = 0,5.
+// temps partiel compris, mais pas si seule une demi-journée est posée dans la semaine. Jours fériés jamais décomptés.
+// Demi-journée = 0,5. Les CA et RTT forment un seul ensemble : les RTT sont consommés en priorité (dans l'ordre des dates),
+// puis les CA une fois les RTT épuisés (rttDispo = droit + report − déjà pris hors site).
 
 const CONGE_TYPES = ["CA", "RTT", "FORM"];
 const CONGE_LIB = { CA: "Congés annuels", RTT: "RTT", FORM: "Formation" };
@@ -25,7 +27,7 @@ function typeSemaineAB(lundi, refA) {
 
 // abs : [{d1, d2, periode, type}] (absences acceptées d'un médecin) ; doc : {offA, offB} (ensembles de jours 0 = lundi)
 // -> {CA, RTT, FORM, jours: [{d, type, val, off}]}
-function decompteConges(abs, doc, an, feries, refA) {
+function decompteConges(abs, doc, an, feries, refA, rttDispo) {
   const debut = dayFromYMD(an, 1, 1), fin = dayFromYMD(an, 12, 31);
   const fer = feries || new Map();
   const parJour = new Map();
@@ -47,6 +49,7 @@ function decompteConges(abs, doc, an, feries, refA) {
     s[x.type] += x.val; semaines.set(w, s);
   }
   for (const [w, s] of semaines) {
+    if (s.CA + s.RTT <= 0.5) continue; // une demi-journée seule : pas de jour off
     const offs = [...((typeSemaineAB(w, refA) === "A" ? doc && doc.offA : doc && doc.offB) || [])].filter((i) => i >= 0 && i <= 4).sort();
     const cand = offs.map((i) => w + i).find((d) => d >= debut && d <= fin && !fer.has(d) && (!parJour.has(d) || parJour.get(d).val < 1));
     if (cand === undefined) continue;
@@ -55,6 +58,19 @@ function decompteConges(abs, doc, an, feries, refA) {
     out[type] += extra; out.jours.push({ d: cand, type, val: extra, off: true });
   }
   out.jours.sort((a, b) => a.d - b.d);
+  // RTT en priorité : on réattribue les jours CA/RTT dans l'ordre chronologique
+  if (Number.isFinite(rttDispo)) {
+    let reste = Math.max(0, rttDispo);
+    out.CA = 0; out.RTT = 0;
+    const jours = [];
+    for (const j of out.jours) {
+      if (j.type !== "CA" && j.type !== "RTT") { jours.push(j); continue; }
+      const r = Math.min(reste, j.val); reste -= r;
+      if (r > 0) { jours.push({ ...j, type: "RTT", val: r }); out.RTT += r; }
+      if (j.val - r > 0) { jours.push({ ...j, type: "CA", val: j.val - r }); out.CA += j.val - r; }
+    }
+    out.jours = jours;
+  }
   for (const t of CONGE_TYPES) out[t] = Math.round(out[t] * 2) / 2;
   return out;
 }

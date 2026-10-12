@@ -2316,12 +2316,13 @@ function congesDe(ini, an, extra = null) {
   const feries = feriesPeriode(dayFromYMD(an, 1, 1), dayFromYMD(an, 12, 31), S.P && S.P.feries);
   const liste = (st) => S.indispos.filter((x) => String(x.ini).toUpperCase() === I && st.includes(statutInd(x)))
     .map((x) => ({ d1: x.d1, d2: x.d2, periode: x.periode, type: typeConge(motifDe(x)) })).filter((x) => x.type);
-  const pris = decompteConges(liste(["acceptee"]), doc, an, feries, S.P && S.P.refA);
-  const avecAttente = decompteConges(liste(["acceptee", "attente"]), doc, an, feries, S.P && S.P.refA);
   const reg = (S.conges && S.conges.annees && S.conges.annees[an] && S.conges.annees[an][I]) || {};
   const droits = droitsConges(reg, doc ? doc.quotite : 1, S.conges && S.conges.defauts);
+  const rtt = droits.RTT.droit + droits.RTT.report - droits.RTT.ajust; // RTT consommés avant les CA
+  const pris = decompteConges(liste(["acceptee"]), doc, an, feries, S.P && S.P.refA, rtt);
+  const avecAttente = decompteConges(liste(["acceptee", "attente"]), doc, an, feries, S.P && S.P.refA, rtt);
   let avecDemande = null;
-  if (extra) avecDemande = decompteConges(liste(["acceptee", "attente"]).concat([extra]), doc, an, feries, S.P && S.P.refA);
+  if (extra) avecDemande = decompteConges(liste(["acceptee", "attente"]).concat([extra]), doc, an, feries, S.P && S.P.refA, rtt);
   return { pris, attente: Object.fromEntries(CONGE_TYPES.map((t) => [t, Math.round((avecAttente[t] - pris[t]) * 2) / 2])), droits, avecAttente, avecDemande };
 }
 const nb = (x) => String(Math.round(x * 2) / 2).replace(".", ",");
@@ -2332,7 +2333,8 @@ function anneesConges() {
 }
 function renderCongesMoi() {
   const card = $("congMoiCard");
-  if (!S.me || !S.P) { card.hidden = true; return; }
+  // compteurs réservés aux administrateurs (pas affichés aux autres médecins)
+  if (!S.admin || !S.me || !S.P) { card.hidden = true; return; }
   card.hidden = false;
   const ans = anneesConges();
   if (!ans.includes(S.congMoiAn)) S.congMoiAn = anneeCourante();
@@ -2345,15 +2347,25 @@ function renderCongesMoi() {
     return `<div class="cong${reste < 0 ? " neg" : ""}"><div class="t">${CONGE_LIB[t]}</div><div class="n">${nb(reste)}</div><div class="r">jour${Math.abs(reste) > 1 ? "s" : ""} restant${Math.abs(reste) > 1 ? "s" : ""}</div>
       <div class="d">${nb(pris)} pris sur ${nb(total)}${c.droits[t].report ? ` (dont ${nb(c.droits[t].report)} reportés)` : ""}${c.attente[t] ? `<br>+ ${nb(c.attente[t])} en attente` : ""}</div></div>`;
   }).join("")}</div>
-  <p class="small muted" style="margin:8px 0 0">Absences acceptées en ${S.congMoiAn}. Règle du service : pour les CA et RTT, votre jour off est décompté dès qu'un jour est posé dans la semaine.</p>`;
+  <p class="small muted" style="margin:8px 0 0">Absences acceptées en ${S.congMoiAn}. Règle du service : pour les CA et RTT, le jour off est décompté dès qu'un jour est posé dans la semaine (pas pour une demi-journée seule) ; les RTT sont pris avant les CA.</p>`;
 }
 function majCoutDemande() {
   const el = $("indCout"); if (!el) return;
   const d1 = fromInput($("indD1").value), d2 = fromInput($("indD2").value), type = typeConge($("indMotif").value);
-  if (!S.me || !S.P || d1 === null || d2 === null || d2 < d1 || !type) { el.hidden = true; return; }
+  if (!S.admin || !S.me || !S.P || d1 === null || d2 === null || d2 < d1 || !type) { el.hidden = true; return; }
   const an = ymd(d1).y;
   const c = congesDe(S.me, an, { d1, d2, periode: $("indPer").value, type });
   const delta = Math.round((c.avecDemande[type] - c.avecAttente[type]) * 2) / 2;
+  if (type !== "FORM") { // CA et RTT : un seul ensemble, RTT d'abord
+    const dR = Math.round((c.avecDemande.RTT - c.avecAttente.RTT) * 2) / 2, dC = Math.round((c.avecDemande.CA - c.avecAttente.CA) * 2) / 2;
+    const offs = c.avecDemande.jours.filter((j) => j.off && j.d >= mondayOf(d1) && j.d <= mondayOf(d2) + 6 && !c.avecAttente.jours.some((k) => k.d === j.d && k.off));
+    const resteR = c.droits.RTT.droit + c.droits.RTT.report - c.droits.RTT.ajust - c.avecDemande.RTT;
+    const resteC = c.droits.CA.droit + c.droits.CA.report - c.droits.CA.ajust - c.avecDemande.CA;
+    const parts = [dR ? `${nb(dR)} RTT` : "", dC ? `${nb(dC)} CA` : ""].filter(Boolean).join(" + ") || "0 jour";
+    el.hidden = false;
+    el.innerHTML = `Décompte : <b>${parts}</b>${offs.length ? ` (dont jour off : ${offs.map((j) => `${JC[weekday(j.d)].toLowerCase()} ${fmtDay(j.d, false)}`).join(", ")})` : ""} · resteraient ${nb(resteR)} RTT et ${nb(resteC)} CA.`;
+    return;
+  }
   const offs = c.avecDemande.jours.filter((j) => j.off && j.d >= mondayOf(d1) && j.d <= mondayOf(d2) + 6 && !c.avecAttente.jours.some((k) => k.d === j.d && k.off));
   const total = c.droits[type].droit + c.droits[type].report, reste = total - c.pris[type] - c.droits[type].ajust - c.attente[type] - delta;
   el.hidden = false;
