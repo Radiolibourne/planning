@@ -2381,21 +2381,21 @@ function renderCongesAdmin() {
   const def = { ...DROITS_DEFAUT, ...((S.conges && S.conges.defauts) || {}) };
   for (const t of CONGE_TYPES) if (document.activeElement !== $("congDef" + t)) $("congDef" + t).value = def[t];
   const inis = Object.keys(S.P.docs).sort();
-  tab.innerHTML = `<table class="pl congt"><thead><tr><th>Médecin</th>${CONGE_TYPES.map((t) => `<th>${CONGE_LIB[t]}<br><span class="small">pris / droits</span></th><th>Reste</th>`).join("")}<th></th></tr></thead><tbody>
+  tab.innerHTML = `<table class="pl congt"><thead><tr><th>Médecin</th>${CONGE_TYPES.map((t) => `<th>${CONGE_LIB[t]}<br><span class="small">reste</span></th>`).join("")}<th></th></tr></thead><tbody>
     ${inis.map((ini) => {
       const c = congesDe(ini, S.congAn);
       if (S.congEdit === ini) {
         const r = (S.conges && S.conges.annees && S.conges.annees[S.congAn] && S.conges.annees[S.congAn][ini]) || {};
         const champ = (k, v, ph) => `<input type="number" step="0.5" data-k="${k}" value="${v ?? ""}" placeholder="${ph}" title="${k}">`;
-        return `<tr data-ini="${esc(ini)}"><td>${esc(ini)}</td>${CONGE_TYPES.map((t) => `<td colspan="2" style="text-align:left">droits ${champ(t, r[t], nb(c.droits[t].droit))} report ${champ("report" + t, r["report" + t], "0")} déjà pris ${champ("aj" + t, r["aj" + t], "0")}</td>`).join("")}
+        return `<tr data-ini="${esc(ini)}"><td>${esc(ini)}</td>${CONGE_TYPES.map((t) => `<td style="text-align:left">droits ${champ(t, r[t], nb(c.droits[t].droit))} report ${champ("report" + t, r["report" + t], "0")} déjà pris ${champ("aj" + t, r["aj" + t], "0")}</td>`).join("")}
           <td><button class="b primary" data-cong-ok type="button" style="min-height:32px;padding:3px 10px">OK</button> <button class="x" data-cong-annul type="button">Annuler</button></td></tr>`;
       }
       return `<tr data-ini="${esc(ini)}"><td>${esc(ini)}</td>${CONGE_TYPES.map((t) => {
         const total = c.droits[t].droit + c.droits[t].report, pris = c.pris[t] + c.droits[t].ajust, reste = total - pris;
-        return `<td>${nb(pris)} / ${nb(total)}${c.attente[t] ? ` <span class="small muted">(+${nb(c.attente[t])})</span>` : ""}</td><td${reste < 0 ? ' style="color:var(--err);font-weight:700"' : ""}>${nb(reste)}</td>`;
+        return `<td title="${nb(pris)} pris sur ${nb(total)}"${reste < 0 ? ' style="color:var(--err);font-weight:700"' : ""}>${nb(reste)}${c.attente[t] ? ` <span class="small muted">(−${nb(c.attente[t])})</span>` : ""}</td>`;
       }).join("")}<td><button class="x" data-cong-edit type="button">Modifier</button></td></tr>`;
     }).join("")}</tbody></table>
-    <p class="small muted" style="margin:6px 0 0">Entre parenthèses : demandes en attente. « Déjà pris » : jours posés hors du site (avant sa mise en service).</p>`;
+    <p class="small muted" style="margin:6px 0 0">Jours restants. Entre parenthèses : demandes en attente. « Déjà pris » : jours posés hors du site (avant sa mise en service).</p>`;
 }
 $("congAn").addEventListener("change", (e) => { S.congAn = +e.target.value; renderCongesAdmin(); });
 async function sauverConges(maj, quoi) {
