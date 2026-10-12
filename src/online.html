@@ -354,6 +354,23 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
 .tag.tS { background: var(--line); } .tag.tW { background: var(--site-tt); color: #fff; } .tag.tF { background: var(--warn); color: #fff; }
 /* Réglages */
 .regl-t { font-size: 22px; font-weight: 800; margin: 0 2px 12px; }
+/* Onglets des semaines */
+.semtool { align-items: center; gap: 8px; flex-wrap: wrap; }
+.semtabs { display: flex; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.semtabs button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 5px 11px; font-size: 13px; white-space: nowrap; cursor: pointer; min-height: 32px; }
+.semtabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+/* Ordinateur : toute la largeur, tableau ajusté à l'écran (sans défilement latéral) */
+@media (min-width: 1000px) {
+  .wrap { max-width: none; padding: 0 24px; }
+  table.pl:not(.sem2) { width: 100%; table-layout: fixed; }
+  table.pl th, table.pl td { white-space: normal; overflow-wrap: anywhere; padding: 4px 3px; font-size: 11.5px; line-height: 1.25; }
+  table.pl thead th { font-size: 11px; }
+  table.pl th.lead, table.pl td.lead { width: 78px; }
+  table.pl td.per, table.pl th:nth-child(2) { width: 34px; }
+  .tablewrap { max-height: none; overflow: visible; }
+  .glisser { display: none !important; }
+  #vMon, #vQui, #vIndispos, #vCal, #vAstr { max-width: 900px; margin-left: auto; margin-right: auto; }
+}
 /* Apparence */
 .pals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 10px; }
 .pals button { border: 2px solid transparent; border-radius: 12px; padding: 0; overflow: hidden; cursor: pointer; background: none; text-align: left; }
@@ -1685,8 +1702,8 @@ async function fillSubscription(ini) {
 
 // Tableau (général, lecture seule ou édition)
 function planningTable(draft, opts) {
-  const { mode, week, editable, highlight } = opts;
-  const days = draft.jours.filter((d) => week === "all" || mondayOf(d) === week);
+  const { mode, week, editable, highlight, mois } = opts;
+  const days = draft.jours.filter((d) => (week === "all" ? !mois || moisDeJour(d) === mois : mondayOf(d) === week));
   const ordre = postesAffiches(draft);   // télétravail : sur le poste, avec une étoile
   const sites = draft.sites.filter((s) => ordre.some((c) => draft.postes[c] && draft.postes[c].site === s));
   const sc = (site) => "s" + ((draft.sites.indexOf(site) % 3) + 1);
@@ -1785,6 +1802,33 @@ function weekOptions(draft, sel) {
   return `<option value="all"${sel === "all" ? " selected" : ""}>Toute la période</option>` + draft.semaines.map((w) =>
     `<option value="${w.lundi}"${+sel === w.lundi ? " selected" : ""}>Semaine du ${fmtDay(w.lundi, false)}${w.lundi === cur ? " (en cours)" : ""}</option>`).join("");
 }
+// Choix de la période affichée : menu des mois + onglets des semaines du mois (« Tout le mois » en premier)
+function choixSemaine(draft, st) {
+  const mois = [...new Set(draft.jours.map(moisDeJour))];
+  const auj = todayDay();
+  if (!mois.includes(st.mois)) {
+    const w = resolveWeek(draft, st.week ?? "cur");
+    const j = w === "all" ? null : draft.jours.find((d) => mondayOf(d) === w);
+    st.mois = j ? moisDeJour(j) : mois.includes(moisDeJour(auj)) ? moisDeJour(auj) : (mois.find((m) => m > moisDeJour(auj)) ?? mois[0]);
+  }
+  const sems = draft.semaines.filter((w) => draft.jours.some((d) => mondayOf(d) === w.lundi && moisDeJour(d) === st.mois));
+  if (st.week === "cur") st.week = sems.some((w) => w.lundi === mondayOf(auj)) ? mondayOf(auj) : (sems[0] ? sems[0].lundi : "all");
+  if (st.week !== "all" && !sems.some((w) => w.lundi === +st.week)) st.week = sems.some((w) => w.lundi === mondayOf(auj)) ? mondayOf(auj) : (sems[0] ? sems[0].lundi : "all");
+  if (st.week !== "all") st.week = +st.week;
+  return { mois, sems };
+}
+function htmlSemaines(draft, st, p, toutLeMois = true) {
+  const { mois, sems } = choixSemaine(draft, st);
+  const auj = mondayOf(todayDay());
+  const lib = (w) => { const js = draft.jours.filter((d) => mondayOf(d) === w.lundi); return `${fmtDay(js[0], false).slice(0, 5)} → ${fmtDay(js[js.length - 1], false).slice(0, 5)}`; };
+  return `${mois.length > 1 ? `<select id="${p}Mois" aria-label="Mois" style="width:auto">${mois.map((m) => `<option value="${m}"${m === st.mois ? " selected" : ""}>${libMoisNum(m)}</option>`).join("")}</select>` : `<span class="small muted">${libMoisNum(st.mois)}</span>`}
+    <div class="semtabs" role="tablist" aria-label="Semaines">${toutLeMois ? `<button type="button" data-sem="all" aria-pressed="${st.week === "all"}">Tout le mois</button>` : ""}${sems.map((w) => `<button type="button" data-sem="${w.lundi}" aria-pressed="${st.week === w.lundi}">${lib(w)}${w.lundi === auj ? " •" : ""}</button>`).join("")}</div>`;
+}
+function brancherSemaines(racine, st, p, rendre) {
+  const m = racine.querySelector(`#${p}Mois`);
+  if (m) m.onchange = (e) => { st.mois = +e.target.value; st.week = "x"; rendre(); };
+  racine.querySelectorAll(".semtabs [data-sem]").forEach((b) => b.onclick = () => { st.week = b.dataset.sem === "all" ? "all" : +b.dataset.sem; rendre(); });
+}
 function resolveWeek(draft, sel) {
   if (sel === "all") return "all";
   if (sel === "cur") { const m = mondayOf(todayDay()); return draft.semaines.some((w) => w.lundi === m) ? m : draft.semaines[0].lundi; }
@@ -1844,25 +1888,26 @@ function renderGeneral() {
     if ($("rcpMois")) $("rcpMois").onchange = (e) => { S.genView.rcpMois = +e.target.value; renderGeneral(); };
     return;
   }
-  const week = resolveWeek(pub, S.genView.week);
+  const semHtml = htmlSemaines(pub, S.genView, "gen", S.genView.mode !== "semaine");
+  const { sems } = choixSemaine(pub, S.genView);
+  const week = S.genView.week;
   $("genBody").innerHTML = `<div class="toolbar">
       ${seg}
-      <select id="genWeek" aria-label="Semaine">${weekOptions(pub, week)}</select>
       <button class="b" id="genPdf" type="button">PDF</button>
       ${S.P ? `<button class="b" id="genXlsx" type="button">Excel</button>` : ""}
-    </div><div class="msg" id="genMsg" role="status"></div>` + (S.genView.mode === "semaine"
-      ? semaineTable(pub, week === "all" ? resolveWeek(pub, "cur") : week, S.me)
-      : planningTable(pub, { mode: S.genView.mode, week, editable: false, highlight: S.me }));
+    </div><div class="toolbar semtool">${semHtml}</div><div class="msg" id="genMsg" role="status"></div>` + (S.genView.mode === "semaine"
+      ? semaineTable(pub, week === "all" ? (sems[0] ? sems[0].lundi : resolveWeek(pub, "cur")) : week, S.me)
+      : planningTable(pub, { mode: S.genView.mode, week, mois: S.genView.mois, editable: false, highlight: S.me }));
   indiceDefilement($("genBody"));
   $("genBody").querySelectorAll(".seg button").forEach((b) => b.onclick = () => { S.genView.mode = b.dataset.mode; renderGeneral(); });
-  $("genWeek").onchange = (e) => { S.genView.week = e.target.value; renderGeneral(); };
+  brancherSemaines($("genBody"), S.genView, "gen", renderGeneral);
   if ($("genXlsx")) $("genXlsx").onclick = () => downloadPublishedXlsx($("genMsg"));
   $("genPdf").onclick = () => {
-    const lundi = week === "all" ? resolveWeek(pub, "cur") : week;
+    const lundi = week === "all" ? (sems[0] ? sems[0].lundi : resolveWeek(pub, "cur")) : week;
     try {
       const bytes = weekPdf(pub, lundi);
       saveFile(bytes, `planning_semaine_${toInput(lundi)}.pdf`, "application/pdf");
-      setMsg($("genMsg"), week === "all" ? `PDF de la semaine du ${fmtDay(lundi, false)} (choisissez une semaine dans la liste pour une autre).` : "");
+      setMsg($("genMsg"), week === "all" ? `PDF de la semaine du ${fmtDay(lundi, false)} (touchez une semaine pour une autre).` : "");
     } catch (e) { console.error(e); setMsg($("genMsg"), "PDF impossible : " + e.message, "err"); }
   };
 }
@@ -3498,9 +3543,10 @@ function renderDraft() {
   }
   $("undoBtn").disabled = !S.annuler.length;
   $("undoBtn").textContent = S.annuler.length ? `↶ Annuler (${S.annuler.length})` : "↶ Annuler";
-  const week = resolveWeek(d, S.draftWeek);
-  $("draftGrid").innerHTML = `<div class="toolbar"><select id="draftWeekSel" aria-label="Semaine">${weekOptions(d, week)}</select></div>` + planningTable(d, { mode: "poste", week, editable: true });
-  $("draftWeekSel").onchange = (e) => { S.draftWeek = e.target.value; renderDraft(); };
+  S.draftVue = S.draftVue || { week: "cur" };
+  const semHtml = htmlSemaines(d, S.draftVue, "draft");
+  $("draftGrid").innerHTML = `<div class="toolbar semtool">${semHtml}</div>` + planningTable(d, { mode: "poste", week: S.draftVue.week, mois: S.draftVue.mois, editable: true });
+  brancherSemaines($("draftGrid"), S.draftVue, "draft", renderDraft);
 }
 // ------------------------------------------------------------ Retouches du planning : menu au toucher, glisser-déposer (ordinateur), annuler
 S.annuler = [];
