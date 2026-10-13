@@ -46,6 +46,14 @@ with sync_playwright() as p:
     pg.wait_for_selector("#indD1"); pg.evaluate("renderIndispos()")
     pg.fill("#indD1", lundi); pg.fill("#indD2", lundi); pg.select_option("#indMotif", "Congés annuels (CA)"); pg.dispatch_event("#indMotif", "change")
     B.ok(pg.locator("#congMoiCard").is_hidden() and pg.locator("#indCout").is_hidden(), "non-administrateur : aucun compteur ni décompte affiché")
+    # l'administrateur active l'affichage des jours restants : le médecin voit sa carte, toujours sans décompte
+    pg.evaluate("S.store.set(PATHS.conges(), { ...(S.conges || {}), visibleMedecins: true })")
+    pg.wait_for_selector("#congMoiCard:not([hidden])", timeout=8000)
+    pg.dispatch_event("#indMotif", "change")
+    B.ok("restant" in pg.inner_text("#congMoi") and pg.locator("#indCout").is_hidden(), "option activée : le médecin voit ses jours restants (pas le décompte)")
+    pg.evaluate("S.store.set(PATHS.conges(), { ...(S.conges || {}), visibleMedecins: false })")
+    pg.wait_for_selector("#congMoiCard[hidden]", state="attached", timeout=8000)
+    B.ok(True, "option désactivée : carte masquée")
     # administrateur : décompte (RTT d'abord), puis tableau
     pg.evaluate("S.admin = true; renderIndispos()"); pg.dispatch_event("#indMotif", "change")
     t = pg.inner_text("#indCout")
@@ -61,6 +69,8 @@ with sync_playwright() as p:
     pg.click("#congTab tr[data-ini='DA'] [data-cong-ok]")
     pg.wait_for_function("S.conges && S.conges.annees", timeout=8000)
     B.ok(pg.inner_text("#congTab tr[data-ini='DA']").split("\t")[1] == "28", "report ajouté aux droits")
+    pg.check("#congVisible"); pg.wait_for_function("S.conges.visibleMedecins === true", timeout=8000)
+    B.ok(True, "case « Montrer à chaque médecin » enregistrée")
     pg.fill("#congDefRTT", "19"); pg.click("#congDefOk"); pg.wait_for_function("S.conges.defauts && S.conges.defauts.RTT === 19", timeout=8000)
     B.ok(pg.inner_text("#congTab tr[data-ini='DA']").split("\t")[2] == "17", "droits par défaut modifiables")
     pg.set_viewport_size({"width": 390, "height": 844}); pg.wait_for_timeout(200)

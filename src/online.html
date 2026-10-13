@@ -725,6 +725,7 @@ table.congt input { width: 64px; min-height: 30px; padding: 2px 4px; font-size: 
           <label class="f">Formation<input type="number" id="congDefFORM" step="0.5" min="0" style="width:80px"></label>
           <button class="b" type="button" id="congDefOk">Enregistrer les droits par défaut</button>
         </div>
+        <label class="chk" style="display:flex;align-items:center;gap:8px;margin:0 0 10px"><input type="checkbox" id="congVisible" style="width:auto"> Montrer à chaque médecin ses jours restants (onglet Absences)</label>
         <div class="tablewrap" id="congTab"></div>
         <div class="msg" id="congMsg" role="status"></div>
       </div>
@@ -2333,8 +2334,9 @@ function anneesConges() {
 }
 function renderCongesMoi() {
   const card = $("congMoiCard");
-  // compteurs réservés aux administrateurs (pas affichés aux autres médecins)
-  if (!S.admin || !S.me || !S.P) { card.hidden = true; return; }
+  // compteurs : administrateurs, et autres médecins seulement si l'administrateur l'a activé (config/conges.visibleMedecins)
+  const visible = S.admin || !!(S.conges && S.conges.visibleMedecins);
+  if (!visible || !S.me || !S.P) { card.hidden = true; return; }
   card.hidden = false;
   const ans = anneesConges();
   if (!ans.includes(S.congMoiAn)) S.congMoiAn = anneeCourante();
@@ -2379,6 +2381,7 @@ function renderCongesAdmin() {
   if (!ans.includes(S.congAn)) S.congAn = anneeCourante();
   $("congAn").innerHTML = ans.map((a) => `<option${a === S.congAn ? " selected" : ""}>${a}</option>`).join("");
   const def = { ...DROITS_DEFAUT, ...((S.conges && S.conges.defauts) || {}) };
+  $("congVisible").checked = !!(S.conges && S.conges.visibleMedecins);
   for (const t of CONGE_TYPES) if (document.activeElement !== $("congDef" + t)) $("congDef" + t).value = def[t];
   const inis = Object.keys(S.P.docs).sort();
   tab.innerHTML = `<table class="pl congt"><thead><tr><th>Médecin</th>${CONGE_TYPES.map((t) => `<th>${CONGE_LIB[t]}<br><span class="small">reste</span></th>`).join("")}<th></th></tr></thead><tbody>
@@ -2404,6 +2407,10 @@ async function sauverConges(maj, quoi) {
   try { await S.store.set(PATHS.conges(), { ...(S.conges || {}), ...maj(JSON.parse(JSON.stringify(S.conges || {}))), majLe: Date.now() }); setMsg(msg, "Enregistré.", "ok"); journaliser("Compteurs de congés", quoi); return true; }
   catch (e) { setMsg(msg, e.message, "err"); return false; }
 }
+$("congVisible").addEventListener("change", async (e) => {
+  const v = e.target.checked;
+  if (!(await sauverConges(() => ({ visibleMedecins: v }), v ? "jours restants visibles par les médecins" : "jours restants masqués aux médecins"))) e.target.checked = !v;
+});
 $("congDefOk").addEventListener("click", () => {
   const defauts = Object.fromEntries(CONGE_TYPES.map((t) => [t, Math.max(0, parseFloat($("congDef" + t).value) || 0)]));
   sauverConges(() => ({ defauts }), `droits par défaut : ${CONGE_TYPES.map((t) => `${t} ${defauts[t]}`).join(", ")}`);
