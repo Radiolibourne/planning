@@ -5,6 +5,22 @@
 // Indisponibilités fournies par dispo(ini, d, minutesDebut) -> "" (disponible) ou la raison.
 // Config : [{id, service, horaire, jour (0 = lundi), semaines: [1..5], mode: "nb" | "tous", nb, medecins: [ini]}]
 
+// RCP du service déduites des fiches d'octobre 2026 (sans les médecins, à inscrire dans Admin).
+// Horaires écrits comme à l'import des fiches, pour que l'historique importé compte dans l'équilibre.
+const RCP_DEFAUT = [
+  ["SENO", "LUNDI 13h-14h", 0, [], "tous"],
+  ["ORL", "13h-14h", 0, [1, 3]],
+  ["PNEUMO", "16h-17h", 0, []],
+  ["URO", "17h-20h 1er lundi 16h-17h 3ème lundi", 0, [1, 3]],
+  ["GYNECO", "17h-20h", 0, [2, 4]],
+  ["DIGESTIF", "17h-20h", 0, [2, 4]],
+  ["NEURO-VASCULAIRE", "MARDI 12h30", 1, []],
+  ["SENO", "MARDI 13h-14h", 1, [], "tous"],
+  ["HEMATO", "MARDI 14h-15h", 1, []],
+  ["ENDOMETRIOSE", "MARDI 16h", 1, [3]],
+  ["INFECTIEUX", "JEUDI 14h-15h", 3, []],
+].map(([service, horaire, jour, semaines, mode], i) => ({ id: "d" + (i + 1), service, horaire, jour, semaines, mode: mode || "nb", nb: 1, medecins: [] }));
+
 const JOURS_RCP = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"];
 const cleRcpGen = (r) => `${String(r.service).toUpperCase()}|${r.horaire}`;
 

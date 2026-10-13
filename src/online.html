@@ -2939,7 +2939,8 @@ $("rcpListe").addEventListener("click", async (e) => {
   catch (err) { setMsg($("rcpMsg"), err.message, "err"); }
 });
 // ------------------------------------------------------------ Générateur des RCP (config/rcp : {rcps: [...]})
-const rcpCfgListe = () => ((S.rcpCfg && S.rcpCfg.rcps) || []);
+const rcpCfgEnregistree = () => !!(S.rcpCfg && Array.isArray(S.rcpCfg.rcps));
+const rcpCfgListe = () => (rcpCfgEnregistree() ? S.rcpCfg.rcps : RCP_DEFAUT);   // liste proposée tant que rien n'est enregistré
 const rangLib = (n) => (n === 1 ? "1er" : n + "e");
 const libSemainesRcp = (r) => (!r.semaines || !r.semaines.length ? `chaque ${JOURS_RCP[r.jour]}` : `${r.semaines.map(rangLib).join(", ")} ${JOURS_RCP[r.jour]} du mois`);
 const libModeRcp = (r) => (r.mode === "tous" ? "tous les inscrits présents" : `${r.nb || 1} radiologue${(r.nb || 1) > 1 ? "s" : ""}`);
@@ -2993,7 +2994,9 @@ function renderRcpGen() {
       <div class="small muted">${r.medecins.length ? r.medecins.map(esc).join(", ") : "aucun inscrit"}</div></div>
       <button class="x" type="button" data-rcpg-edit>Modifier</button><button class="x" type="button" data-rcpg-suppr>Supprimer</button></li>`;
   const liste = rcps.slice().sort((a, b) => a.jour - b.jour || debutRcp(a.horaire, 1) - debutRcp(b.horaire, 1) || String(a.service).localeCompare(b.service));
-  el.innerHTML = `<ul class="list">${liste.map((r) => (S.rcpgEdit === r.id ? form(r) : ligne(r))).join("")}${S.rcpgEdit === "nouveau" ? form({ id: "nouveau", jour: 0, mode: "nb", nb: 1, semaines: [], medecins: [] }) : ""}
+  const sansMed = rcps.filter((r) => !r.medecins.length).length;
+  el.innerHTML = `${!rcpCfgEnregistree() ? `<div class="banner info" style="margin-bottom:8px">Liste proposée d'après les fiches RCP d'octobre : il reste à inscrire les radiologues de chaque RCP (Modifier). Elle sera enregistrée à la première modification.</div>`
+      : sansMed ? `<p class="small" style="color:var(--warn);margin:0 0 6px">${sansMed} RCP sans radiologue inscrit.</p>` : ""}<ul class="list">${liste.map((r) => (S.rcpgEdit === r.id ? form(r) : ligne(r))).join("")}${S.rcpgEdit === "nouveau" ? form({ id: "nouveau", jour: 0, mode: "nb", nb: 1, semaines: [], medecins: [] }) : ""}
     ${!rcps.length && S.rcpgEdit !== "nouveau" ? `<li class="muted small">Aucune RCP définie. Ajoutez-les, ou remplissez la liste à partir des fiches RCP importées puis corrigez.</li>` : ""}</ul>`;
   // mois proposés : mois en cours et 3 suivants
   const auj = ymd(todayDay()), ms = [0, 1, 2, 3].map((k) => { const m = auj.m - 1 + k; return (auj.y + Math.floor(m / 12)) * 100 + (m % 12) + 1; });
@@ -3032,7 +3035,7 @@ $("rcpgAjout").addEventListener("click", () => { S.rcpgEdit = "nouveau"; renderR
 $("rcpgImport").addEventListener("click", async () => {
   const l = rcpDepuisImport(rcpItems());
   if (!l.length) { setMsg($("rcpgMsg"), "Aucune fiche RCP importée pour l'instant (carte « RCP du mois »).", "err"); return; }
-  if (rcpCfgListe().length && !confirm("Remplacer la liste actuelle des RCP par celle déduite des fiches importées ?")) return;
+  if (rcpCfgEnregistree() && rcpCfgListe().length && !confirm("Remplacer la liste actuelle des RCP par celle déduite des fiches importées ?")) return;
   if (await sauverRcpCfg(l, `${l.length} RCP déduites des fiches importées`))
     setMsg($("rcpgMsg"), `${l.length} RCP créées à partir des fiches. Vérifiez les semaines du mois et les inscrits (déduits d'un ou deux mois seulement).`, "ok");
 });

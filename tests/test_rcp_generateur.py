@@ -67,6 +67,13 @@ with sync_playwright() as p:
     B.ok(r == {"ia": "à Blaye", "ib": "", "db": "en repos", "db13": "", "oa": "absent"}, f"planning : autre site, repos, absence ({r})")
 
     # 3. écran Admin : liste des RCP, génération, retouche, enregistrement
+    pg.wait_for_selector("#rcpgListe li[data-rcpg='d1']", timeout=8000)
+    t = pg.inner_text("#rcpgListe")
+    B.ok(pg.locator("#rcpgListe li[data-rcpg]").count() == 11 and "Liste proposée" in t and "1er, 3e lundi du mois" in t, "liste proposée par défaut (11 RCP, sans médecins)")
+    pg.click("#rcpgListe li[data-rcpg='d2'] [data-rcpg-edit]")
+    pg.click("#rcpgListe li[data-rcpg='d2'] [data-f=medecins] button[data-k='DA']"); pg.click("#rcpgListe li[data-rcpg='d2'] [data-rcpg-ok]")
+    pg.wait_for_function("S.rcpCfg && S.rcpCfg.rcps && S.rcpCfg.rcps.length === 11", timeout=8000)
+    B.ok(pg.evaluate("S.rcpCfg.rcps.find((r) => r.id === 'd2').medecins") == ["DA"], "première inscription : la liste proposée est enregistrée")
     pg.evaluate("""S.store.set(PATHS.rcpGen(), { rcps: [
         { id: 'P', service: 'PNEUMO', horaire: '16h-17h', jour: 0, semaines: [], mode: 'nb', nb: 1, medecins: ['DA', 'DB', 'IA'] },
         { id: 'S', service: 'SENO', horaire: 'LUNDI 13h-14h', jour: 0, semaines: [], mode: 'tous', nb: 1, medecins: ['SA', 'SB', 'SC'] } ] })""")
