@@ -121,7 +121,8 @@ with sync_playwright() as p:
     pg.click("a[data-tab=astreintes]"); pg.wait_for_selector("#astBody table.astt", timeout=8000)
     a = pg.inner_text("#astBody")
     B.ok("Lun 02/11" in a and "Mer 04/11" in a and "Lun 23/11" in a and pg.locator("#astBody tbody tr").count() == 6, f"Astreintes : liste complète du mois ({pg.locator('#astBody tbody tr').count()} lignes)")
-    B.ok("Vous : 1 astreinte" in a and pg.locator("#astBody .me").count() == 1, "Astreintes : les miennes en évidence")
+    B.ok("Vous : 1 astreinte" in a and pg.locator("#astBody table.astt .me").count() == 1, "Astreintes : les miennes en évidence")
+    B.ok(pg.locator("#astBody .astcal .me").count() == 1, "Astreintes : calendrier du mois (ordinateur)")
     B.ok("IA 2" in a and "Rayann 2" in a, "Astreintes : répartition (majuscules confondues)")
     # suppression d'un mois
     pg.click("a[data-tab=admin]"); pg.wait_for_selector("#rcpListe [data-rcp-suppr]", state="attached")
