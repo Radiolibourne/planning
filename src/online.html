@@ -239,8 +239,9 @@ table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
 /* Admin : cartes repliables, dans l'ordre d'usage */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
-#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #astrCard { order: 4; } #rcpCard { order: 4; } #rcpGenCard { order: 4; } #jourCard { order: 6; } #sauvCard { order: 6; } #congCard { order: 5; } #cloCard { order: 4; } #accCard { order: 5; }
-#medCard { order: 6; } #regCard { order: 7; } #paramCard { order: 8; } #statCard { order: 9; } #rulesCard { order: 10; } #setupCard { order: 11; }
+/* ordre des cartes Admin : planning du mois, absences, congés, astreintes, RCP, statistiques, réglages du service, comptes, suivi */
+#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #cloCard { order: 4; } #congCard { order: 5; } #astrCard { order: 6; } #rcpCard { order: 7; } #rcpGenCard { order: 8; } #statCard { order: 9; } #paramCard { order: 10; } #medCard { order: 11; } #regCard { order: 12; } #accCard { order: 13; } #jourCard { order: 14; } #sauvCard { order: 15; } #rulesCard { order: 16; } #setupCard { order: 17; }
+#adminBody.sansParams #paramCard { order: 0; }   /* pas encore de paramètres : la carte à remplir d'abord */
 .pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
 .pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
 .card.ferme .pli-tete::after { transform: rotate(-45deg); margin-top: -4px; }
@@ -367,11 +368,14 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
 /* Ordinateur : toute la largeur, tableau ajusté à l'écran (sans défilement latéral) */
 @media (min-width: 1000px) {
   .wrap { max-width: none; padding: 0 24px; }
-  table.pl:not(.sem2) { width: 100%; table-layout: fixed; }
+  table.pl:not(.sem2):not(.congt) { width: 100%; table-layout: fixed; }
   table.pl th, table.pl td { white-space: normal; overflow-wrap: anywhere; padding: 4px 3px; font-size: 11.5px; line-height: 1.25; }
   table.pl thead th { font-size: 11px; }
   table.pl th.lead, table.pl td.lead { width: 78px; }
-  table.pl td.per, table.pl th:nth-child(2) { width: 34px; }
+  table.pl:not(.congt) td.per, table.pl:not(.congt) th:nth-child(2) { width: 34px; }
+  table.pl.congt { width: 100%; table-layout: fixed; }
+  table.pl.congt td:has(input) { white-space: normal; line-height: 2.2; }
+  table.pl.congt th, table.pl.congt td { padding: 6px 14px; font-size: 13.5px; white-space: nowrap; overflow-wrap: normal; }
   .tablewrap { max-height: none; overflow: visible; }
   .glisser { display: none !important; }
   #vCal { max-width: 900px; margin-left: auto; margin-right: auto; }
@@ -2720,6 +2724,7 @@ function renderAdmin() {
   updateHeader();
   $("loginCard").hidden = !!S.admin;
   $("adminBody").hidden = !S.admin;
+  $("adminBody").classList.toggle("sansParams", !S.P);
   if (S.store.mode === "demo") $("loginSub").textContent = "Démonstration : saisissez n'importe quelle adresse et n'importe quel mot de passe.";
   if (!S.admin) return;
   renderRcpAdmin();

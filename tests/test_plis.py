@@ -23,7 +23,9 @@ with sync_playwright() as p:
     B.ok(not ferme("genCard") and not ferme("indCard"), "Générer et Absences ouvertes par défaut")
     B.ok(ferme("medCard") and ferme("paramCard") and ferme("cloCard") and pg.is_hidden("#useDefault"), "Médecins, Paramètres, dates limites repliées par défaut")
     y = lambda i: pg.evaluate(f"document.getElementById('{i}').getBoundingClientRect().top")
-    B.ok(y("genCard") < y("indCard") < y("cloCard") < y("paramCard"), "cartes les plus utilisées en haut")
+    sansP = pg.evaluate("!S.P")
+    B.ok(y("genCard") < y("indCard") < y("cloCard") < y("congCard") < y("astrCard") < y("rcpCard") < y("rcpGenCard") and (y("paramCard") < y("genCard")) == sansP,
+         f"ordre des cartes : planning, absences, dates limites, congés, astreintes, RCP… ; Paramètres en tête tant qu'il n'y en a pas ({sansP})")
     pg.click("#paramCard > .pli-tete", position={"x": 5, "y": 5})
     B.ok(not ferme("paramCard") and pg.is_visible("#useDefault"), "appui sur le titre : la carte s'ouvre")
     pg.click("#genCard > h2")
