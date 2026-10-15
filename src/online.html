@@ -391,6 +391,9 @@ table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width
   #vIndispos > #teamIndCard { grid-column: 2; grid-row: 1 / span 3; }
 }
 .quigrid { display: grid; gap: 12px; }
+.day.wehors { display: none; }
+@media (min-width: 1000px) { .day.wehors { display: grid; } }
+#vMon .day.we .date { opacity: .8; }
 .quigrid table.qui { align-self: start; }
 .astcal { display: none; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 6px; }
 .astcal > b { font-size: 12px; text-align: center; color: var(--muted); font-weight: 600; }
@@ -1565,6 +1568,14 @@ function renderMon() {
       else if (ast.length) body += `<div class="note astreinte">${ast.map(esc).join(" · ")}</div>`;
       if (autres.length) body += `<div class="note">${autres.map(esc).join(" · ")}</div>`;
       html += `<div class="day${d === today ? " today" : ""}" ${d === today ? 'id="todayRow"' : ""}><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
+    }
+    // week-end : astreinte du samedi et du dimanche (la mienne partout ; celle des autres sur ordinateur seulement)
+    for (const d of [w.lundi + 5, w.lundi + 6]) {
+      const qui = astConn.get(d) || [];
+      if (!qui.length || moisDe(d) !== moisSel) continue;
+      const mienne = qui.some((q) => q.toUpperCase() === me.toUpperCase());
+      const body = mienne ? `<div class="astb"><span class="rk">ASTREINTE</span>Vous êtes d'astreinte</div>` : `<div class="note astreinte">Astreinte : ${qui.map(esc).join(" / ")}</div>`;
+      html += `<div class="day we${mienne ? "" : " wehors"}${d === today ? " today" : ""}"><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
     }
     return html + "</div>";
   };
