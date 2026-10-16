@@ -2014,6 +2014,8 @@ function astreintesConnues() {
     const q = notesDuJour(pub, d).filter((t) => /^astreinte/i.test(t)).map((t) => t.replace(/^astreinte\s*:?\s*/i, "").trim()).filter(Boolean);
     if (q.length) m.set(d, q);
   }
+  // week-end non renseigné : même médecin que le vendredi (règle du service, astreinte du vendredi au dimanche)
+  for (const [d, q] of [...m]) if (weekday(d) === 4) for (const k of [1, 2]) if (!m.has(d + k)) m.set(d + k, q.slice());
   return m;
 }
 function renderAstr() {

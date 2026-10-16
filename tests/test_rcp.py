@@ -139,6 +139,11 @@ with sync_playwright() as p:
     B.ok(ap[0] == "bleu" and ap[1] == "dark" and ap[2] == {"pal": "bleu", "mode": "dark"} and ap[3] == "#1a3560", f"apparence : palette et mode retenus sur l'appareil ({ap})")
     pg.click('#appCard [data-pal="vert"]'); pg.click('#appCard [data-mode="auto"]')
     B.ok(pg.evaluate("!document.documentElement.dataset.pal && !document.documentElement.dataset.mode"), "apparence : retour aux réglages par défaut")
+    we = pg.evaluate("""() => { const garde = S.P.astreintes; let v = dayFromYMD(2027, 1, 8);
+        S.P.astreintes = [{ d: v, ini: 'DA' }, { d: v + 7, ini: 'DB' }, { d: v + 8, ini: 'OA' }];
+        const m = astreintesConnues(); S.P.astreintes = garde;
+        return [m.get(v + 1), m.get(v + 2), m.get(v + 8), m.get(v + 9)]; }""")
+    B.ok(we == [["DA"], ["DA"], ["OA"], ["DB"]], f"week-end non renseigné : même médecin que le vendredi ({we})")
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)
