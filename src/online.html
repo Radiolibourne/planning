@@ -699,6 +699,18 @@ table.pl.sem .legm { display: none; }
   .astcal .aj .q { font-size: 12.5px; margin-top: 1px; line-height: 1.15; }
   .astcal .aj .me { padding: 0 3px; }
 }
+
+/* RCP du mois sur ordinateur : grille date × RCP */
+table.rcpmat { width: 100%; table-layout: fixed; border-collapse: collapse; }
+table.rcpmat th, table.rcpmat td { border: 1px solid var(--line); padding: 4px 4px; text-align: center; font-size: 13px; vertical-align: middle; }
+table.rcpmat thead th { background: var(--head); color: #fff; font-weight: 600; line-height: 1.2; }
+table.rcpmat thead th b { display: block; font-size: 13px; }
+table.rcpmat thead th span { font-size: 11px; opacity: .85; }
+table.rcpmat th:first-child, table.rcpmat td.jr { width: 86px; text-align: left; white-space: nowrap; font-weight: 700; }
+table.rcpmat td.hj { background: var(--panel-2); }
+table.rcpmat td.mien { background: var(--rcp-bg); }
+table.rcpmat tr.ajd td { box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
+table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
 </style>
 </head>
 <body>
@@ -2206,16 +2218,27 @@ function rcpTable(mois, me) {
   const its = rcpItems().filter((x) => moisDeJour(x.d) === mois).sort((a, b) => a.d - b.d || horaireRcp(a.horaire, a.d).localeCompare(horaireRcp(b.horaire, b.d)) || a.service.localeCompare(b.service));
   if (!its.length) return `<div class="empty small">Aucune RCP pour ce mois.</div>`;
   const today = todayDay();
-  let html = "", prec = null;
-  for (const x of its) {
-    const n = its.filter((y) => y.d === x.d).length;
-    const rads = x.ini.length ? x.ini.map((i) => (i === me ? `<span class="me">${esc(i)}</span>` : esc(i))).join(" / ") : `<span class="muted">—</span>`;
-    html += `<tr class="${x.d !== prec ? "nouv" : ""}${x.d === today ? " ajd" : ""}">${x.d !== prec ? `<td class="jr" rowspan="${n}">${JC[weekday(x.d)]} ${fmtDay(x.d, false)}</td>` : ""}<td>${esc(libRcp(x.service))}<div class="small muted">${esc(horaireRcp(x.horaire, x.d))}</div></td><td>${rads}</td></tr>`;
-    prec = x.d;
-  }
   const miennes = me ? its.filter((x) => x.ini.includes(me)).length : 0;
   return `${me ? `<p class="small" style="margin:0 0 6px">${miennes ? `Vous : <b>${miennes} RCP</b> ce mois-ci.` : "Aucune RCP pour vous ce mois-ci."}</p>` : ""}
-    <div class="tablewrap sem rcpfull"><table class="rcpt"><thead><tr><th>Date</th><th>RCP</th><th>Radiologue(s)</th></tr></thead><tbody>${html}</tbody></table></div>${rcpCompact(its, me, today)}`;
+    ${rcpGrille(its, me, today)}${rcpCompact(its, me, today)}`;
+}
+// ordinateur : tout le mois sur une page, comme la fiche du service (une ligne par jour, une colonne par RCP)
+function rcpGrille(its, me, today) {
+  const cols = [], vu = new Map();
+  for (const x of its) {
+    const k = `${weekday(x.d)}|${x.service}|${x.horaire}`;
+    if (!vu.has(k)) { vu.set(k, cols.length); cols.push({ k, j: weekday(x.d), service: x.service, h: horaireRcp(x.horaire, x.d) }); }
+  }
+  const ordre = cols.map((c, i) => i).sort((a, b) => cols[a].j - cols[b].j || cols[a].h.localeCompare(cols[b].h) || cols[a].service.localeCompare(cols[b].service));
+  const jours = [...new Set(its.map((x) => x.d))];
+  const tete = ordre.map((i) => `<th><b>${esc(libRcp(cols[i].service))}</b><span>${JC[cols[i].j].toLowerCase()} ${esc((cols[i].h.match(/\d{1,2}h\d{0,2}/) || [""])[0])}</span></th>`).join("");
+  const lignes = jours.map((d) => `<tr class="${d === today ? "ajd" : ""}"><td class="jr">${JC[weekday(d)]} ${fmtDay(d, false).slice(0, 5)}</td>${ordre.map((i) => {
+    if (cols[i].j !== weekday(d)) return `<td class="hj"></td>`;
+    const x = its.find((y) => y.d === d && `${weekday(y.d)}|${y.service}|${y.horaire}` === cols[i].k);
+    if (!x) return `<td></td>`;
+    return `<td class="${me && x.ini.includes(me) ? "mien" : ""}">${x.ini.length ? x.ini.map((q) => (q === me ? `<span class="me">${esc(q)}</span>` : esc(q))).join(" / ") : "—"}</td>`;
+  }).join("")}</tr>`).join("");
+  return `<div class="tablewrap sem rcpfull"><table class="rcpt rcpmat"><thead><tr><th>Date</th>${tete}</tr></thead><tbody>${lignes}</tbody></table></div>`;
 }
 // téléphone : tout le mois sur un écran, une ligne par jour, les RCP du jour en pastilles
 function rcpCompact(its, me, today) {
