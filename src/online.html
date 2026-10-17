@@ -635,6 +635,40 @@ table.qui .site.r1 { background: var(--site1); } table.qui .site.r2 { background
   table.qui:not(.pers) th:first-child { width: 36%; }
   table.qui caption.sitecap { padding: 4px 8px; font-size: 12.5px; }
 }
+
+/* Planning général : téléphone = une semaine sur un écran ; ordinateur = disposition d'avant */
+.genctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.genctl .semtool { flex: 1 1 100%; }
+.genexp { display: flex; gap: 6px; margin-bottom: 8px; }
+.b.mini svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+table.pl.sem .legm { display: none; }
+@media (min-width: 1000px) { table.pl.sem td.jr .dup { display: block; } table.pl.sem td.jr .dup::before { content: ""; display: block; border-top: 1px dashed var(--line); margin-top: 2px; } }
+@media (max-width: 999px) {
+  #vGeneral > .card { position: relative; padding: 10px 8px 8px; }
+  #vGeneral h2 { font-size: 17px; padding-right: 150px; }
+  #vGeneral .sub { font-size: 11.5px; margin-bottom: 6px; padding-right: 150px; }
+  .genexp { position: absolute; top: 8px; right: 8px; margin: 0; }
+  .b.mini { min-height: 32px; padding: 4px 10px; font-size: 13px; gap: 4px; border-radius: 10px; }
+  .genctl .genvues { flex: 1 1 100%; margin-bottom: 6px; }
+  .genctl .genvues .seg { display: flex; width: 100%; }
+  #vGeneral .genctl .genvues .seg button { flex: 1; padding: 5px 2px; font-size: 13px; white-space: nowrap; }
+  #vGeneral .genctl .semtool { flex-wrap: nowrap; gap: 6px; margin-bottom: 6px; min-width: 0; max-width: 100%; }
+  #vGeneral .genctl .semtabs { flex: 1 1 auto; min-width: 0; }
+  .genctl .semtool select { flex: none; max-width: 120px; min-height: 32px; font-size: 13px; padding: 2px 8px; }
+  .genctl .semtabs button { min-height: 30px; padding: 3px 9px; font-size: 12.5px; }
+  .legsem { display: none; }
+  table.pl.sem .legm { display: inline; font-weight: 500; }
+  table.pl.sem td.jr .dup { display: none; }
+  table.pl.sem td.jr { vertical-align: middle; }
+  table.pl.sem { font-size: 11.5px; }
+  table.pl.sem th, table.pl.sem td { padding: 2px 2px; line-height: 1.2; }
+  table.pl.sem thead th { padding: 3px 2px; font-size: 11px; }
+  table.pl.sem th.lead, table.pl.sem td.lead { width: 21%; font-size: 11px; padding-left: 4px; }
+  table.pl.sem .dj { min-height: 0; line-height: 1.2; }
+  table.pl.sem .dj + .dj { margin-top: 1px; padding-top: 1px; }
+  table.pl.sem tr.week td { padding: 2px 4px; font-size: 11px; }
+  table.pl.sem tr.infos td { font-size: 9.5px; }
+}
 </style>
 </head>
 <body>
@@ -2061,7 +2095,7 @@ function semaineTable(draft, lundi, highlight) {
     const cls = !occ.length ? "closed" : highlight && occ.some((o) => o.ini === highlight) ? "me" : "";
     return `<span class="dj ${cls}">${occ.length ? occ.map(nom).join(" ") : "fermé"}</span>`;
   };
-  let html = `<table class="pl sem"><thead><tr><th class="lead">Poste</th>${jours.map((d) => `<th${d === todayDay() ? ' class="auj"' : ""}>${JC[weekday(d)]}<br><span class="dt">${fmtDay(d, false)}</span></th>`).join("")}</tr></thead><tbody>`;
+  let html = `<table class="pl sem"><thead><tr><th class="lead">Poste<span class="dt legm"><br>matin / a-midi</span></th>${jours.map((d) => `<th${d === todayDay() ? ' class="auj"' : ""}>${JC[weekday(d)]}<br><span class="dt">${fmtDay(d, false)}</span></th>`).join("")}</tr></thead><tbody>`;
   const ast = jours.map((d) => notesDuJour(draft, d).filter((t) => /^astreinte/i.test(t)).map((t) => t.replace(/^astreinte\s*:\s*/i, "")).join(" "));
   if (ast.some(Boolean)) html += `<tr class="ast"><td class="lead">Astreinte</td>${ast.map((a) => `<td>${esc(a) || "—"}</td>`).join("")}</tr>`;
   const infos = jours.map((d) => notesDuJour(draft, d).filter((t) => !/^astreinte/i.test(t)));
@@ -2070,10 +2104,10 @@ function semaineTable(draft, lundi, highlight) {
     html += `<tr class="week"><td class="lead" colspan="${jours.length + 1}">${esc(site)}</td></tr>`;
     for (const c of ordre.filter((x) => draft.postes[x].site === site)) {
       if (!jours.some((d) => HALVES.some((h) => caseOuverte(draft, d, h, c)))) continue;
-      html += `<tr><td class="lead" title="${esc(draft.postes[c].label)}">${esc(libelleCourt(draft.postes[c].label))}</td>${jours.map((d) => `<td>${demi(d, "M", c)}${demi(d, "AM", c)}</td>`).join("")}</tr>`;
+      html += `<tr><td class="lead" title="${esc(draft.postes[c].label)}">${esc(libelleCourt(draft.postes[c].label))}</td>${jours.map((d) => { const m = demi(d, "M", c), a = demi(d, "AM", c); return m === a ? `<td class="jr">${m}<span class="dup">${a}</span></td>` : `<td>${m}${a}</td>`; }).join("")}</tr>`;
     }
   }
-  return `<p class="small muted" style="margin:0 0 6px">Dans chaque case : le matin en haut, l'après-midi en bas.</p><div class="tablewrap sem">${html}</tbody></table></div>`;
+  return `<p class="small muted legsem" style="margin:0 0 6px">Dans chaque case : le matin en haut, l'après-midi en bas.</p><div class="tablewrap sem">${html}</tbody></table></div>`;
 }
 // Tableau plus large que l'écran : flèche « Faites glisser » et dégradé sur le bord droit
 function indiceDefilement(racine) {
@@ -2180,11 +2214,8 @@ function renderGeneral() {
   const semHtml = htmlSemaines(pub, S.genView, "gen", S.genView.mode !== "semaine");
   const { sems } = choixSemaine(pub, S.genView);
   const week = S.genView.week;
-  $("genBody").innerHTML = `<div class="toolbar">
-      ${seg}
-      <button class="b" id="genPdf" type="button">PDF</button>
-      ${S.P ? `<button class="b" id="genXlsx" type="button">Excel</button>` : ""}
-    </div><div class="toolbar semtool">${semHtml}</div><div class="msg" id="genMsg" role="status"></div>` + (S.genView.mode === "semaine"
+  $("genBody").innerHTML = `<div class="genctl"><div class="toolbar genvues">${seg}</div><div class="genexp"><button class="b mini" id="genPdf" type="button" title="PDF de la semaine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/></svg>PDF</button>${S.P ? `<button class="b mini" id="genXlsx" type="button" title="Planning complet en Excel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/></svg>Excel</button>` : ""}</div>
+    <div class="toolbar semtool">${semHtml}</div></div><div class="msg" id="genMsg" role="status"></div>` + (S.genView.mode === "semaine"
       ? semaineTable(pub, week === "all" ? (sems[0] ? sems[0].lundi : resolveWeek(pub, "cur")) : week, S.me)
       : planningTable(pub, { mode: S.genView.mode, week, mois: S.genView.mois, editable: false, highlight: S.me }));
   indiceDefilement($("genBody"));
