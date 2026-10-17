@@ -203,3 +203,9 @@ Une absence [d1, d2] est refusée aux médecins si `d1 <= planning publié.end`,
 
 ### Ordinateur (≥ 1000 px) : toute la largeur
 - Mon planning : semaines côte à côte (`.semgrid`, colonnes de 400 px min). Qui est posté : un tableau par site côte à côte (`.quigrid`), « par personne » coupé en trois tableaux. Astreintes : calendrier du mois (`astCalendrier`, `.astcal`) à la place de la liste (`.astliste`, gardée sur téléphone). Absences : deux colonnes (`#teamIndCard` à droite). Mon planning : samedi et dimanche ajoutés quand il y a une astreinte (la sienne partout ; celle des autres `.wehors`, ordinateur seulement). Seul l'onglet Calendrier reste limité à 900 px.
+
+### Design (refonte du 17 octobre 2026)
+- Version précédente conservée sur la branche `design-2026-10-17` (pour revenir en arrière : remettre `src/online.html` de cette branche, en gardant les fonctions ajoutées depuis).
+- Couche CSS « Design 2026 » en fin de `<style>` de `online.html` (surcharge, pas de règle métier touchée). Couleurs à sens fixe : site (`--site0..2`, `--site-tt`), repos gris (`--off`), astreinte ambre (`--astr`, `--astr-bg`), RCP framboise (`--rcp`, `--rcp-bg`), poste fermé rouge (`--closed-*`), événement indigo (`--evt`, `--evt-bg`).
+- Téléphone (< 1000 px) : barre d'onglets en bas (`nav.tabs` en `position: fixed`, icônes SVG `.ti`, libellé court `.ts`, libellé complet `.tl` gardé pour l'accessibilité). Ordinateur : onglets en haut avec icône. Contrôles segmentés façon iOS, champs sur fond `--panel-2`, bandeaux à filet coloré.
+- Mon planning : date teintée de la couleur du site, repos en pointillés, aujourd'hui = anneau couleur du thème ; règles préfixées `#vMon` (sinon battues par les anciennes).
