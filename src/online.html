@@ -480,7 +480,7 @@ nav.tabs .ts { display: none; }
   nav.tabs a[aria-current=page] { color: var(--accent); border-bottom-color: transparent; }
   nav.tabs a[aria-current=page] .ti { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   @media (prefers-color-scheme: dark) { html:not([data-mode="light"]) nav.tabs a[aria-current=page] { color: var(--accent); } }
-  main { padding-bottom: calc(var(--nav-h) + 40px + env(safe-area-inset-bottom)); }
+  main.wrap { padding-bottom: calc(var(--nav-h) + 40px + env(safe-area-inset-bottom)); }
   .astrbar { bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); }
 }
 @media (min-width: 1000px) {
@@ -606,6 +606,35 @@ table.astt .me, .astcal .aj .me { background: var(--astr); }
 .card.pliable.ferme { padding-top: 13px; padding-bottom: 13px; }
 .pli-tete h2 { font-size: 16.5px; }
 #adminBody .card.pliable.ferme { box-shadow: none; }
+
+/* Qui est posté : tout le service d'un coup d'œil (une ligne par poste ou par médecin, matin = après-midi fusionnés) */
+main.wrap { padding-bottom: 50px; }
+table.qui td.jr { text-align: center; }
+table.qui caption.sitecap { caption-side: top; text-align: left; background: var(--head); color: #fff; font-weight: 750; font-size: 13.5px; padding: 7px 10px; }
+#vQui .toolbar #quiQ { flex: 1 1 140px; min-width: 0; width: auto; min-height: 36px; padding: 4px 10px; font-size: 14px; }
+table.qui tr.rep td { color: var(--muted); }
+table.qui .site { display: inline-block; font-size: 10.5px; font-weight: 700; color: #fff; border-radius: 5px; padding: 0 5px; vertical-align: 1px; background: var(--site0); }
+table.qui .site.r1 { background: var(--site1); } table.qui .site.r2 { background: var(--site2); } table.qui .site.tt { background: var(--site-tt); }
+@media (max-width: 999px) {
+  #vQui > .card { padding: 10px 10px 8px; }
+  #vQui h2 { display: none; }
+  #vQui .quinav { margin-bottom: 6px; }
+  #vQui .toolbar { margin-bottom: 6px; }
+  #vQui .toolbar .seg { flex: none; }
+  #vQui #quiQ { margin-bottom: 4px !important; }
+  #vQui h3 { font-size: 13px !important; color: var(--muted); margin: 2px 2px 4px !important; }
+  .quigrid { gap: 0; }
+  .quigrid table.qui { border-radius: 0; border: 0; }
+  .quigrid table.qui:first-child { border-radius: var(--r-md) var(--r-md) 0 0; }
+  .quigrid table.qui + table.qui thead { display: none; }
+  table.qui { font-size: 13.5px; table-layout: fixed; }
+  table.qui th { padding: 3px 6px; font-size: 11px; }
+  table.qui td { padding: 4px 6px; line-height: 1.25; }
+  table.qui td:first-child { width: 36%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  table.qui.pers td:first-child, table.qui.pers th:first-child { width: 48px; }
+  table.qui:not(.pers) th:first-child { width: 36%; }
+  table.qui caption.sitecap { padding: 4px 8px; font-size: 12.5px; }
+}
 </style>
 </head>
 <body>
@@ -2458,9 +2487,9 @@ function renderQui() {
     </div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Recherche"><button data-qm="poste" aria-pressed="${S.qui.mode === "poste"}">Par poste</button><button data-qm="personne" aria-pressed="${S.qui.mode === "personne"}">Par personne</button></div>
+      <input type="search" id="quiQ" placeholder="${S.qui.mode === "poste" ? "Filtrer (IRM, Blaye…)" : "Filtrer : initiales"}" value="${esc(S.qui.q)}" aria-label="Filtrer">
       ${d !== today && pub.jours.includes(today) ? `<button class="x" id="quiToday">Aujourd'hui</button>` : ""}
     </div>
-    <input type="search" id="quiQ" placeholder="${S.qui.mode === "poste" ? "Filtrer : poste ou site (ex. IRM, Blaye)" : "Filtrer : initiales"}" value="${esc(S.qui.q)}" style="margin-bottom:8px">
     <h3 style="margin:6px 0 8px">${JOURS[weekday(d)]} ${fmtDay(d)}</h3>`;
   const q = S.qui.q.trim().toLowerCase();
   const match = (t) => !q || t.toLowerCase().includes(q);
@@ -2477,21 +2506,27 @@ function renderQui() {
           return occ.length ? occ.map((o) => o.tt ? `<i class="tt" title="télétravail">${esc(o.ini)}*</i>` : esc(o.ini)).join(" / ") : `<span class="fe">fermé</span>`;
         };
         const mine = S.me && ["M", "AM"].some((h) => occupants(pub, d, h, c).some((o) => o.ini === S.me));
-        return `<tr class="${mine ? "me" : ""}"><td>${esc(pub.postes[c].label)}</td><td>${cell("M")}</td><td>${cell("AM")}</td></tr>`;
+        const m = cell("M"), am = cell("AM");
+        const court = libelleCourt(pub.postes[c].label), mot = " " + site.split(/[-\s]/)[0].toLowerCase(), k = court.toLowerCase().indexOf(mot);
+        const sansSite = k > 0 ? court.slice(0, k) : court;   // nom du site déjà en tête du tableau
+        const lab = `<td title="${esc(pub.postes[c].label)}">${esc(sansSite)}</td>`;
+        return `<tr class="${mine ? "me" : ""}">${lab}${m === am ? `<td colspan="2" class="jr">${m}</td>` : `<td>${m}</td><td>${am}</td>`}</tr>`;
       });
-      if (lignes.length) tables.push(`<table class="qui"><thead><tr class="site"><td colspan="3">${esc(site)}</td></tr><tr><th>Poste</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${lignes.join("")}</tbody></table>`);
+      if (lignes.length) tables.push(`<table class="qui"><caption class="sitecap">${esc(site)}</caption><thead><tr><th>Poste</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${lignes.join("")}</tbody></table>`);
     }
     html += tables.length ? `<div class="quigrid">${tables.join("")}</div>` : `<div class="empty">Aucun poste ne correspond.</div>`;
   } else {
     const pd = perDoctor(pub);
     const ST = { OFF: "repos", ABS: "absent", INDISPO: "indisponible" };
-    const cell = (v) => v && v.code ? (v.code.endsWith(TT_SUFFIX) ? `<i class="tt">${esc((pub.postes[v.code] || { label: v.code }).label)}*</i> <span class="st">(télétravail)</span>` : esc((pub.postes[v.code] || { label: v.code }).label) + (pub.postes[v.code] && pub.sites.indexOf(pub.postes[v.code].site) > 0 ? ` <span class="st">(${esc(pub.postes[v.code].site)})</span>` : ""))
+    const court = (code) => libelleCourt((pub.postes[code] || { label: code }).label);
+    const cell = (v) => v && v.code ? (v.code.endsWith(TT_SUFFIX) ? `<i class="tt">${esc(court(v.code))}*</i>` : esc(court(v.code)) + (pub.postes[v.code] && pub.sites.indexOf(pub.postes[v.code].site) > 0 ? ` <span class="site ${siteClass(pub, pub.postes[v.code].site)}">${esc(pub.postes[v.code].site.replace(/-la-Grande$/i, ""))}</span>` : ""))
       : v && v.statut ? `<span class="st">${ST[v.statut] || v.statut}</span>` : `<span class="st">sans poste</span>`;
     const lignes = Object.keys(pd).filter((ini) => match(ini)).map((ini) =>
-      `<tr class="${ini === S.me ? "me" : ""}"><td>${esc(ini)}</td><td>${cell(pd[ini][`${d}_M`])}</td><td>${cell(pd[ini][`${d}_AM`])}</td></tr>`);
+      { const m = cell(pd[ini][`${d}_M`]), am = cell(pd[ini][`${d}_AM`]);
+        return `<tr class="${ini === S.me ? "me" : ""}${/class="st"/.test(m + am) && m === am ? " rep" : ""}"><td>${esc(ini)}</td>${m === am ? `<td colspan="2" class="jr">${m}</td>` : `<td>${m}</td><td>${am}</td>`}</tr>`; });
     // ordinateur : liste coupée en trois colonnes ; téléphone : les tableaux se suivent
     const tiers = Math.ceil(lignes.length / 3) || 1, blocs = [];
-    for (let k = 0; k < lignes.length; k += tiers) blocs.push(`<table class="qui"><thead><tr><th>Médecin</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${lignes.slice(k, k + tiers).join("")}</tbody></table>`);
+    for (let k = 0; k < lignes.length; k += tiers) blocs.push(`<table class="qui pers"><thead><tr><th>Médecin</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${lignes.slice(k, k + tiers).join("")}</tbody></table>`);
     html += lignes.length ? `<div class="quigrid">${blocs.join("")}</div>` : `<div class="empty">Personne ne correspond.</div>`;
   }
   body.innerHTML = html;
