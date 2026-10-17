@@ -110,9 +110,10 @@ with sync_playwright() as p:
     B.ok("Séno" in pg.inner_text("#vMon .rcpb") and "13h-14h" in pg.inner_text("#vMon .rcpb") and "LUNDI" not in pg.inner_text("#vMon .rcpb"), "bandeau : horaire sans le jour")
     # Général → RCP
     pg.evaluate("location.hash = '#general'"); pg.wait_for_selector('#genBody .seg button[data-mode="rcp"]')
-    pg.click('#genBody .seg button[data-mode="rcp"]'); pg.wait_for_selector("#genBody table.rcpt")
-    g = pg.inner_text("#genBody table.rcpt")
-    B.ok(g.count("Lun 02/11") == 1 and "Séno" in g and "DA / OA" in g and pg.locator("#genBody table.rcpt .me").count() == 1, "Général → RCP : tableau du mois, ma RCP en évidence")
+    pg.click('#genBody .seg button[data-mode="rcp"]'); pg.wait_for_selector("#genBody .rcpc")
+    g = pg.inner_text("#genBody .rcpc")
+    B.ok(g.count("02/11") == 1 and "Séno" in g and "DA/OA" in g and pg.locator("#genBody .rcpc .rp.mien").count() == 1, f"Général → RCP (téléphone) : tout le mois en liste compacte, ma RCP en évidence")
+    B.ok(pg.locator("#genBody table.rcpt").count() == 1 and not pg.locator("#genBody table.rcpt").is_visible(), "tableau détaillé gardé pour l'ordinateur")
     B.ok(pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "Général → RCP : pas de défilement horizontal sur téléphone")
     # horaire selon le rang du lundi (1er lundi / 3ème lundi)
     h = pg.evaluate("[horaireRcp('17h-20h 1er lundi 16h-17h 3ème lundi', dayFromYMD(2026, 11, 2)), horaireRcp('17h-20h 1er lundi 16h-17h 3ème lundi', dayFromYMD(2026, 11, 16))]")

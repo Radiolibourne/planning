@@ -669,6 +669,25 @@ table.pl.sem .legm { display: none; }
   table.pl.sem tr.week td { padding: 2px 4px; font-size: 11px; }
   table.pl.sem tr.infos td { font-size: 9.5px; }
 }
+
+/* RCP du mois : liste compacte sur téléphone */
+.rcpc { display: none; }
+@media (max-width: 999px) {
+  .rcpfull { display: none; }
+  .rcpc { display: block; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--panel); }
+  .rcpc .rj { display: grid; grid-template-columns: 42px 1fr; gap: 6px; padding: 3px 6px; border-top: 1px solid var(--line); align-items: center; }
+  .rcpc .rj:first-child { border-top: 0; }
+  .rcpc .rj.ajd { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+  .rcpc .rd { font-size: 10.5px; color: var(--muted); line-height: 1.1; text-align: center; }
+  .rcpc .rd b { display: block; font-size: 13px; color: var(--ink); }
+  .rcpc .ri { display: flex; flex-wrap: wrap; gap: 3px; }
+  .rcpc .rp { font-size: 12px; background: var(--panel-2); border-radius: 6px; padding: 0 6px; line-height: 1.5; white-space: nowrap; }
+  #vGeneral .card:not(:has(.genexp)) .sub { padding-right: 0; }
+  #vGeneral .card:not(:has(.genexp)) h2 { padding-right: 0; }
+  .rcpc .rp i { font-style: normal; color: var(--muted); font-size: 11px; }
+  .rcpc .rp.mien { background: var(--rcp-bg); color: var(--rcp); box-shadow: inset 0 0 0 1px var(--rcp); }
+  .rcpc .rp.mien i { color: var(--rcp); }
+}
 </style>
 </head>
 <body>
@@ -2185,7 +2204,14 @@ function rcpTable(mois, me) {
   }
   const miennes = me ? its.filter((x) => x.ini.includes(me)).length : 0;
   return `${me ? `<p class="small" style="margin:0 0 6px">${miennes ? `Vous : <b>${miennes} RCP</b> ce mois-ci.` : "Aucune RCP pour vous ce mois-ci."}</p>` : ""}
-    <div class="tablewrap sem"><table class="rcpt"><thead><tr><th>Date</th><th>RCP</th><th>Radiologue(s)</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    <div class="tablewrap sem rcpfull"><table class="rcpt"><thead><tr><th>Date</th><th>RCP</th><th>Radiologue(s)</th></tr></thead><tbody>${html}</tbody></table></div>${rcpCompact(its, me, today)}`;
+}
+// téléphone : tout le mois sur un écran, une ligne par jour, les RCP du jour en pastilles
+function rcpCompact(its, me, today) {
+  const jours = [...new Set(its.map((x) => x.d))];
+  const heure = (x) => (horaireRcp(x.horaire, x.d).match(/\d{1,2}h\d{0,2}/) || [""])[0];
+  return `<div class="rcpc">${jours.map((d) => `<div class="rj${d === today ? " ajd" : ""}"><div class="rd">${JC[weekday(d)]}<b>${fmtDay(d, false).slice(0, 5)}</b></div><div class="ri">${its.filter((x) => x.d === d).map((x) =>
+    `<span class="rp${me && x.ini.includes(me) ? " mien" : ""}"><b>${esc(libRcp(x.service))}</b> <i>${esc(heure(x))}</i> ${x.ini.length ? x.ini.map(esc).join("/") : "—"}</span>`).join("")}</div></div>`).join("")}</div>`;
 }
 function moisRcp() {
   const liste = [...new Set(rcpItems().map((x) => moisDeJour(x.d)))].sort((a, b) => a - b);
