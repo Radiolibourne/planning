@@ -119,11 +119,12 @@ with sync_playwright() as p:
     h = pg.evaluate("[horaireRcp('17h-20h 1er lundi 16h-17h 3ème lundi', dayFromYMD(2026, 11, 2)), horaireRcp('17h-20h 1er lundi 16h-17h 3ème lundi', dayFromYMD(2026, 11, 16))]")
     B.ok(h == ["17h-20h", "16h-17h"], f"horaire selon le 1er ou le 3e lundi ({h})")
     # onglet Astreintes
-    pg.click("a[data-tab=astreintes]"); pg.wait_for_selector("#astBody table.astt", timeout=8000)
-    a = pg.inner_text("#astBody")
+    pg.click("a[data-tab=astreintes]"); pg.wait_for_selector("#astBody table.astt", state="attached", timeout=8000)
+    a = pg.text_content("#astBody")
     B.ok("Lun 02/11" in a and "Mer 04/11" in a and "Lun 23/11" in a and pg.locator("#astBody tbody tr").count() == 6, f"Astreintes : liste complète du mois ({pg.locator('#astBody tbody tr').count()} lignes)")
     B.ok("Vous : 1 astreinte" in a and pg.locator("#astBody table.astt .me").count() == 1, "Astreintes : les miennes en évidence")
-    B.ok(pg.locator("#astBody .astcal .me").count() == 1, "Astreintes : calendrier du mois (ordinateur)")
+    B.ok(pg.locator("#astBody .astcal .me").count() == 1, "Astreintes : calendrier du mois (affiché sur téléphone)")
+    B.ok(pg.locator("#astBody .astcal").is_visible() and not pg.locator("#astBody .astliste").is_visible(), "téléphone : calendrier compact à la place de la liste")
     B.ok("IA 2" in a and "Rayann 2" in a, "Astreintes : répartition (majuscules confondues)")
     # suppression d'un mois
     pg.click("a[data-tab=admin]"); pg.wait_for_selector("#rcpListe [data-rcp-suppr]", state="attached")

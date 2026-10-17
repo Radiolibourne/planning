@@ -79,8 +79,8 @@ with sync_playwright() as p:
     n = pg.evaluate("S.P.astreintes.filter((a) => a.d >= S.astrCfg.du && a.d <= S.astrCfg.au).length")
     B.ok(n == 181, f"astreintes enregistrées dans le classeur, un jour = une ligne ({n})")
     # liste du mois : week-end sur une seule ligne
-    pg.evaluate("S.me = 'DA'; S.astMois = 202701; location.hash = '#astreintes'"); pg.wait_for_selector("#astBody table.astt")
-    t = pg.inner_text("#astBody")
+    pg.evaluate("S.me = 'DA'; S.astMois = 202701; location.hash = '#astreintes'"); pg.wait_for_selector("#astBody table.astt", state="attached", timeout=8000)
+    t = pg.text_content("#astBody")
     B.ok("Ven 01/01 → Dim 03/01" in t and pg.locator("#astBody tbody tr").count() == 21, f"Astreintes : week-end du vendredi au dimanche sur une ligne ({pg.locator('#astBody tbody tr').count()} lignes)")
     B.ok(pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "pas de défilement horizontal sur téléphone")
     pg.evaluate("window.scrollTo(0, 1e6)"); pg.wait_for_timeout(200)
