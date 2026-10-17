@@ -608,7 +608,7 @@ table.astt .me, .astcal .aj .me { background: var(--astr); }
 #adminBody .card.pliable.ferme { box-shadow: none; }
 
 /* Qui est posté : tout le service d'un coup d'œil (une ligne par poste ou par médecin, matin = après-midi fusionnés) */
-main.wrap { padding-bottom: 50px; }
+@media (min-width: 1000px) { main.wrap { padding-bottom: 50px; } }
 table.qui td.jr { text-align: center; }
 table.qui caption.sitecap { caption-side: top; text-align: left; background: var(--head); color: #fff; font-weight: 750; font-size: 13.5px; padding: 7px 10px; }
 #vQui .toolbar #quiQ { flex: 1 1 140px; min-width: 0; width: auto; min-height: 36px; padding: 4px 10px; font-size: 14px; }

@@ -83,6 +83,9 @@ with sync_playwright() as p:
     t = pg.inner_text("#astBody")
     B.ok("Ven 01/01 → Dim 03/01" in t and pg.locator("#astBody tbody tr").count() == 21, f"Astreintes : week-end du vendredi au dimanche sur une ligne ({pg.locator('#astBody tbody tr').count()} lignes)")
     B.ok(pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "pas de défilement horizontal sur téléphone")
+    pg.evaluate("window.scrollTo(0, 1e6)"); pg.wait_for_timeout(200)
+    fin = pg.evaluate("[Math.max(...[...document.querySelectorAll('#vAstr > .card')].filter((c) => !c.hidden).map((c) => c.getBoundingClientRect().bottom)), document.querySelector('#tabs').getBoundingClientRect().top]")
+    B.ok(fin[0] <= fin[1], f"bas de page visible au-dessus de la barre d'onglets ({fin})")
     # 6. saisie close : calendrier en lecture seule pour le médecin
     pg.evaluate("S.store.set(PATHS.astrCfg(), { ...S.astrCfg, finMs: Date.now() - 1000 })"); pg.wait_for_timeout(300)
     pg.evaluate("renderAstr()")
