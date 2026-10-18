@@ -711,6 +711,37 @@ table.rcpmat td.hj { background: var(--panel-2); }
 table.rcpmat td.mien { background: var(--rcp-bg); }
 table.rcpmat tr.ajd td { box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
 table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
+
+/* Mes congés : bandeau compact, le formulaire de dépôt reste visible */
+#congMoiCard { padding: 10px 12px; }
+.congs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.cong { display: flex; flex-direction: column; align-items: flex-start; padding: 5px 9px; border-radius: 10px; }
+.cong .t { font-size: 11.5px; }
+.cong .n { font-size: 18px; font-weight: 800; line-height: 1.15; }
+.cong .r { font-size: 10.5px; font-weight: 600; color: var(--muted); margin: 0; }
+
+.cong { flex-direction: row; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+@media (max-width: 999px) {
+  #indCard2 > .sub { display: none; }
+  #indCard2 h2 { font-size: 16px; margin-bottom: 8px; }
+  #indCard2 .banner { padding: 6px 10px; font-size: 12.5px; margin-bottom: 8px; }
+  #indForm .row { gap: 6px; flex-wrap: wrap; }
+  #indForm .row + .row { margin-top: 6px !important; }
+  #indForm label.f { flex: 1 1 30%; font-size: 11.5px; gap: 2px; }
+  #indForm label.f:has(#indPrec) { flex-basis: 100%; }
+  #indForm input, #indForm select { min-height: 38px; padding: 6px 8px; font-size: 14.5px; }
+  #indForm .b.primary { min-height: 40px; width: 100%; }
+  #indCout { margin-top: 6px !important; font-size: 12px; }
+}
+
+@media (max-width: 999px) {
+  #indForm label.f { flex: 1 1 40%; }
+  #indForm label.f:has(#indPer) { flex-basis: 100%; }
+  #indForm label.f:has(#indPrec) { flex: 1 1 50%; }
+  .cong { flex-wrap: nowrap; white-space: nowrap; padding: 4px 8px; }
+  .cong .r { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cong .r:has(*), .cong.neg .r { position: static; width: auto; height: auto; clip: auto; }
+}
 </style>
 </head>
 <body>
@@ -842,7 +873,7 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
 
   <section id="vIndispos" hidden>
     <div class="card" id="congMoiCard" hidden>
-      <div class="row" style="align-items:center;justify-content:space-between;gap:8px"><h2 style="margin:0">Mes congés</h2><select id="congMoiAn" style="width:auto;min-height:34px;padding:2px 8px"></select></div>
+      <div class="row" style="align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap"><h2 style="margin:0;font-size:15px">Mes congés <span class="small muted" style="font-weight:600">· jours restants</span></h2><select id="congMoiAn" style="width:auto;min-height:30px;padding:0 8px;font-size:13px"></select></div>
       <div id="congMoi"></div>
     </div>
     <div class="card" id="indCard2">
@@ -2717,10 +2748,8 @@ function renderCongesMoi() {
   const c = congesDe(S.me, S.congMoiAn);
   $("congMoi").innerHTML = `<div class="congs">${CONGE_TYPES.map((t) => {
     const total = c.droits[t].droit + c.droits[t].report, pris = c.pris[t] + c.droits[t].ajust, reste = total - pris;
-    return `<div class="cong${reste < 0 ? " neg" : ""}"><div class="t">${CONGE_LIB[t]}</div><div class="n">${nb(reste)}</div><div class="r">jour${Math.abs(reste) > 1 ? "s" : ""} restant${Math.abs(reste) > 1 ? "s" : ""}</div>
-      <div class="d">${nb(pris)} pris sur ${nb(total)}${c.droits[t].report ? ` (dont ${nb(c.droits[t].report)} reportés)` : ""}${c.attente[t] ? `<br>+ ${nb(c.attente[t])} en attente` : ""}</div></div>`;
-  }).join("")}</div>
-  <p class="small muted" style="margin:8px 0 0">Absences acceptées en ${S.congMoiAn}. Règle du service : pour les CA et RTT, le jour off est décompté dès qu'un jour est posé dans la semaine (pas pour une demi-journée seule) ; les RTT sont pris avant les CA.</p>`;
+    return `<div class="cong${reste < 0 ? " neg" : ""}" title="${nb(pris)} pris sur ${nb(total)}"><span class="t">${t === "FORM" ? "Formation" : t}</span><span class="n">${nb(reste)}</span><span class="r">restant${Math.abs(reste) > 1 ? "s" : ""}${c.attente[t] ? ` · ${nb(c.attente[t])} en attente` : ""}</span></div>`;
+  }).join("")}</div>`;
 }
 function majCoutDemande() {
   const el = $("indCout"); if (!el) return;
