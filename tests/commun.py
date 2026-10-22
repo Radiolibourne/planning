@@ -74,7 +74,7 @@ def chromium(p, plis=False):
         origine = b.new_context
         def new_context(*a, **k):
             ctx = origine(*a, **k)
-            ctx.add_init_script("window.__PLIS_TOUT = true;")   # sans écrire dans le stockage local (perdu par intermittence sur file://)
+            ctx.add_init_script("window.__PLIS_TOUT = true; window.__INDMODE = \"dates\";")   # sans écrire dans le stockage local (perdu par intermittence sur file://)
             return ctx
         b.new_context = new_context
     return b

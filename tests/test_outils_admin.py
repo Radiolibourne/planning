@@ -121,6 +121,40 @@ with sync_playwright() as p:
     pg.click("#todoList [data-todo='indCard']"); pg.wait_for_timeout(1200)
     B.ok(pg.evaluate("Math.abs(document.getElementById('indCard').getBoundingClientRect().top) < 200"), "« Voir » amène à la bonne carte")
 
+    # ---------------------------------------------------------------- 7. médecin : dépôt d'absence au calendrier
+    pg.evaluate("S.admin = false; S.me = 'OC'; location.hash = '#indispos'")
+    pg.wait_for_selector("#indForm"); pg.click("[data-indmode='cal']"); pg.evaluate("renderIndispos()")
+    pg.wait_for_selector(f"#indCal [data-ij='{J(M2)}']")
+    B.ok(pg.inner_text(f"#indCal [data-ij='{J(M2) + 1}'] .na") == "3" and pg.locator(f"#indCal [data-ij='{J(M2) + 5}']").is_disabled(),
+         "calendrier : nombre de collègues absents affiché, week-end non sélectionnable")
+    for k in (3, 4, 7, 9): pg.click(f"#indCal [data-ij='{J(M2) + k}']")
+    B.ok(pg.inner_text("#indCalSel").count("du ") == 1 and "Sélection" in pg.inner_text("#indCalSel"), f"jours touchés regroupés en plages ({pg.inner_text('#indCalSel')})")
+    avant = pg.evaluate("S.indispos.length")
+    pg.click("#indSubmit"); pg.wait_for_function("document.querySelector('#indMsg').innerText.includes('demandes envoyées')", timeout=8000)
+    r = pg.evaluate("(a) => S.indispos.filter((x) => x.ini === 'OC' && x.statut === 'attente').map((x) => [x.d1, x.d2]).sort()", J(M2))
+    B.ok(r == [[J(M2) + 3, J(M2) + 7], [J(M2) + 9, J(M2) + 9]], f"2 demandes : jeudi → lundi (week-end compris dans la plage) et mercredi ({r})")
+    pg.click("[data-indmode='dates']")
+    B.ok(pg.is_visible("#indD1") and pg.is_hidden("#indCal"), "saisie par dates toujours possible")
+    pg.evaluate("S.admin = true")
+
+    # ---------------------------------------------------------------- 8. modifier les RCP enregistrées
+    pg.evaluate("location.hash = '#admin'")
+    pg.evaluate("""(a) => S.store.set(PATHS.rcp(), { items: [{ d: a, service: 'PNEUMO', horaire: '16h-17h', ini: ['DA'] }, { d: a + 1, service: 'HEMATO', horaire: 'MARDI 14h-15h', ini: ['DB'] }] })""", J(M2))
+    mo = M2.year * 100 + M2.month
+    pg.wait_for_selector(f"#rcpListe [data-rcp-modif='{mo}']", timeout=8000)
+    pg.click(f"#rcpListe [data-rcp-modif='{mo}']"); pg.wait_for_selector("#rcpEdit tr[data-l='1']")
+    pg.fill("#rcpEdit tr[data-l='0'] [data-c='ini']", "ob / oc")
+    pg.click("#rcpEdit [data-rcpe-suppr='1']")
+    pg.click("#rcpeAjout"); pg.fill("#rcpEdit tr[data-l='1'] [data-c='service']", "orl"); pg.fill("#rcpEdit tr[data-l='1'] [data-c='horaire']", "13h-14h")
+    pg.fill("#rcpEdit tr[data-l='1'] [data-c='d']", (M2 + dt.timedelta(days=7)).isoformat()); pg.fill("#rcpEdit tr[data-l='1'] [data-c='ini']", "SA")
+    pg.click("#rcpeSave"); pg.wait_for_function("document.querySelector('#rcpMsg').innerText.includes('enregistrées')", timeout=8000)
+    pg.wait_for_function("S.rcp.items.length === 2 && S.rcp.items[1].service === 'ORL'", timeout=5000)
+    it = pg.evaluate("S.rcp.items.map((x) => [x.service, x.ini.join('/')])")
+    B.ok(it == [["PNEUMO", "OB/OC"], ["ORL", "SA"]], f"RCP modifiées : radiologues changés, une supprimée, une ajoutée ({it})")
+    pg.evaluate("(m) => { S.genView.mode = 'rcp'; S.genView.rcpMois = m; location.hash = '#general'; }", mo)
+    pg.wait_for_selector("#rcpModifGen", timeout=8000)
+    B.ok(True, "Général → RCP : lien « Modifier » pour l'administrateur")
+
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)

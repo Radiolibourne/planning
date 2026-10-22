@@ -782,7 +782,9 @@ table.acal tr.tot td.trop { background: var(--closed-bg); color: var(--closed-in
 /* absence imprévue */
 table.impt { width: 100%; border-collapse: collapse; margin-top: 10px; }
 table.impt td, table.impt th { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13.5px; vertical-align: middle; }
-table.impt select { min-height: 34px; padding: 2px 8px; font-size: 13.5px; width: auto; max-width: 100%; }
+table.impt { table-layout: fixed; }
+table.impt select { min-height: 34px; padding: 2px 8px; font-size: 13.5px; width: 100%; }
+table.impt th:nth-child(1) { width: 32%; } table.impt th:nth-child(2) { width: 24%; }
 
 /* À faire (admin) */
 #todoCard { padding: 12px 14px; }
@@ -791,6 +793,28 @@ ul.todo li { padding: 8px 0; gap: 10px; }
 ul.todo .pt { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
 ul.todo .pt.err { background: var(--err); } ul.todo .pt.warn { background: var(--warn); } ul.todo .pt.info { background: var(--accent); } ul.todo .pt.ok { background: var(--ok); }
 ul.todo .b { min-height: 32px; padding: 3px 12px; font-size: 13px; }
+
+/* dépôt d'absence au calendrier */
+.seg.indmode { margin-bottom: 6px; }
+#indForm.mode-cal #indDates label.f:has(#indD1), #indForm.mode-cal #indDates label.f:has(#indD2) { display: none; }
+#indForm.mode-dates #indCalBox { display: none; }
+.indcal { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.indcal .calt { font-size: 13.5px; margin: 0 0 3px; }
+.indcal .calg .cj { position: relative; min-height: 36px; }
+.indcal .calg .cj.sel { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 800; }
+.indcal .calg .cj.moi { box-shadow: inset 0 -3px 0 var(--closed-ink); }
+.indcal .calg .cj .na { position: absolute; top: 1px; right: 2px; font-size: 9px; font-weight: 800; color: var(--warn); line-height: 1; }
+.indcal .calg .cj.sel .na { color: var(--accent-ink); }
+
+/* modification des RCP enregistrées */
+table.rcped { width: 100%; border-collapse: collapse; margin-top: 8px; }
+table.rcped td, table.rcped th { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; }
+table.rcped input { min-height: 34px; padding: 3px 6px; font-size: 13.5px; }
+table.rcped td.d { width: 150px; } table.rcped td.x { width: 30px; }
+
+.indcalnav { display: flex; justify-content: flex-end; gap: 6px; margin: -2px 0 4px; }
+.indcalnav .b { min-height: 32px; padding: 2px 14px; }
+@media (max-width: 999px) { .indcal .calg .cj { min-height: 32px; font-size: 13px; } .indcal .calg { gap: 2px; } }
 </style>
 </head>
 <body>
@@ -931,7 +955,9 @@ ul.todo .b { min-height: 32px; padding: 3px 12px; font-size: 13px; }
       <div id="indLock" class="banner info small" hidden></div>
       <div id="indRelance"></div>
       <form id="indForm" novalidate>
-        <div class="row">
+        <div class="seg indmode" role="group" aria-label="Saisie"><button type="button" data-indmode="cal" aria-pressed="true">Calendrier</button><button type="button" data-indmode="dates" aria-pressed="false">Dates</button></div>
+        <div id="indCalBox"><p class="small muted" style="margin:6px 0 4px">Touchez les jours d'absence. Le chiffre indique combien de collègues sont déjà absents ce jour-là.</p><div id="indCal"></div><div class="small" id="indCalSel" style="margin-top:4px"></div></div>
+        <div class="row" id="indDates">
           <label class="f">Du<input type="date" id="indD1" required></label>
           <label class="f">Au<input type="date" id="indD2" required></label>
           <label class="f">Période
@@ -1170,6 +1196,7 @@ ul.todo .b { min-height: 32px; padding: 3px 12px; font-size: 13px; }
         <div class="row"><label class="b" style="cursor:pointer">Importer des fiches RCP (PDF)<input type="file" id="upRcp" accept="application/pdf,.pdf" multiple hidden></label></div>
         <div id="rcpApercu"></div>
         <ul class="list" id="rcpListe" style="margin-top:10px"></ul>
+        <div id="rcpEdit"></div>
         <div class="msg" id="rcpMsg" role="status"></div>
       </div>
 
@@ -2390,7 +2417,9 @@ function renderGeneral() {
   if (modeRcp) {
     const liste = moisRcp();
     $("genBody").innerHTML = `<div class="toolbar">${seg}${liste.length > 1 ? `<select id="rcpMois" aria-label="Mois">${liste.map((m) => `<option value="${m}"${m === S.genView.rcpMois ? " selected" : ""}>${libMoisNum(m)}</option>`).join("")}</select>` : ""}</div>`
+      + (S.admin && liste.length ? `<p class="small" style="margin:0 0 6px"><button class="x" type="button" id="rcpModifGen" style="padding:0">Modifier les RCP de ${libMoisNum(S.genView.rcpMois)}</button></p>` : "")
       + (liste.length ? rcpTable(S.genView.rcpMois, S.me) : `<div class="empty small">Aucune fiche RCP importée pour l'instant.</div>`);
+    if ($("rcpModifGen")) $("rcpModifGen").onclick = () => { location.hash = "#admin"; setTimeout(() => { ouvrirRcpEdition(S.genView.rcpMois); allerCarte("rcpCard"); }, 50); };
     $("genBody").querySelectorAll(".seg button").forEach((b) => b.onclick = () => { S.genView.mode = b.dataset.mode; renderGeneral(); });
     if ($("rcpMois")) $("rcpMois").onchange = (e) => { S.genView.rcpMois = +e.target.value; renderGeneral(); };
     return;
@@ -3067,6 +3096,7 @@ function renderIndispos() {
   $("indSubmit").disabled = !S.me;
   if (!S.me) setMsg($("indMsg"), "Choisissez d'abord vos initiales (bouton « Qui êtes-vous ? » en haut).", "err");
   else if ($("indMsg").classList.contains("err") && $("indMsg").textContent.startsWith("Choisissez")) setMsg($("indMsg"), "");
+  renderIndCal();
   renderCongesMoi(); majCoutDemande();
   $("myIndTitle").textContent = S.me ? `Mes indisponibilités (${S.me})` : "Mes indisponibilités";
   const sorted = S.indispos.slice().sort((a, b) => a.d1 - b.d1 || String(a.ini).localeCompare(b.ini));
@@ -3077,18 +3107,72 @@ function renderIndispos() {
   $("teamInd").innerHTML = team.length ? team.map((x) => indLine(x, false, true, !S.admin)).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`;
 }
 $("indD1").addEventListener("change", () => { if (!$("indD2").value || $("indD2").value < $("indD1").value) $("indD2").value = $("indD1").value; });
-$("indForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const msg = $("indMsg");
-  if (!S.me) { if (choixLibre()) openWho(); else setMsg(msg, "Votre compte n'a pas encore d'initiales : contactez l'administrateur.", "err"); return; }
-  const d1 = fromInput($("indD1").value), d2 = fromInput($("indD2").value);
-  if (d1 === null || d2 === null) return setMsg(msg, "Dates invalides.", "err");
-  if (d2 < d1) return setMsg(msg, "La date de fin est avant la date de début.", "err");
-  if (d2 - d1 > 366) return setMsg(msg, "Période trop longue (un an maximum).", "err");
-  if (!needOnline(msg)) return;
+// ------------------------------------------------------------ Dépôt d'absence : au calendrier (jours touchés) ou par dates
+S.indSel = new Set();
+const indMode = () => ls.get("planning-radio-indmode") || window.__INDMODE || "cal";   // (tests anciens : __INDMODE = "dates")
+function appliquerIndMode() {
+  const m = indMode();
+  $("indForm").classList.toggle("mode-cal", m === "cal"); $("indForm").classList.toggle("mode-dates", m === "dates");
+  document.querySelectorAll("[data-indmode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.indmode === m)));
+}
+document.querySelectorAll("[data-indmode]").forEach((b) => b.addEventListener("click", () => { ls.set("planning-radio-indmode", b.dataset.indmode); appliquerIndMode(); majCoutDemande(); }));
+appliquerIndMode();
+// jours touchés → plages de jours ouvrés consécutifs (un week-end n'interrompt pas une plage)
+function plagesSelection(set) {
+  const js = [...set].sort((a, b) => a - b), out = [];
+  for (const d of js) {
+    const prec = out[out.length - 1];
+    let suivant = prec ? prec.d2 + 1 : null;
+    while (suivant !== null && weekday(suivant) > 4) suivant++;
+    if (prec && d === suivant) prec.d2 = d; else out.push({ d1: d, d2: d });
+  }
+  return out;
+}
+function renderIndCal() {
+  const el = $("indCal"); if (!el) return;
+  const today = todayDay(), me = S.me;
+  let first = today;
+  if (!S.admin) for (let i = 0; i < 400 && lockReason(first, first, S.published, S.saisie, Date.now(), true); i++) first++;
+  S.indCalDecal = Math.max(0, S.indCalDecal || 0);
+  const a0 = ymd(first), mm = a0.m - 1 + S.indCalDecal, a = { y: a0.y + Math.floor(mm / 12), m: (mm % 12) + 1 };
+  const du = dayFromYMD(a.y, a.m, 1), b = ymd(du + 61), au = dayFromYMD(b.y, b.m, 1) - 1;   // 2 mois, flèches pour avancer
+  const ferie = feriesPeriode(du, au, S.P && S.P.feries);
+  const absents = (d) => new Set(S.indispos.filter((x) => statutInd(x) !== "refusee" && x.d1 <= d && x.d2 >= d && String(x.ini).toUpperCase() !== me).map((x) => String(x.ini).toUpperCase()));
+  const moi = (d) => me && S.indispos.some((x) => statutInd(x) !== "refusee" && x.d1 <= d && x.d2 >= d && String(x.ini).toUpperCase() === me);
+  let html = "";
+  for (let y = ymd(du).y, m = ymd(du).m; y * 100 + m <= ymd(au).y * 100 + ymd(au).m; m === 12 ? (y++, m = 1) : m++) {
+    const d1 = dayFromYMD(y, m, 1), nbj = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    let cases = "";
+    for (let k = 0; k < weekday(d1); k++) cases += "<span></span>";
+    for (let j = 1; j <= nbj; j++) {
+      const d = d1 + j - 1, we = weekday(d) > 4;
+      const off = we || ferie.has(d) || d < today || (!S.admin && !!lockReason(d, d, S.published, S.saisie, Date.now(), true));
+      const ab = we ? new Set() : absents(d);
+      cases += `<button type="button" class="cj${we ? " we" : ""}${ferie.has(d) ? " fer" : ""}${S.indSel.has(d) ? " sel" : ""}${moi(d) ? " moi" : ""}" data-ij="${d}"${off ? " disabled" : ""} title="${fmtDay(d)}${ab.size ? " · absents : " + [...ab].join(", ") : ""}">${j}${ab.size ? `<span class="na">${ab.size}</span>` : ""}</button>`;
+    }
+    html += `<div class="calm"><div class="calt">${MOIS[m - 1]} ${y}</div><div class="calg"><b>L</b><b>M</b><b>M</b><b>J</b><b>V</b><b>S</b><b>D</b>${cases}</div></div>`;
+  }
+  el.innerHTML = `<div class="indcalnav"><button type="button" class="b" data-indnav="-1"${S.indCalDecal ? "" : " disabled"} aria-label="Mois précédents">‹</button><button type="button" class="b" data-indnav="1" aria-label="Mois suivants">›</button></div><div class="indcal">${html}</div>`;
+  const pl = plagesSelection(S.indSel);
+  $("indCalSel").innerHTML = pl.length ? `Sélection : ${pl.map((p) => p.d1 === p.d2 ? fmtDay(p.d1, false) : `du ${fmtDay(p.d1, false)} au ${fmtDay(p.d2, false)}`).join(" · ")} <button class="x" type="button" id="indCalVider">Effacer</button>` : "";
+  if ($("indCalVider")) $("indCalVider").onclick = () => { S.indSel.clear(); renderIndCal(); };
+}
+$("indCal").addEventListener("click", (e) => {
+  const nav = e.target.closest("[data-indnav]");
+  if (nav) { S.indCalDecal = (S.indCalDecal || 0) + +nav.dataset.indnav; renderIndCal(); return; }
+  const b = e.target.closest("[data-ij]"); if (!b || b.disabled) return;
+  const d = +b.dataset.ij;
+  if (S.indSel.has(d)) S.indSel.delete(d); else S.indSel.add(d);
+  const pl = plagesSelection(S.indSel);
+  if (pl.length) { $("indD1").value = toInput(pl[0].d1); $("indD2").value = toInput(pl[0].d2); }   // décompte (admin) sur la 1re plage
+  renderIndCal(); majCoutDemande();
+});
+// une demande (ou une absence acceptée pour un administrateur) : contrôles, puis enregistrement ; renvoie un message d'erreur ou ""
+async function deposerAbsence(d1, d2, plusieurs) {
+  if (d2 - d1 > 366) return "Période trop longue (un an maximum).";
   const verrou = lockReason(d1, d2, S.published, S.saisie, Date.now(), true);
-  if (verrou && !S.admin) return setMsg(msg, verrou, "err");
-  if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
+  if (verrou && !S.admin) return verrou;
+  if (verrou && !confirm(verrou.replace(" Contactez l'administrateur.", "") + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return "Annulé.";
   // binôme (ex. interventionnels) : jamais absents le même jour
   const bin = (S.P && S.P.binome) || [];
   if (bin.length === 2 && bin.includes(S.me)) {
@@ -3096,24 +3180,46 @@ $("indForm").addEventListener("submit", async (e) => {
     const chev = S.indispos.find((x) => String(x.ini).toUpperCase() === autre && statutInd(x) !== "refusee" && x.d1 <= d2 && x.d2 >= d1);
     if (chev) {
       const txt = `${autre} est déjà absent du ${fmtDay(Math.max(d1, chev.d1), false)} au ${fmtDay(Math.min(d2, chev.d2), false)} : vous ne pouvez pas être absents le même jour.`;
-      if (!S.admin) return setMsg(msg, txt + " Voyez avec un administrateur.", "err");
-      if (!confirm(txt + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return;
+      if (!S.admin) return txt + " Voyez avec un administrateur.";
+      if (!confirm(txt + "\n\nVous êtes administrateur : l'enregistrer quand même ?")) return "Annulé.";
     }
   }
   const prec = $("indPrec").value.trim().slice(0, 60);
-  // un administrateur enregistre directement une absence acceptée ; un médecin envoie une demande à valider
   const motif = $("indMotif").value + (prec ? ` — ${prec}` : "");
-  const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: "", creeLe: Date.now(),
-    statut: S.admin ? "acceptee" : "attente" };
+  // un administrateur enregistre directement une absence acceptée ; un médecin envoie une demande à valider
+  const data = { ini: S.me, d1, d2, periode: $("indPer").value, motif: "", creeLe: Date.now(), statut: S.admin ? "acceptee" : "attente" };
+  const id = await S.store.add(PATHS.indispos(), data);
+  if (S.admin) journaliser("Absence enregistrée", `${S.me} · ${fmtDay(d1, false)}${d2 !== d1 ? " → " + fmtDay(d2, false) : ""}`);
+  // le motif à part : visible de vous et des administrateurs seulement
+  try { await S.store.set(`motifs/${id}`, { ini: S.me, uid: (S.auth && S.auth.uid) || "demo", motif }); S.motifs[id] = { motif }; }
+  catch (e2) { console.warn("motif", e2); }
+  return "";
+}
+$("indForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("indMsg");
+  if (!S.me) { if (choixLibre()) openWho(); else setMsg(msg, "Votre compte n'a pas encore d'initiales : contactez l'administrateur.", "err"); return; }
+  let plages;
+  if (indMode() === "cal") {
+    plages = plagesSelection(S.indSel);
+    if (!plages.length) return setMsg(msg, "Touchez au moins un jour dans le calendrier.", "err");
+  } else {
+    const d1 = fromInput($("indD1").value), d2 = fromInput($("indD2").value);
+    if (d1 === null || d2 === null) return setMsg(msg, "Dates invalides.", "err");
+    if (d2 < d1) return setMsg(msg, "La date de fin est avant la date de début.", "err");
+    plages = [{ d1, d2 }];
+  }
+  if (!needOnline(msg)) return;
   $("indSubmit").disabled = true;
+  const erreurs = []; let ok = 0;
   try {
-    const id = await S.store.add(PATHS.indispos(), data);
-    if (S.admin) journaliser("Absence enregistrée", `${S.me} · ${fmtDay(d1, false)}${d2 !== d1 ? " → " + fmtDay(d2, false) : ""}`);
-    // le motif à part : visible de vous et des administrateurs seulement
-    try { await S.store.set(`motifs/${id}`, { ini: S.me, uid: (S.auth && S.auth.uid) || "demo", motif }); S.motifs[id] = { motif }; }
-    catch (e2) { console.warn("motif", e2); }
-    setMsg(msg, S.admin ? "Absence enregistrée (acceptée)." : "Demande envoyée : en attente de validation par l'administrateur.", "ok");
-    $("indPrec").value = "";
+    for (const p of plages) {
+      const err = await deposerAbsence(p.d1, p.d2, plages.length > 1);
+      if (err) erreurs.push(plages.length > 1 ? `${fmtDay(p.d1, false)}${p.d2 !== p.d1 ? "→" + fmtDay(p.d2, false) : ""} : ${err}` : err); else ok++;
+    }
+    if (ok) { $("indPrec").value = ""; S.indSel.clear(); renderIndCal(); }
+    const bilan = ok ? (S.admin ? `${ok > 1 ? `${ok} absences enregistrées` : "Absence enregistrée"} (acceptée${ok > 1 ? "s" : ""}).` : `${ok > 1 ? `${ok} demandes envoyées` : "Demande envoyée"} : en attente de validation par l'administrateur.`) : "";
+    setMsg(msg, [bilan, ...erreurs].filter(Boolean).join(" "), erreurs.length ? "err" : "ok");
   } catch (err) { setMsg(msg, err.message, "err"); }
   finally { $("indSubmit").disabled = false; }
 });
@@ -3338,7 +3444,7 @@ function renderRcpAdmin() {
   const parMois = {};
   for (const x of rcpItems()) parMois[moisDeJour(x.d)] = (parMois[moisDeJour(x.d)] || 0) + 1;
   const ms = Object.keys(parMois).map(Number).sort((a, b) => a - b);
-  $("rcpListe").innerHTML = ms.length ? ms.map((m) => `<li><div class="grow"><b>${libMoisNum(m)}</b> · ${parMois[m]} RCP</div><button class="x" type="button" data-rcp-suppr="${m}">Supprimer</button></li>`).join("")
+  $("rcpListe").innerHTML = ms.length ? ms.map((m) => `<li><div class="grow"><b>${libMoisNum(m)}</b> · ${parMois[m]} RCP</div><button class="x" type="button" data-rcp-modif="${m}">Modifier</button><button class="x" type="button" data-rcp-suppr="${m}">Supprimer</button></li>`).join("")
     : `<li class="muted small">Aucune RCP enregistrée.</li>`;
   rcpApercu();
 }
@@ -3411,12 +3517,61 @@ async function rcpEnregistrer() {
   } catch (err) { setMsg(msg, err.message, "err"); }
 }
 $("rcpListe").addEventListener("click", async (e) => {
+  const mo = e.target.closest("[data-rcp-modif]");
+  if (mo) { ouvrirRcpEdition(+mo.dataset.rcpModif); return; }
   const b = e.target.closest("[data-rcp-suppr]"); if (!b) return;
   const m = +b.dataset.rcpSuppr;
   if (!confirm(`Supprimer toutes les RCP de ${libMoisNum(m)} ?`) || !needOnline($("rcpMsg"))) return;
   try { await S.store.set(PATHS.rcp(), { ...(S.rcp || {}), items: rcpItems().filter((x) => moisDeJour(x.d) !== m), majLe: Date.now() }); setMsg($("rcpMsg"), "RCP supprimées.", "ok"); journaliser("RCP supprimées", libMoisNum(m)); }
   catch (err) { setMsg($("rcpMsg"), err.message, "err"); }
 });
+// ------------------------------------------------------------ Modifier les RCP enregistrées (importées ou générées), mois par mois
+let RCP_ED = null;   // {mois, lignes: [{d, service, horaire, ini}]}
+function ouvrirRcpEdition(mois) {
+  RCP_ED = { mois, lignes: rcpItems().filter((x) => moisDeJour(x.d) === mois).sort((a, b) => a.d - b.d || a.service.localeCompare(b.service)).map((x) => ({ ...x, ini: x.ini.slice() })) };
+  renderRcpEdition();
+}
+function lireRcpEdition() {
+  if (!RCP_ED) return;
+  document.querySelectorAll("#rcpEdit tr[data-l]").forEach((tr) => {
+    const l = RCP_ED.lignes[+tr.dataset.l]; if (!l) return;
+    const v = (k) => tr.querySelector(`[data-c="${k}"]`).value;
+    const d = fromInput(v("d")); if (d !== null) l.d = d;
+    l.service = v("service").trim().toUpperCase(); l.horaire = v("horaire").trim();
+    l.ini = splitInis(v("ini").replace(/[,;+]/g, "/").replace(/\s+/g, "/"));
+  });
+}
+function renderRcpEdition() {
+  const el = $("rcpEdit");
+  if (!RCP_ED) { el.innerHTML = ""; return; }
+  const services = [...new Set(rcpItems().map((x) => x.service).concat(rcpCfgListe().map((r) => r.service)))].sort();
+  el.innerHTML = `<div class="banner info" style="margin-top:10px"><b>Modifier les RCP de ${libMoisNum(RCP_ED.mois)}</b> — radiologues séparés par « / » (vide = personne). Les médecins voient le changement dès l'enregistrement.</div>
+    <datalist id="rcpServices">${services.map((x) => `<option value="${esc(x)}">`).join("")}</datalist>
+    <div class="tablewrap"><table class="rcped"><thead><tr><th>Date</th><th>RCP</th><th>Horaire</th><th>Radiologue(s)</th><th></th></tr></thead><tbody>
+    ${RCP_ED.lignes.map((l, i) => `<tr data-l="${i}"><td class="d"><input type="date" data-c="d" value="${toInput(l.d)}"></td><td><input type="text" data-c="service" list="rcpServices" value="${esc(l.service)}"></td><td><input type="text" data-c="horaire" value="${esc(l.horaire)}"></td><td><input type="text" data-c="ini" value="${esc(l.ini.join(" / "))}" autocapitalize="characters" spellcheck="false"></td><td class="x"><button class="x" type="button" data-rcpe-suppr="${i}" aria-label="Supprimer">✕</button></td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="row" style="margin-top:8px"><button class="b" type="button" id="rcpeAjout">Ajouter une RCP</button><button class="b primary" type="button" id="rcpeSave">Enregistrer</button><button class="b" type="button" id="rcpeAnnul">Annuler</button></div>`;
+  $("rcpeAjout").onclick = () => { lireRcpEdition(); const y = Math.floor(RCP_ED.mois / 100), m = RCP_ED.mois % 100; RCP_ED.lignes.push({ d: dayFromYMD(y, m, 1), service: "", horaire: "", ini: [] }); renderRcpEdition(); };
+  $("rcpeAnnul").onclick = () => { RCP_ED = null; renderRcpEdition(); };
+  $("rcpeSave").onclick = enregistrerRcpEdition;
+  el.querySelectorAll("[data-rcpe-suppr]").forEach((b) => b.onclick = () => { lireRcpEdition(); RCP_ED.lignes.splice(+b.dataset.rcpeSuppr, 1); renderRcpEdition(); });
+}
+async function enregistrerRcpEdition() {
+  const msg = $("rcpMsg");
+  lireRcpEdition();
+  const lignes = RCP_ED.lignes.filter((l) => l.service);
+  const connus = new Set(doctorList().map((x) => x.toUpperCase()));
+  const inconnus = [...new Set(lignes.flatMap((l) => l.ini).filter((i) => !connus.has(i)))];
+  if (inconnus.length && !confirm(`Initiales inconnues : ${inconnus.join(", ")}. Enregistrer quand même ?`)) return;
+  if (!needOnline(msg)) return;
+  const garder = rcpItems().filter((x) => moisDeJour(x.d) !== RCP_ED.mois);
+  try {
+    await S.store.set(PATHS.rcp(), { ...(S.rcp || {}), items: garder.concat(lignes.map((l) => ({ d: l.d, service: l.service, horaire: l.horaire, ini: l.ini }))).sort((a, b) => a.d - b.d), majLe: Date.now(), par: (S.auth && S.auth.email) || "" });
+    journaliser("RCP modifiées", `${libMoisNum(RCP_ED.mois)} · ${lignes.length} RCP`);
+    setMsg(msg, `RCP de ${libMoisNum(RCP_ED.mois)} enregistrées.`, "ok");
+    RCP_ED = null; renderRcpEdition();
+  } catch (e) { setMsg(msg, e.message, "err"); }
+}
 // ------------------------------------------------------------ Générateur des RCP (config/rcp : {rcps: [...]})
 const rcpCfgEnregistree = () => !!(S.rcpCfg && Array.isArray(S.rcpCfg.rcps));
 const rcpCfgListe = () => (rcpCfgEnregistree() ? S.rcpCfg.rcps : RCP_DEFAUT);   // liste proposée tant que rien n'est enregistré
@@ -4906,7 +5061,7 @@ $("pubOk").addEventListener("click", async () => {
   setMsg(msg, "Publication…");
   try {
     await ecrirePublication(prep.doc, prep.ch, prep.nouveaux, "Planning publié");
-    setDraft(null, "");
+    setDraft(null, ""); setMsg(msg, "");
     setMsg($("gMsg"), "Planning publié : l'équipe le voit dès maintenant.", "ok");
   } catch (e) { setMsg(msg, e.message, "err"); }
 });
