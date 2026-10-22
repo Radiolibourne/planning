@@ -191,7 +191,7 @@ with sync_playwright() as pw:
     adm.select_option('#gQual', '10'); adm.click('#gBtn')
     adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning généré')", timeout=90000)
     ok('Erreur' not in adm.inner_text('#dChecks'), 'génération sans erreur (indisponibilité en ligne prise en compte)')
-    adm.click('#publishBtn'); adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
+    adm.click('#publishBtn'); adm.click('#pubOk'); adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
     stored = DB.get(f'espaces/{TEAM}/planning/publie')
     ok(stored and stored.get('publiePar') == 'admin@chl.fr' and len(json.dumps(stored)) < 1_000_000, f'planning publié en base ({len(json.dumps(stored))//1024} Ko, limite Firestore 1 024 Ko)')
     ok(all(v != 'ABS' or True for v in []) and 'ABS' in json.dumps(stored['statuts'].get('DA', {})), 'absence de DA enregistrée dans le planning publié')

@@ -240,8 +240,8 @@ table.qui tr.site td { background: var(--head); color: #fff; text-transform: non
 /* Admin : cartes repliables, dans l'ordre d'usage */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
 /* ordre des cartes Admin : planning du mois, absences, congés, astreintes, RCP, statistiques, réglages du service, comptes, suivi */
-#genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #cloCard { order: 4; } #congCard { order: 5; } #astrCard { order: 6; } #rcpCard { order: 7; } #rcpGenCard { order: 8; } #statCard { order: 9; } #paramCard { order: 10; } #medCard { order: 11; } #regCard { order: 12; } #accCard { order: 13; } #jourCard { order: 14; } #sauvCard { order: 15; } #rulesCard { order: 16; } #setupCard { order: 17; }
-#adminBody.sansParams #paramCard { order: 0; }   /* pas encore de paramètres : la carte à remplir d'abord */
+#todoCard { order: -1; } #impCard { order: 0; } #genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #absCalCard { order: 3; } #cloCard { order: 4; } #congCard { order: 5; } #astrCard { order: 6; } #rcpCard { order: 7; } #rcpGenCard { order: 8; } #statCard { order: 9; } #paramCard { order: 10; } #medCard { order: 11; } #regCard { order: 12; } #accCard { order: 13; } #jourCard { order: 14; } #sauvCard { order: 15; } #rulesCard { order: 16; } #setupCard { order: 17; }
+#adminBody.sansParams #paramCard { order: -2; }   /* pas encore de paramètres : la carte à remplir d'abord */
 .pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
 .pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
 .card.ferme .pli-tete::after { transform: rotate(-45deg); margin-top: -4px; }
@@ -742,6 +742,55 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
   .cong .r { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .cong .r:has(*), .cong.neg .r { position: static; width: auto; height: auto; clip: auto; }
 }
+
+/* récapitulatif avant publication */
+.pubrecap { max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+.pubrecap .pm { padding: 4px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.pubrecap .pm:first-child { border-top: 0; }
+.pubrecap ul { margin: 2px 0 0; padding-left: 18px; }
+
+/* cases verrouillées (régénération) */
+table.pl.edit td.lock { box-shadow: inset 0 0 0 2px var(--evt); }
+table.pl.edit td.lock::before { content: "🔒"; font-size: 9px; margin-right: 2px; }
+
+/* équilibre par médecin (brouillon) */
+details.eqd > summary { font-weight: 700; }
+table.eqt td, table.eqt th { text-align: center; padding: 4px 6px; font-size: 12.5px; }
+table.eqt td:first-child { text-align: left; }
+.eqhi { background: color-mix(in srgb, var(--warn) 22%, var(--panel)); font-weight: 700; border-radius: 4px; padding: 0 3px; }
+.eqlo { background: color-mix(in srgb, var(--site-tt) 18%, var(--panel)); font-weight: 700; border-radius: 4px; padding: 0 3px; }
+
+/* calendrier des absences (admin) */
+table.acal { border-collapse: collapse; font-size: 11px; width: max-content; min-width: 100%; }
+table.acal th, table.acal td { border: 1px solid var(--line); padding: 0; text-align: center; min-width: 20px; height: 22px; }
+table.acal thead th { font-weight: 600; color: var(--muted); line-height: 1.1; padding: 2px 0; }
+table.acal thead th.auj { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+table.acal tbody th { text-align: left; padding: 0 6px; font-weight: 700; position: sticky; left: 0; background: var(--panel); }
+table.acal .lun { border-left: 2px solid var(--muted); }
+table.acal td.fer { background: var(--panel-2); }
+table.acal td.acc { background: var(--closed-ink); }
+table.acal td.att { background: repeating-linear-gradient(45deg, var(--warn) 0 3px, transparent 3px 6px); }
+table.acal td.acc.pm { background: linear-gradient(var(--closed-ink) 50%, transparent 50%); }
+table.acal td.acc.pa { background: linear-gradient(transparent 50%, var(--closed-ink) 50%); }
+table.acal tr.tot td { font-weight: 700; }
+table.acal tr.tot td.trop { background: var(--closed-bg); color: var(--closed-ink); }
+.acl { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--line); vertical-align: -2px; }
+.acl.acc { background: var(--closed-ink); } .acl.att { background: repeating-linear-gradient(45deg, var(--warn) 0 3px, transparent 3px 6px); }
+.acl.acc.pm { background: linear-gradient(var(--closed-ink) 50%, transparent 50%); } .acl.acc.pa { background: linear-gradient(transparent 50%, var(--closed-ink) 50%); }
+@media (min-width: 1000px) { table.acal { width: 100%; table-layout: fixed; } table.acal tbody th, table.acal thead th:first-child { width: 70px; } }
+
+/* absence imprévue */
+table.impt { width: 100%; border-collapse: collapse; margin-top: 10px; }
+table.impt td, table.impt th { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13.5px; vertical-align: middle; }
+table.impt select { min-height: 34px; padding: 2px 8px; font-size: 13.5px; width: auto; max-width: 100%; }
+
+/* À faire (admin) */
+#todoCard { padding: 12px 14px; }
+#todoCard h2 { font-size: 17px; }
+ul.todo li { padding: 8px 0; gap: 10px; }
+ul.todo .pt { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+ul.todo .pt.err { background: var(--err); } ul.todo .pt.warn { background: var(--warn); } ul.todo .pt.info { background: var(--accent); } ul.todo .pt.ok { background: var(--ok); }
+ul.todo .b { min-height: 32px; padding: 3px 12px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -928,6 +977,10 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
     </div>
 
     <div id="adminBody" hidden>
+      <div class="card" id="todoCard">
+        <h2>À faire</h2>
+        <ul class="list todo" id="todoList"></ul>
+      </div>
       <div class="card" id="paramCard">
         <div class="row" style="justify-content:space-between;align-items:center">
           <h2 style="margin:0">Paramètres du service</h2>
@@ -975,12 +1028,27 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
         <div class="msg" id="gMsg" role="status"></div>
       </div>
 
+      <div class="card" id="impCard">
+        <h2>Absence imprévue</h2>
+        <p class="sub">Un médecin ne peut pas venir (maladie, urgence) : l'appli libère ses cases du planning publié et propose des remplaçants (compétents, libres, les moins chargés d'abord). Vous validez, elle republie et prévient les médecins concernés.</p>
+        <div class="row" style="align-items:flex-end">
+          <label class="f" style="flex:0 1 120px">Médecin<select id="impIni"></select></label>
+          <label class="f">Du<input type="date" id="impD1"></label>
+          <label class="f">Au<input type="date" id="impD2"></label>
+          <label class="f" style="flex:0 1 150px">Période<select id="impPer"><option>Journée</option><option>Matin</option><option>Après-midi</option></select></label>
+          <button class="b primary" type="button" id="impChercher">Chercher des remplaçants</button>
+        </div>
+        <div id="impRes"></div>
+        <div class="msg" id="impMsg" role="status"></div>
+      </div>
+
       <div class="card" id="draftCard">
         <h2 id="draftTitle">Planning à publier</h2>
         <p class="sub" id="draftSub"></p>
         <div id="draftEmpty">
           <div class="row">
             <button class="b" id="editPublished">Modifier le planning publié</button>
+            <button class="b" id="undoPub" type="button" hidden>Revenir à la publication précédente</button>
             <label class="b" style="cursor:pointer">Importer un planning Excel<input type="file" id="upPlanning" accept=".xlsx" hidden></label>
           </div>
           <p class="small muted" style="margin:8px 0 0">Importer : un fichier Excel téléchargé depuis ce site (bouton « Excel »), éventuellement retouché, ou le planning du service fait à la main (un onglet par semaine).</p>
@@ -999,6 +1067,14 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
             <div><h3 style="margin-top:0">Couverture</h3><div class="cov" id="dCov"></div></div>
             <div><h3 style="margin-top:0">Contrôle des règles</h3><ul class="checks" id="dChecks"></ul></div>
           </div>
+          <details class="eqd" id="eqDetails" style="margin-top:12px"><summary>Équilibre par médecin <span class="small muted" style="font-weight:400" id="eqResume"></span></summary><div id="dEq"></div></details>
+          <div class="row regen" style="margin:14px 0 4px;align-items:flex-end">
+            <label class="f" style="flex:0 1 240px">Régénérer<select id="regenSem"></select></label>
+            <button class="b" type="button" id="regenBtn">Régénérer (cases 🔒 gardées)</button>
+            <button class="x" type="button" id="deverrTout">Tout déverrouiller</button>
+            <span class="small muted" id="regenInfo"></span>
+          </div>
+          <div class="progress" id="regenProg" hidden><div></div></div>
           <h3>Retouches <span class="small muted" style="font-weight:400">— touchez une case pour la modifier (plusieurs médecins : « AB / CD », vide = fermé)</span></h3>
           <div id="draftGrid"></div>
         </div>
@@ -1009,6 +1085,16 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
         <p class="sub" id="admIndSub"></p>
         <ul class="list" id="admInd"></ul>
         <div class="msg" id="admIndMsg" role="status"></div>
+      </div>
+
+      <div class="card" id="absCalCard">
+        <h2>Calendrier des absences</h2>
+        <p class="sub">Toute l'équipe sur le mois : absences acceptées en plein, demandes en attente en hachuré, demi-journées à moitié. En bas, le nombre d'absents par jour (en rouge au-delà du seuil).</p>
+        <div class="row" style="align-items:flex-end;margin-bottom:8px">
+          <label class="f" style="flex:0 1 200px">Mois<select id="acMois"></select></label>
+          <label class="f" style="flex:0 1 200px">Alerte à partir de<select id="acSeuil"></select></label>
+        </div>
+        <div id="acGrille"></div>
       </div>
 
       <div class="card" id="statCard" hidden>
@@ -1264,6 +1350,13 @@ table.rcpmat tbody tr:has(td.jr) td.jr { border-left: 0; }
   </div>
 </div>
 
+<div class="overlay" id="pubOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pubTitre">
+    <h2 id="pubTitre" style="margin:0 0 8px;font-size:17px">Publier le planning</h2>
+    <div id="pubCorps"></div>
+    <div class="row" style="margin-top:12px"><button class="b" type="button" id="pubAnnul">Retour</button><button class="b primary" type="button" id="pubOk">Publier</button></div>
+  </div>
+</div>
 <div class="overlay" id="caseOverlay" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="caseTitre">
     <h2 id="caseTitre" style="margin:0 0 8px;font-size:17px"></h2>
@@ -1344,7 +1437,7 @@ const S = {
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, rcpGen: () => `${base()}/config/rcp`, conges: () => `${base()}/config/conges`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, rcpGen: () => `${base()}/config/rcp`, conges: () => `${base()}/config/conges`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces`, precedent: () => `${base()}/planning/precedent` };
 
 // ------------------------------------------------------------ hors connexion
 function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
@@ -1506,7 +1599,7 @@ function watchAdminCollections() {
 }
 
 function leaveSpace() {
-  S.unsub.forEach((f) => f()); S.unsub = [];
+  S.unsub.forEach((f) => f()); S.unsub = []; S.precWatch = false; S.precedent = null;
   S.code = null; S.params = S.P = S.published = S.saisie = S.rcp = S.astrCfg = null; S.astrInd = []; S.indispos = []; paramsSig = "";
 }
 
@@ -1544,7 +1637,7 @@ async function enter(code, silent) {
     const fiche = { email: S.auth.email || "", ini: "", nom: "", espace: code, role: "admin", valideLe: Date.now(), validePar: S.auth.email || "" };
     S.store.set(`membres/${S.auth.uid}`, fiche).then(() => { S.membre = { ...fiche, uid: S.auth.uid }; ls.set("planning-radio-membre", JSON.stringify(S.membre)); }).catch(() => {});
   }
-  S.unsub.forEach((f) => f()); S.unsub = [];
+  S.unsub.forEach((f) => f()); S.unsub = []; S.precWatch = false; S.precedent = null;
   const onErr = (e) => {
     console.error(e);
     if (e && e.code === "permission-denied" && S.code) {
@@ -2128,7 +2221,7 @@ function planningTable(draft, opts) {
           if (!caseOuverte(draft, d, h, c)) { row += `<td class="na">—</td>`; continue; }
           const occ = occupants(draft, d, h, c);
           const need = (draft.postes[c] && draft.postes[c].need) || 1;
-          const cls = [!occ.length ? "closed" : occ.length < need ? "part" : "", editable ? "ed" : "", highlight && occ.some((o) => o.ini === highlight) ? "me" : ""].filter(Boolean).join(" ");
+          const cls = [!occ.length ? "closed" : occ.length < need ? "part" : "", editable ? "ed" : "", editable && draft.verrous && draft.verrous[k] ? "lock" : "", highlight && occ.some((o) => o.ini === highlight) ? "me" : ""].filter(Boolean).join(" ");
           const lab = (o) => (o.tt ? `<i class="tt" title="télétravail">${esc(o.ini)}*</i>` : esc(o.ini));
           row += `<td class="${cls}"${editable ? ` data-k="${k}" tabindex="0"` : ""}>${occ.length ? occ.map((o) => editable && GLISSER ? `<span class="dz" draggable="true" data-ini="${esc(o.ini)}">${lab(o)}</span>` : lab(o)).join(" / ") : "FERMÉ"}</td>`;
         }
@@ -3052,6 +3145,7 @@ function renderAdmin() {
   $("adminBody").classList.toggle("sansParams", !S.P);
   if (S.store.mode === "demo") $("loginSub").textContent = "Démonstration : saisissez n'importe quelle adresse et n'importe quel mot de passe.";
   if (!S.admin) return;
+  if (!S.precWatch) { S.precWatch = true; S.unsub.push(S.store.watchDoc(PATHS.precedent(), (d) => { S.precedent = d; renderDraft(); }, () => {})); }
   renderRcpAdmin();
   renderRcpGen();
   renderAstrAdmin();
@@ -3062,6 +3156,9 @@ function renderAdmin() {
   }
   renderSauvegarde();
   renderCongesAdmin();
+  renderAbsCal();
+  renderImprevu();
+  renderTodo();
   renderJournal();
   // paramètres
   const p = S.params;
@@ -3097,8 +3194,8 @@ function renderAdmin() {
   $("admIndSub").textContent = `${attente.length ? `${attente.length} demande(s) à valider · ` : ""}${autres.length} à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}. Seules les absences acceptées sont prises en compte à la génération.`;
   const ligne = (x) => indLine(x, true, true).replace("<div class=\"grow\">",
     `<div class="grow">${confIds.has(x.id) ? `<span class="tag err" style="float:right">affecté pendant l'absence</span>` : ""}`);
-  const dem = attente.map((x) => ligne(x).replace(/<button class="x" data-del[^]*?<\/button>/, "")
-    .replace(/<\/li>$/, `<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="b primary" data-accept="${esc(x.id)}" style="min-height:36px;padding:4px 12px">Accepter</button><button class="b" data-refuse="${esc(x.id)}" style="min-height:36px;padding:4px 12px">Refuser</button></div></li>`)).join("");
+  const dem = attente.map((x) => ligne(x).replace(/^<li/, '<li style="flex-wrap:wrap"').replace(/<button class="x" data-del[^]*?<\/button>/, "")
+    .replace(/<\/li>$/, `${chevauchements(x).length ? `<div class="small" style="flex-basis:100%;color:var(--warn)">Déjà absents ces jours-là : ${chevauchements(x).map(esc).join(", ")}</div>` : ""}<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="b primary" data-accept="${esc(x.id)}" style="min-height:36px;padding:4px 12px">Accepter</button><button class="b" data-refuse="${esc(x.id)}" style="min-height:36px;padding:4px 12px">Refuser</button></div></li>`)).join("");
   $("admInd").innerHTML = (attente.length ? `<li class="small" style="border:0;padding-bottom:0"><b>Demandes à valider</b></li>${dem}<li class="small" style="border:0;padding-bottom:0;margin-top:8px"><b>Absences</b></li>` : "")
     + (autres.length ? autres.map(ligne).join("") : `<li class="muted small">Aucune indisponibilité à venir.</li>`);
   // dates limites de dépôt
@@ -3701,7 +3798,7 @@ $("medForm").addEventListener("submit", async (e) => {
 });
 // ------------------------------------------------------------ Admin : cartes repliables (état mémorisé sur l'appareil)
 const PLIS_KEY = "planning-radio-plis";
-const PLIS_OUVERTES = ["genCard", "draftCard", "indCard"];   // ouvertes par défaut
+const PLIS_OUVERTES = ["todoCard", "genCard", "draftCard", "indCard"];   // ouvertes par défaut
 (function initPlis() {
   const brut = ls.get(PLIS_KEY), tout = brut === "tout" || window.__PLIS_TOUT === true;   // (tests : toutes les cartes ouvertes)
   let etat = {};
@@ -4187,8 +4284,8 @@ $("useDefault").addEventListener("click", () => saveParams(b64ToBytes(window.DEF
 $("dlParams").addEventListener("click", () => { if (S.params) saveFile(b64ToBytes(S.params.xlsx), S.params.nom || "parametres_planning.xlsx", XLSX_TYPE); });
 
 // Génération
-function problemFor(start, end) {
-  const P = { ...S.P, abs: S.P.abs.concat(onlineAbs(S.indispos.map((x) => ({ ...x, motif: motifDe(x) })))), start, end };
+function problemFor(start, end, forcees = []) {
+  const P = { ...S.P, abs: S.P.abs.concat(onlineAbs(S.indispos.map((x) => ({ ...x, motif: motifDe(x) })))), start, end, forced: S.P.forced.concat(forcees) };
   return buildProblem(P);
 }
 $("gBtn").addEventListener("click", async () => {
@@ -4252,6 +4349,8 @@ function renderDraft() {
   $("draftBody").hidden = !has;
   $("draftEmpty").hidden = has;
   $("editPublished").disabled = !S.published;
+  $("undoPub").hidden = !(S.precedent && S.published);
+  if (S.precedent) $("undoPub").textContent = `Revenir à la publication du ${new Date(S.precedent.publieLe).toLocaleDateString("fr-FR")} ${new Date(S.precedent.publieLe).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
   if (!has) {
     $("draftTitle").textContent = "Planning à publier";
     $("draftSub").textContent = S.published ? `Planning publié : ${S.published.titre.replace("Planning du service de radiologie — ", "")}, le ${new Date(S.published.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}. Générez un nouveau planning, ou modifiez celui qui est publié.` : "Aucun planning publié. Générez-en un ci-dessus.";
@@ -4277,6 +4376,13 @@ function renderDraft() {
   $("undoBtn").disabled = !S.annuler.length;
   $("undoBtn").textContent = S.annuler.length ? `↶ Annuler (${S.annuler.length})` : "↶ Annuler";
   S.draftVue = S.draftVue || { week: "cur" };
+  renderEquilibre(d);
+  const nv = Object.keys(d.verrous || {}).length;
+  $("regenInfo").textContent = nv ? `${nv} case(s) verrouillée(s)` : "Aucune case verrouillée (touchez une case → 🔒)";
+  $("deverrTout").hidden = !nv;
+  const selR = $("regenSem").value;
+  $("regenSem").innerHTML = `<option value="all">Toute la période</option>` + d.semaines.map((w) => `<option value="${w.lundi}">Semaine du ${fmtDay(w.lundi, false)}</option>`).join("");
+  if ([...$("regenSem").options].some((o) => o.value === selR)) $("regenSem").value = selR;
   const semHtml = htmlSemaines(d, S.draftVue, "draft");
   $("draftGrid").innerHTML = `<div class="toolbar semtool">${semHtml}</div>` + planningTable(d, { mode: "poste", week: S.draftVue.week, mois: S.draftVue.mois, editable: true });
   brancherSemaines($("draftGrid"), S.draftVue, "draft", renderDraft);
@@ -4343,7 +4449,8 @@ function ouvrirCase(k) {
     <h3>Absents, en repos ou sans la compétence</h3><div class="meds">${gris.map((x) => bouton(x, "gris")).join("") || `<span class="small muted">Aucun</span>`}</div>
     <details style="margin-top:10px"><summary class="small">Saisie libre (télétravail « CD* », interne…)</summary>
       <div class="row" style="margin-top:6px"><input type="text" id="caseLibre" value="${esc(texteOccupants(occ))}" autocapitalize="characters" spellcheck="false" style="flex:1"><button class="b" type="button" id="caseLibreOk">OK</button></div></details>
-    <div class="row" style="margin-top:12px"><button class="b" type="button" id="caseVider">Vider (fermer le poste)</button><button class="b primary" type="button" id="caseFini">Terminé</button></div>`;
+    <div class="row" style="margin-top:12px"><button class="b" type="button" id="caseVider">Vider (fermer le poste)</button><button class="b" type="button" id="caseVerrou">${S.draft.verrous && S.draft.verrous[k] ? "🔓 Déverrouiller" : "🔒 Verrouiller"}</button><button class="b primary" type="button" id="caseFini">Terminé</button></div>
+    <p class="small muted" style="margin:6px 0 0">Une case verrouillée garde ses médecins quand vous régénérez le planning.</p>`;
   $("caseOverlay").hidden = false;
   const c = $("caseCorps");
   let echange = null;
@@ -4367,6 +4474,11 @@ function ouvrirCase(k) {
     memoriser(); ecrireCase(k, toks.map((x) => ({ ini: x.replace(TT_MARK, ""), tt: x.endsWith(TT_MARK) }))); apresRetouche(); ouvrirCase(k);
   };
   $("caseFini").onclick = fermerCase;
+  $("caseVerrou").onclick = () => {
+    const v = S.draft.verrous || (S.draft.verrous = {});
+    if (v[k]) delete v[k]; else v[k] = true;
+    apresRetouche(); ouvrirCase(k);
+  };
 }
 function fermerCase() { $("caseOverlay").hidden = true; }
 $("caseOverlay").addEventListener("click", (e) => { if (e.target === $("caseOverlay")) fermerCase(); });
@@ -4414,15 +4526,320 @@ $("discardBtn").addEventListener("click", () => {
   if (!confirm("Abandonner ce planning non publié ?")) return;
   setDraft(null, "");
 });
-$("publishBtn").addEventListener("click", async () => {
-  const msg = $("pubMsg");
+// ------------------------------------------------------------ « À faire » : ce qui demande une action, en tête de l'Admin
+function allerCarte(id) {
+  const card = $(id); if (!card) return;
+  card.classList.remove("ferme");
+  const tete = card.querySelector(".pli-tete"); if (tete) tete.setAttribute("aria-expanded", "true");
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function moisSuivant() { const a = ymd(todayDay()); return a.m === 12 ? (a.y + 1) * 100 + 1 : a.y * 100 + a.m + 1; }
+function todoItems() {
+  const items = [], today = todayDay();
+  const att = S.indispos.filter((x) => statutInd(x) === "attente");
+  if (att.length) items.push(["err", `<b>${att.length} demande(s) d'absence</b> à valider`, "indCard"]);
+  const conf = conflicts(S.published, S.indispos.filter((x) => statutInd(x) === "acceptee" && x.d2 >= today));
+  for (const c of conf.slice(0, 3)) items.push(["err", `<b>${esc(c.indispo.ini)}</b> absent (accepté) mais affecté le ${fmtDay(c.hits[0].d, false)}${c.hits.length > 1 ? ` (+${c.hits.length - 1} demi-j.)` : ""} dans le planning publié`, "impCard", `data-imp-pre="${esc(c.indispo.ini)}|${c.indispo.d1}|${c.indispo.d2}|${esc(c.indispo.periode)}"`, "Remplacer"]);
+  if (conf.length > 3) items.push(["err", `… et ${conf.length - 3} autre(s) absence(s) sur le planning publié`, "indCard"]);
+  if (S.demandes && S.demandes.length) items.push(["warn", `<b>${S.demandes.length} compte(s)</b> en attente de validation`, "accCard"]);
+  if (S.draft) items.push(["warn", `Un planning <b>non publié</b> est en cours (${esc(S.draftSource || "brouillon")})`, "draftCard"]);
+  for (const c of (S.saisie && S.saisie.clotures) || []) {
+    if (c.limite < today || c.limite - today > 7) continue;
+    const r = relanceInfo(c);
+    items.push(["warn", `Date limite de dépôt le <b>${fmtDay(c.limite, false)}</b> (période du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)})${r.manquants.length ? ` : ${r.manquants.length} médecin(s) n'ont rien déclaré` : ""}`, "cloCard"]);
+  }
+  if (S.published) {
+    if (S.published.end - today < 21) items.push(["warn", `Le planning publié s'arrête le <b>${fmtDay(S.published.end, false)}</b> : pensez à générer la suite`, "genCard"]);
+    // demi-journées sous le minimum dans les deux semaines à venir
+    let sous = 0;
+    for (const d of S.published.jours) {
+      if (d < today || d > today + 13) continue;
+      for (const h of HALVES) for (const c of postesAffiches(S.published)) {
+        const p = S.P && S.P.postes[c];
+        if (!p || !p.min || !caseOuverte(S.published, d, h, c)) continue;
+        if (occupants(S.published, d, h, c).length < p.min) sous++;
+      }
+    }
+    if (sous) items.push(["info", `${sous} demi-journée(s) de poste sous le minimum dans les 2 semaines à venir (postes fermés faute de médecin)`, "draftCard"]);
+  } else items.push(["warn", "Aucun planning publié", "genCard"]);
+  const ms = moisSuivant();
+  if (!rcpItems().some((x) => moisDeJour(x.d) === ms)) items.push(["info", `RCP de <b>${libMoisNum(ms)}</b> pas encore faites`, "rcpGenCard"]);
+  if (![...astreintesConnues().keys()].some((d) => moisDeJour(d) === ms)) items.push(["info", `Astreintes de <b>${libMoisNum(ms)}</b> pas encore saisies`, "astrCard"]);
+  const sv = S.sauvegarde && S.sauvegarde.derniere;
+  if (!sv || Date.now() - sv > 90 * 86400000) items.push(["info", sv ? `Dernière sauvegarde le ${new Date(sv).toLocaleDateString("fr-FR")} : pensez à en refaire une` : "Aucune sauvegarde faite", "sauvCard"]);
+  return items;
+}
+function renderTodo() {
+  const el = $("todoList"); if (!el) return;
+  const items = todoItems();
+  el.innerHTML = items.length ? items.map(([niv, txt, carte, attr, bouton]) => `<li><span class="pt ${niv}"></span><div class="grow small">${txt}</div><button class="b" type="button" data-todo="${carte}" ${attr || ""}>${bouton || "Voir"}</button></li>`).join("")
+    : `<li><span class="pt ok"></span><div class="grow small">Tout est à jour.</div></li>`;
+}
+$("todoList").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-todo]"); if (!b) return;
+  if (b.dataset.impPre) {   // absence imprévue préremplie
+    const [ini, d1, d2, per] = b.dataset.impPre.split("|");
+    $("impIni").value = ini; $("impD1").value = toInput(Math.max(+d1, todayDay())); $("impD2").value = toInput(+d2); $("impPer").value = per;
+    allerCarte("impCard"); $("impChercher").click(); return;
+  }
+  allerCarte(b.dataset.todo);
+});
+// ------------------------------------------------------------ Absence imprévue : libérer les cases du planning publié et proposer des remplaçants
+function renderImprevu() {
+  const sel = $("impIni"); if (!sel) return;
+  const v = sel.value, docs = doctorList().map((x) => x.toUpperCase()).sort();
+  sel.innerHTML = docs.map((i) => `<option${i === v ? " selected" : ""}>${esc(i)}</option>`).join("");
+  if (!$("impD1").value) { $("impD1").value = toInput(todayDay()); $("impD2").value = toInput(todayDay()); }
+  $("impChercher").disabled = !S.published;
+}
+$("impD1").addEventListener("change", () => { if (!$("impD2").value || $("impD2").value < $("impD1").value) $("impD2").value = $("impD1").value; });
+// cases (poste affiché) du médecin dans le planning publié sur la période
+function casesDe(doc, ini, d1, d2, periode) {
+  const out = [];
+  for (const d of doc.jours) {
+    if (d < d1 || d > d2) continue;
+    for (const h of HALVES) {
+      if (periode === "Matin" && h !== "M") continue;
+      if (periode === "Après-midi" && h !== "AM") continue;
+      for (const c of postesAffiches(doc)) if (occupants(doc, d, h, c).some((o) => o.ini === ini)) out.push({ d, h, code: c });
+    }
+  }
+  return out;
+}
+// remplaçants possibles pour une demi-journée : compétents, sans affectation ni repos ni absence, pas sur un autre site ce jour-là
+function remplacants(doc, d, h, code, absent, deja = {}) {
+  const base = code.replace(new RegExp(TT_SUFFIX.replace(/[-]/g, "\\-") + "$"), "");
+  const pd = perDoctor(doc), site = (doc.postes[code] || {}).site, autreH = h === "M" ? "AM" : "M";
+  const lundi = mondayOf(d), sem = doc.jours.filter((j) => mondayOf(j) === lundi);
+  const out = [];
+  for (const ini of doctorList().map((x) => x.toUpperCase())) {
+    if (ini === absent || (deja[`${d}_${h}`] || []).includes(ini)) continue;
+    if (S.P && S.P.docs[ini] && !(S.P.docs[ini].comp && S.P.docs[ini].comp[base])) continue;
+    const c = (pd[ini] || {})[`${d}_${h}`];
+    if (c && c.statut) continue;
+    // déjà placé : seulement s'il occupe un poste moins prioritaire (1 = le plus important), qui sera alors découvert
+    let de = null, prioDe = 0;
+    if (c && c.code) {
+      if (!S.P) continue;
+      const bDe = c.code.replace(new RegExp(TT_SUFFIX.replace(/[-]/g, "\\-") + "$"), ""), pDe = S.P.postes[bDe], pCible = S.P.postes[base];
+      if (!pDe || !pCible) continue;
+      const nDe = occupants(doc, d, h, bDe).length;
+      prioDe = nDe > pDe.min ? pDe.prioSup : pDe.prioMin;
+      if (prioDe <= pCible.prioMin) continue;
+      de = bDe;
+    }
+    if (S.indispos.some((x) => statutInd(x) === "acceptee" && String(x.ini).toUpperCase() === ini && d >= x.d1 && d <= x.d2 && (x.periode === "Journée" || (x.periode === "Matin") === (h === "M")))) continue;
+    const autre = (pd[ini] || {})[`${d}_${autreH}`];
+    const ailleurs = autre && autre.code && !autre.code.endsWith(TT_SUFFIX) && doc.postes[autre.code] && doc.postes[autre.code].site !== site;
+    if (ailleurs && S.P && S.P.oneSite) continue;
+    const charge = sem.reduce((n, j) => n + HALVES.filter((hh) => { const x = (pd[ini] || {})[`${j}_${hh}`]; return x && x.code; }).length, 0);
+    const lib = (k) => libelleCourt((doc.postes[k] || { label: k }).label);
+    out.push({ ini, charge, de, prioDe, info: de ? `pris sur ${lib(de)} (qui sera découvert)` : `libre · ${charge} demi-j. cette semaine${autre && autre.code ? ` · ${h === "M" ? "après-midi" : "matin"} : ${lib(autre.code)}` : ""}` });
+  }
+  return out.sort((a, b) => (!!a.de - !!b.de) || (a.de ? b.prioDe - a.prioDe : 0) || a.charge - b.charge || a.ini.localeCompare(b.ini));
+}
+let IMP = null;
+$("impChercher").addEventListener("click", () => {
+  const msg = $("impMsg"), ini = $("impIni").value, d1 = fromInput($("impD1").value), d2 = fromInput($("impD2").value), per = $("impPer").value;
+  if (!S.published) return setMsg(msg, "Aucun planning publié.", "err");
+  if (d1 === null || d2 === null || d2 < d1) return setMsg(msg, "Dates invalides.", "err");
+  const cases = casesDe(S.published, ini, d1, d2, per);
+  const deja = {};
+  const lignes = cases.map((c) => {
+    const r = remplacants(S.published, c.d, c.h, c.code, ini, deja);
+    if (r[0]) (deja[`${c.d}_${c.h}`] = deja[`${c.d}_${c.h}`] || []).push(r[0].ini);   // ne pas proposer deux fois le même la même demi-journée
+    return { ...c, r };
+  });
+  IMP = { ini, d1, d2, per, lignes };
+  setMsg(msg, "");
+  $("impRes").innerHTML = (lignes.length ? `<table class="impt"><thead><tr><th>Quand</th><th>Poste de ${esc(ini)}</th><th>Remplacé par</th></tr></thead><tbody>${lignes.map((l, i) =>
+    `<tr><td>${JC[weekday(l.d)]} ${fmtDay(l.d, false)} ${l.h === "M" ? "matin" : "après-midi"}</td><td>${esc(libelleCourt((S.published.postes[l.code] || { label: l.code }).label))}</td>
+      <td><select data-imp="${i}">${l.r.map((x, k) => `<option value="${esc(x.ini)}"${k === 0 ? " selected" : ""}>${esc(x.ini)} — ${esc(x.info)}</option>`).join("")}<option value="">— personne (poste fermé) —</option></select></td></tr>`).join("")}</tbody></table>`
+    : `<p class="small" style="margin:10px 0 0">${esc(ini)} n'a aucune vacation sur cette période dans le planning publié : l'absence sera seulement enregistrée.</p>`)
+    + `<label class="chk"><input type="checkbox" id="impEnr" checked> Enregistrer aussi l'absence de ${esc(ini)} (acceptée)</label>
+      <div class="row" style="margin-top:10px"><button class="b primary" type="button" id="impValider">Valider et publier</button><button class="b" type="button" id="impAnnul">Annuler</button></div>`;
+  $("impAnnul").onclick = () => { IMP = null; $("impRes").innerHTML = ""; };
+  $("impValider").onclick = validerImprevu;
+});
+async function validerImprevu() {
+  const msg = $("impMsg");
+  if (!IMP || !S.published || !needOnline(msg)) return;
+  if (S.draft && !confirm("Un planning non publié est en cours d'édition : il ne contiendra pas ce remplacement (à refaire ou à abandonner). Continuer ?")) return;
+  const { ini, d1, d2, per } = IMP;
+  const doc = JSON.parse(JSON.stringify(S.published));
+  delete doc.publieLe; delete doc.publiePar; delete doc.publication;
+  IMP.lignes.forEach((l, i) => {
+    const sel = document.querySelector(`[data-imp="${i}"]`), rempl = sel ? sel.value : "";
+    const tw = jumeauTT(doc, l.code);
+    for (const k of [l.code, tw].filter(Boolean)) {
+      const cle = caseKey(l.d, l.h, k), liste = splitInis(doc.cases[cle]);
+      if (liste.includes(ini)) doc.cases[cle] = joinInis(liste.filter((x) => x !== ini));
+    }
+    if (rempl) {
+      const cand = l.r.find((x) => x.ini === rempl);
+      if (cand && cand.de) for (const k of [cand.de, jumeauTT(doc, cand.de)].filter(Boolean)) { const cle = caseKey(l.d, l.h, k); doc.cases[cle] = joinInis(splitInis(doc.cases[cle]).filter((x) => x !== rempl)); }
+      const cle = caseKey(l.d, l.h, l.code); doc.cases[cle] = joinInis(splitInis(doc.cases[cle]).concat([rempl]));
+    }
+  });
+  const st = doc.statuts || (doc.statuts = {}), m = st[ini] || (st[ini] = {});
+  for (const d of doc.jours) if (d >= d1 && d <= d2) for (const h of HALVES) if (per === "Journée" || (per === "Matin") === (h === "M")) m[`${d}_${h}`] = "ABS";
+  const ch = changementsPublies(S.published, doc);
+  $("impValider").disabled = true;
+  try {
+    if ($("impEnr").checked) await S.store.add(PATHS.indispos(), { ini, d1, d2, periode: per, motif: "", creeLe: Date.now(), statut: "acceptee" });
+    await ecrirePublication(doc, ch, 0, "Absence imprévue", { imprevu: ini });
+    const nb = IMP.lignes.length;
+    IMP = null; $("impRes").innerHTML = "";
+    setMsg(msg, `Planning republié : ${nb} demi-journée(s) de ${ini} réattribuée(s). Les médecins concernés sont prévenus.`, "ok");
+  } catch (e) { setMsg(msg, e.message, "err"); }
+}
+// ------------------------------------------------------------ Calendrier des absences de l'équipe (administrateurs)
+function absMoisListe() {
+  const auj = ymd(todayDay()), ms = new Set([0, 1, 2, 3].map((k) => { const m = auj.m - 1 + k; return (auj.y + Math.floor(m / 12)) * 100 + (m % 12) + 1; }));
+  for (const x of S.indispos) if (x.d2 >= todayDay() - 31) for (const d of [x.d1, x.d2]) ms.add(moisDeJour(d));
+  return [...ms].sort((a, b) => a - b);
+}
+function absDuJour(d, inclureAttente = true) {   // [{ini, periode, statut}] des absences (refusées exclues) couvrant ce jour
+  return S.indispos.filter((x) => x.d1 <= d && x.d2 >= d && statutInd(x) !== "refusee" && (inclureAttente || statutInd(x) === "acceptee"))
+    .map((x) => ({ ini: String(x.ini).toUpperCase(), periode: x.periode, statut: statutInd(x), x }));
+}
+function renderAbsCal() {
+  const el = $("acGrille"); if (!el) return;
+  const ms = absMoisListe();
+  const auj = moisDeJour(todayDay());
+  if (!ms.includes(S.acMois)) S.acMois = ms.includes(auj) ? auj : ms[0];
+  $("acMois").innerHTML = ms.map((m) => `<option value="${m}"${m === S.acMois ? " selected" : ""}>${libMoisNum(m)}</option>`).join("");
+  const seuil = +(ls.get("planning-radio-seuil-abs") || 3);
+  $("acSeuil").innerHTML = [2, 3, 4, 5, 6].map((n) => `<option value="${n}"${n === seuil ? " selected" : ""}>${n} absents</option>`).join("");
+  const y = Math.floor(S.acMois / 100), m = S.acMois % 100, d1 = dayFromYMD(y, m, 1), nbj = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const jours = Array.from({ length: nbj }, (_, i) => d1 + i).filter((d) => weekday(d) < 5);
+  const feries = feriesPeriode(d1, d1 + nbj - 1, S.P && S.P.feries);
+  const inis = [...new Set([...doctorList().map((x) => x.toUpperCase()), ...S.indispos.filter((x) => x.d2 >= d1 && x.d1 < d1 + nbj).map((x) => String(x.ini).toUpperCase())])].sort();
+  const today = todayDay();
+  const cases = (ini, d) => {
+    const l = absDuJour(d).filter((a) => a.ini === ini);
+    if (!l.length) return `<td${feries.has(d) ? ' class="fer"' : ""}></td>`;
+    const acc = l.some((a) => a.statut === "acceptee"), per = l.some((a) => a.periode === "Journée") ? "J" : l.map((a) => a.periode === "Matin" ? "M" : "A").sort().join("");
+    const cls = `${acc ? "acc" : "att"} ${per === "M" ? "pm" : per === "A" ? "pa" : ""}`;
+    const tip = l.map((a) => `${a.ini} · ${a.periode.toLowerCase()} · ${a.statut === "attente" ? "en attente" : "acceptée"}${motifDe(a.x) ? " · " + motifDe(a.x) : ""}`).join("\n");
+    return `<td class="${cls}" title="${esc(tip)}"></td>`;
+  };
+  const compte = (d) => new Set(absDuJour(d).filter((a) => a.periode === "Journée" || true).map((a) => a.ini)).size;
+  el.innerHTML = `<div class="tablewrap"><table class="acal"><thead><tr><th></th>${jours.map((d) => `<th class="${d === today ? "auj" : ""}${weekday(d) === 0 ? " lun" : ""}">${JC[weekday(d)].charAt(0)}<br>${ymd(d).d}</th>`).join("")}</tr></thead><tbody>
+    ${inis.map((i) => `<tr><th>${esc(i)}</th>${jours.map((d) => cases(i, d).replace("<td", `<td data-j="${d}"`).replace(/class="/, `class="${weekday(d) === 0 ? "lun " : ""}`)).join("")}</tr>`).join("")}
+    <tr class="tot"><th>Absents</th>${jours.map((d) => { const n = compte(d); return `<td class="${n >= seuil ? "trop" : ""}${weekday(d) === 0 ? " lun" : ""}">${n || ""}</td>`; }).join("")}</tr></tbody></table></div>
+    <p class="small muted" style="margin:6px 0 0"><span class="acl acc"></span> acceptée · <span class="acl att"></span> en attente · <span class="acl acc pm"></span> matin · <span class="acl acc pa"></span> après-midi. Survolez une case pour le détail.</p>`;
+}
+$("acMois").addEventListener("change", (e) => { S.acMois = +e.target.value; renderAbsCal(); });
+$("acSeuil").addEventListener("change", (e) => { ls.set("planning-radio-seuil-abs", e.target.value); renderAbsCal(); });
+// demande en attente : collègues déjà absents (acceptés ou en attente) sur les mêmes jours
+function chevauchements(x) {
+  const out = new Map();
+  for (const y of S.indispos) {
+    if (y.id === x.id || statutInd(y) === "refusee" || String(y.ini).toUpperCase() === String(x.ini).toUpperCase() || y.d1 > x.d2 || y.d2 < x.d1) continue;
+    out.set(String(y.ini).toUpperCase(), statutInd(y));
+  }
+  return [...out].map(([i, st]) => (st === "attente" ? `${i} (en attente)` : i));
+}
+// ------------------------------------------------------------ Équilibre par médecin pendant les retouches (mis à jour à chaque modification)
+// Pour chaque groupe de postes : vacations attendues = part du groupe au prorata des demi-journées disponibles des médecins compétents.
+function equilibreBrouillon(d) {
+  const main = d.mainSite || d.sites[0];
+  const base = (c) => c.replace(new RegExp(TT_SUFFIX.replace(/[-]/g, "\\-") + "$"), "");
+  const groupe = (c) => (S.P && S.P.postes[base(c)] && S.P.postes[base(c)].group) || (d.postes[base(c)] || {}).label || base(c);
+  const pd = perDoctor(d), inis = Object.keys(pd).sort();
+  const groupes = [...new Set(postesAffiches(d).map(groupe))];
+  const L = {};
+  for (const ini of inis) {
+    const l = L[ini] = { g: {}, total: 0, dep: 0, tt: 0, dispo: 0 };
+    const joursDep = new Set();
+    for (const j of d.jours) for (const h of HALVES) {
+      const c = pd[ini][`${j}_${h}`];
+      if (!(c && c.statut)) l.dispo++;
+      if (!c || !c.code) continue;
+      l.total++;
+      const g = groupe(c.code); l.g[g] = (l.g[g] || 0) + 1;
+      if (c.code.endsWith(TT_SUFFIX)) l.tt++;
+      else if (d.postes[c.code] && d.postes[c.code].site !== main) joursDep.add(j);
+    }
+    l.dep = joursDep.size;
+  }
+  const competent = (ini, g) => !S.P || !S.P.docs[ini] || Object.keys(S.P.docs[ini].comp || {}).some((c) => S.P.docs[ini].comp[c] && groupe(c) === g);
+  const attendu = {};
+  for (const g of groupes) {
+    const tot = inis.reduce((n, i) => n + (L[i].g[g] || 0), 0);
+    const poids = inis.map((i) => (competent(i, g) ? L[i].dispo : 0)), somme = poids.reduce((a, b) => a + b, 0) || 1;
+    inis.forEach((i, k) => { (attendu[i] = attendu[i] || {})[g] = tot * poids[k] / somme; });
+  }
+  return { inis, groupes, L, attendu };
+}
+function renderEquilibre(d) {
+  const el = $("dEq"); if (!el) return;
+  const { inis, groupes, L, attendu } = equilibreBrouillon(d);
+  let ecarts = 0;
+  const cell = (ini, g) => {
+    const n = L[ini].g[g] || 0, e = attendu[ini][g] || 0, diff = n - e;
+    const hors = Math.abs(diff) >= Math.max(2, 0.35 * e) && (n > 0 || e >= 2);
+    if (hors) ecarts++;
+    return `<td class="${hors ? (diff > 0 ? "eqhi" : "eqlo") : ""}" title="attendu ≈ ${e.toFixed(1)}">${n || "·"}</td>`;
+  };
+  el.innerHTML = `<div class="tablewrap"><table class="rcpt eqt"><thead><tr><th>Médecin</th><th>Total</th>${groupes.map((g) => `<th>${esc(libelleCourt(g))}</th>`).join("")}<th>Dépl.</th><th>Télétr.</th></tr></thead><tbody>
+    ${inis.map((i) => `<tr><td><b>${esc(i)}</b></td><td>${L[i].total}</td>${groupes.map((g) => cell(i, g)).join("")}<td>${L[i].dep || "·"}</td><td>${L[i].tt || "·"}</td></tr>`).join("")}</tbody></table></div>
+    <p class="small muted" style="margin:6px 0 0">Demi-journées sur la période du brouillon. <span class="eqhi">En plus</span> / <span class="eqlo">en moins</span> que sa part (au prorata de ses demi-journées disponibles, parmi les médecins compétents) ; survolez un chiffre pour voir la valeur attendue.</p>`;
+  $("eqResume").textContent = ecarts ? `— ${ecarts} écart(s) à regarder` : "— équilibré";
+}
+// ------------------------------------------------------------ Régénérer le brouillon (toute la période ou une semaine) en gardant les cases verrouillées
+function forceesVerrous(draft, du, au) {
+  const out = [];
+  for (const k of Object.keys(draft.verrous || {})) {
+    const { d, h, code } = cleCase(k);
+    if (d < du || d > au) continue;
+    const tw = jumeauTT(draft, code);
+    for (const o of occupants(draft, d, h, code)) out.push({ d, h, ini: o.ini, p: o.tt && tw ? tw : code });
+  }
+  return out;
+}
+// remplace les jours [du, au] du brouillon par ceux du nouveau planning (le reste ne bouge pas)
+function fusionnerBrouillon(draft, neuf, du, au) {
+  const out = JSON.parse(JSON.stringify(draft));
+  for (const k of Object.keys(out.cases)) { const d = +k.split("_")[0]; if (d >= du && d <= au) delete out.cases[k]; }
+  Object.assign(out.cases, neuf.cases);
+  for (const [ini, m] of Object.entries(neuf.statuts || {})) {
+    const cible = (out.statuts = out.statuts || {})[ini] || (out.statuts[ini] = {});
+    for (const k of Object.keys(cible)) { const d = +k.split("_")[0]; if (d >= du && d <= au) delete cible[k]; }
+    Object.assign(cible, m);
+  }
+  if (neuf.notes) out.notes = { ...(out.notes || {}), ...neuf.notes };
+  out.medecins = [...new Set((out.medecins || []).concat(neuf.medecins || []))];
+  return out;
+}
+$("regenBtn").addEventListener("click", async () => {
+  if (!S.draft || !S.P) return;
+  const msg = $("pubMsg"), prog = $("regenProg"), bar = prog.firstElementChild;
+  const v = $("regenSem").value;
+  const du = v === "all" ? S.draft.start : Math.max(S.draft.start, +v), au = v === "all" ? S.draft.end : Math.min(S.draft.end, +v + 4);
+  const forcees = forceesVerrous(S.draft, du, au);
+  if (!confirm(`Régénérer ${v === "all" ? "toute la période" : `la semaine du ${fmtDay(+v, false)}`} ? ${forcees.length ? `Les ${Object.keys(S.draft.verrous || {}).length} case(s) verrouillée(s) sont gardées ; le` : "Le"} reste de cette période est recalculé.`)) return;
+  $("regenBtn").disabled = true; prog.hidden = false; bar.style.width = "0";
+  try {
+    const pr = problemFor(du, au, forcees);
+    const R = await solve(pr, +$("gQual").value, (f) => { bar.style.width = `${Math.round(f * 100)}%`; setMsg(msg, `Calcul en cours… ${Math.round(f * 100)} %`); });
+    memoriser();
+    const verrous = S.draft.verrous;
+    S.draft = fusionnerBrouillon(S.draft, draftFromResult(pr, R), du, au);
+    S.draft.verrous = verrous;
+    persistDraft(); renderDraft();
+    setMsg(msg, `Régénéré du ${fmtDay(du, false)} au ${fmtDay(au, false)}${forcees.length ? ", cases verrouillées gardées" : ""}. Vérifiez, puis publiez.`, "ok");
+  } catch (e) { console.error(e); setMsg(msg, e.message, "err"); }
+  finally { $("regenBtn").disabled = false; setTimeout(() => { prog.hidden = true; }, 600); }
+});
+$("deverrTout").addEventListener("click", () => { if (S.draft) { S.draft.verrous = {}; apresRetouche(); } });
+// ------------------------------------------------------------ Publication : récapitulatif des changements, puis publication ; retour possible à la version précédente
+const libCase = (draft, c) => (!c ? "sans affectation" : c.code ? libelleCourt((draft.postes[c.code] || { label: c.code }).label) + (c.code.endsWith(TT_SUFFIX) ? " (télétravail)" : "") : STATUT_LABEL[c.statut] || c.statut);
+function preparerPublication() {
   const ctx = draftContext();
-  const nErr = ctx ? ctx.items.filter((i) => i[0] === "Erreur").length : 0;
-  if (!needOnline(msg)) return;
-  if (nErr && !confirm(`${nErr} erreur(s) détectée(s) (voir « Contrôle des règles »). Publier quand même ?`)) return;
-  const autres = S.published && S.published.jours ? S.published.jours.filter((d) => d < S.draft.start || d > S.draft.end).length : 0;
-  if (!confirm(`Publier ce planning (${fmtDay(S.draft.start, false)} → ${fmtDay(S.draft.end, false)}) ?` + (autres ? "\n\nLes autres jours déjà publiés (mois précédent ou suivant) sont conservés ; seule cette période est remplacée." : " Il remplacera la version actuelle pour toute l'équipe."))) return;
-  let doc = JSON.parse(JSON.stringify(S.draft));
+  const doc = JSON.parse(JSON.stringify(S.draft));
+  delete doc.verrous;
   if (ctx) { // absences saisies depuis la génération ajoutées ; statuts et médecins du brouillon conservés (planning importé)
     const st = doc.statuts || {};
     ctx.pr.docs.forEach((ini, d) => {
@@ -4434,21 +4851,80 @@ $("publishBtn").addEventListener("click", async () => {
   }
   const ch = changementsPublies(S.published, doc);   // cases modifiées par médecin (jours déjà publiés)
   const nouveaux = doc.jours.filter((d) => !(S.published && S.published.jours || []).includes(d)).length;
+  const nErr = ctx ? ctx.items.filter((i) => i[0] === "Erreur").length : 0;
+  return { doc, ch, nouveaux, nErr };
+}
+// lignes « mar 21/10 après-midi : Scanner → IRM 1 », par médecin
+function lignesChangements(avant, apres, ch) {
+  const pa = perDoctor(avant), pb = perDoctor(apres), out = [];
+  for (const ini of Object.keys(ch).sort()) for (const k of ch[ini].slice().sort()) {
+    const [d, h] = k.split("_");
+    out.push({ ini, txt: `${JC[weekday(+d)].toLowerCase()} ${fmtDay(+d, false)} ${h === "M" ? "matin" : "après-midi"} : ${esc(libCase(avant, (pa[ini] || {})[k]))} → <b>${esc(libCase(apres, (pb[ini] || {})[k]))}</b>` });
+  }
+  return out;
+}
+function recapHtml(lignes) {
+  const parMed = {};
+  for (const l of lignes) (parMed[l.ini] = parMed[l.ini] || []).push(l.txt);
+  return `<div class="pubrecap">${Object.entries(parMed).map(([ini, l]) => `<div class="pm"><b>${esc(ini)}</b><ul>${l.slice(0, 12).map((t) => `<li>${t}</li>`).join("")}${l.length > 12 ? `<li class="muted">… et ${l.length - 12} autre(s)</li>` : ""}</ul></div>`).join("")}</div>`;
+}
+let PUB_PREP = null;
+$("publishBtn").addEventListener("click", () => {
+  if (!needOnline($("pubMsg"))) return;
+  const prep = PUB_PREP = preparerPublication();
+  const lignes = lignesChangements(S.published || { medecins: [], cases: {}, postes: {} }, prep.doc, prep.ch);
+  const autres = S.published && S.published.jours ? S.published.jours.filter((d) => d < S.draft.start || d > S.draft.end).length : 0;
+  $("pubTitre").textContent = `Publier du ${fmtDay(S.draft.start, false)} au ${fmtDay(S.draft.end, false)} ?`;
+  $("pubCorps").innerHTML = `${prep.nErr ? `<div class="banner warn">${prep.nErr} erreur(s) détectée(s) : voir « Contrôle des règles ».</div>` : ""}
+    <p class="small" style="margin:0 0 8px">${prep.nouveaux ? `<b>${prep.nouveaux} jour(s) nouveau(x)</b> pour l'équipe. ` : ""}${autres ? "Les autres jours déjà publiés sont conservés." : ""}</p>
+    ${lignes.length ? `<p class="small" style="margin:0 0 4px"><b>${lignes.length} demi-journée(s) déjà publiée(s) changent</b> (les médecins concernés seront prévenus) :</p>${recapHtml(lignes)}`
+      : S.published ? `<p class="small muted" style="margin:0">Aucune demi-journée déjà publiée ne change.</p>` : ""}`;
+  $("pubOverlay").hidden = false;
+});
+$("pubAnnul").addEventListener("click", () => { $("pubOverlay").hidden = true; });
+$("pubOverlay").addEventListener("click", (e) => { if (e.target === $("pubOverlay")) $("pubOverlay").hidden = true; });
+// écrit le planning publié (version précédente gardée pour revenir en arrière), les archives et le journal
+async function ecrirePublication(doc, ch, nouveaux, action, extra = {}) {
+  if (S.published) await S.store.set(PATHS.precedent(), { ...S.published, remplaceLe: Date.now() });
   doc = fusionnerPublies(S.published, doc, todayDay());   // les autres mois publiés restent en ligne
   doc.publieLe = Date.now(); doc.publiePar = (S.auth && S.auth.email) || "";
   doc.modifs = fusionnerModifs(S.published && S.published.modifs, ch, doc.publieLe, todayDay());
-  doc.publication = { le: doc.publieLe, nouveauxJours: nouveaux, modifs: ch };
+  doc.publication = { le: doc.publieLe, nouveauxJours: nouveaux, modifs: ch, ...extra };
+  await S.store.set(PATHS.planning(), doc);
+  for (const cle of [...new Set(doc.jours.map(cleMois))]) {   // archive de chaque mois publié (sans limite de durée)
+    const a = extraireMois(doc, cle);
+    if (a) S.store.set(`${PATHS.archives()}/${cle}`, a).catch((e) => console.warn("archive", e));
+  }
+  const nCh = Object.values(ch).reduce((n, l) => n + l.length, 0);
+  journaliser(action, `${titreMois(doc.start, doc.end)}${nouveaux ? ` · ${nouveaux} jour(s) nouveaux` : ""}${nCh ? ` · ${nCh} demi-journée(s) modifiée(s) : ${Object.keys(ch).sort().join(", ")}` : ""}`);
+  return doc;
+}
+$("pubOk").addEventListener("click", async () => {
+  const msg = $("pubMsg"), prep = PUB_PREP;
+  if (!prep || !needOnline(msg)) return;
+  $("pubOverlay").hidden = true;
   setMsg(msg, "Publication…");
   try {
-    await S.store.set(PATHS.planning(), doc);
-    for (const cle of [...new Set(S.draft.jours.map(cleMois))]) {   // archive de chaque mois publié (sans limite de durée)
-      const a = extraireMois(doc, cle);
-      if (a) S.store.set(`${PATHS.archives()}/${cle}`, a).catch((e) => console.warn("archive", e));
-    }
-    const nCh = Object.values(ch).reduce((n, l) => n + l.length, 0);
-    journaliser("Planning publié", `${titreMois(doc.start, doc.end)}${nouveaux ? ` · ${nouveaux} jour(s) nouveaux` : ""}${nCh ? ` · ${nCh} demi-journée(s) modifiée(s) : ${Object.keys(ch).sort().join(", ")}` : ""}`);
+    await ecrirePublication(prep.doc, prep.ch, prep.nouveaux, "Planning publié");
     setDraft(null, "");
     setMsg($("gMsg"), "Planning publié : l'équipe le voit dès maintenant.", "ok");
+  } catch (e) { setMsg(msg, e.message, "err"); }
+});
+$("undoPub").addEventListener("click", async () => {
+  const prec = S.precedent, msg = $("upPlanningMsg");
+  if (!prec || !S.published || !needOnline(msg)) return;
+  if (!confirm(`Revenir à la version publiée le ${new Date(prec.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} ?\n\nLa version actuelle reste récupérable avec ce même bouton.`)) return;
+  try {
+    const doc = JSON.parse(JSON.stringify(prec)); delete doc.remplaceLe;
+    const ch = changementsPublies(S.published, doc);
+    await S.store.set(PATHS.precedent(), { ...S.published, remplaceLe: Date.now() });
+    doc.publieLe = Date.now(); doc.publiePar = (S.auth && S.auth.email) || "";
+    doc.modifs = fusionnerModifs(S.published.modifs, ch, doc.publieLe, todayDay());
+    doc.publication = { le: doc.publieLe, nouveauxJours: 0, modifs: ch, retour: true };
+    await S.store.set(PATHS.planning(), doc);
+    for (const cle of [...new Set(doc.jours.map(cleMois))]) { const a = extraireMois(doc, cle); if (a) S.store.set(`${PATHS.archives()}/${cle}`, a).catch(() => {}); }
+    journaliser("Retour à la publication précédente", `${Object.values(ch).reduce((n, l) => n + l.length, 0)} demi-journée(s) changent${Object.keys(ch).length ? " : " + Object.keys(ch).sort().join(", ") : ""}`);
+    setMsg(msg, "Version précédente remise en ligne.", "ok");
   } catch (e) { setMsg(msg, e.message, "err"); }
 });
 $("dlDraftXlsx").addEventListener("click", async () => {

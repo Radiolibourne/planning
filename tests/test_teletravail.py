@@ -164,7 +164,7 @@ with sync_playwright() as p:
     pg.set_input_files("#upPlanning", fx)
     pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
     B.ok(pg.is_visible("#draftBody"), "Admin : planning Excel importé comme brouillon")
-    pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
+    pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
     pg.wait_for_function("S.published && (S.published.medecins || []).includes('ZZ')", timeout=15000)   # la mise à jour de S.published peut suivre le message
     pub = pg.evaluate("S.published")
     B.ok("ZZ" in pub["medecins"], "publication : médecin du fichier absent des paramètres conservé")

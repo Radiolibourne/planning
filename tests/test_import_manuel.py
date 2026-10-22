@@ -71,7 +71,7 @@ with sync_playwright() as p:
          and r["ordre"][:1] == ["Astreinte : OB"] and "Staff IRM à 13h30" in n.get(str(jn(11, 5)), []) and not any("Bureau" in t for t in sum(n.values(), [])),
          "notes et astreintes reprises")
     B.ok(r["scan2"] == "DA / OB / SC" and r["ignores"] is None, "2e semaine lue ; liste des ignorés non enregistrée dans le planning")
-    pg.click("#publishBtn"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
+    pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
     pg.wait_for_function("S.published && S.published.cases", timeout=10000)
     B.ok(pg.evaluate("S.published.cases[caseKey(%d, 'M', 'SCAN-TT')]" % jn(11, 2)) == "OB", "publication du planning importé")
     # retouche sur ordinateur : glisser DA (scanner) sur SD (IRM 1) = échange ; republication
@@ -82,7 +82,7 @@ with sync_playwright() as p:
     src.drag_to(dst)
     g = pg.evaluate("(d) => [S.draft.cases[caseKey(d, 'M', 'SCAN')], S.draft.cases[caseKey(d, 'M', 'IRM1')], S.annuler.length]", jn(11, 2))
     B.ok(g[0] == "SD" and g[1] == "DA" and g[2] == 1, f"glisser un médecin sur un autre : échange ({g})")
-    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.publication && S.published.publication.modifs.DA", timeout=10000)
+    pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("S.published && S.published.publication && S.published.publication.modifs.DA", timeout=10000)
     pm = pg.evaluate("[S.published.publication, Object.keys(S.published.modifs || {}).sort()]")
     B.ok(sorted(pm[0]["modifs"]) == ["DA", "SD"] and pm[0]["nouveauxJours"] == 0 and pm[1] == ["DA", "SD"], f"republication : changements par médecin enregistrés ({pm[0]['modifs']})")
     pg.evaluate("S.me = 'DA'; S.monMois = 202611; location.hash = '#mon'"); pg.wait_for_selector("#vMon .tag.modif", timeout=8000)
@@ -96,7 +96,7 @@ with sync_playwright() as p:
     f2 = os.path.join(SORTIE, "planning_fait_main_2.xlsx"); wb2.save(f2)
     pg.set_input_files("#upPlanning", f2)
     pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
-    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(11, 16), timeout=10000)
+    pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(11, 16), timeout=10000)
     q = pg.evaluate("({ j: S.published.jours, tt: S.published.cases[caseKey(%d, 'M', 'SCAN-TT')], s: S.published.cases[caseKey(%d, 'M', 'SCAN')], t: S.published.titre })" % (jn(11, 2), jn(11, 16)))
     B.ok(jn(11, 2) in q["j"] and jn(11, 16) in q["j"] and q["tt"] == "OB" and q["s"] == "OA / OC / SD" and q["t"].endswith("novembre 2026"),
          f"publier une autre période conserve les semaines déjà publiées ({len(q['j'])} jours, {q['t']})")
@@ -106,7 +106,7 @@ with sync_playwright() as p:
     f3 = os.path.join(SORTIE, "planning_fait_main_3.xlsx"); wb3.save(f3)
     pg.set_input_files("#upPlanning", f3)
     pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
-    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(12, 7), timeout=10000)
+    pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(12, 7), timeout=10000)
     pg.evaluate("S.me = 'OA'; location.hash = '#mon'"); pg.wait_for_selector("#monMois", timeout=8000)
     opts = pg.evaluate("[...document.querySelectorAll('#monMois option')].map((o) => o.textContent)")
     pg.select_option("#monMois", label="décembre 2026"); pg.wait_for_timeout(300)

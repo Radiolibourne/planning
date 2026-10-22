@@ -108,7 +108,7 @@ def main():
         adm.locator(f'#draftGrid td[data-k="{k}"]').click(); adm.wait_for_selector("#caseOverlay:not([hidden])")
         adm.click("#caseCorps summary"); adm.fill("#caseLibre", avant if avant != "FERMÉ" else ""); adm.click("#caseLibreOk"); adm.click("#caseFini")
         # publication
-        adm.click("#publishBtn")
+        adm.click("#publishBtn"); adm.click("#pubOk")
         adm.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')")
         B.ok(adm.is_hidden("#draftBody"), "publication effectuée")
         # --- médecin : son planning

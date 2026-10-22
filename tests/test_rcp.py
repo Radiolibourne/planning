@@ -76,7 +76,7 @@ with sync_playwright() as p:
     pg.click("#useDefault"); pg.wait_for_function("document.querySelector('#paramInfo').innerText.includes('médecins')")
     pg.set_input_files("#upPlanning", PLANNING)
     pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning importé')", timeout=10000)
-    pg.click("#publishBtn"); pg.wait_for_function("S.published && S.published.jours.length > 0", timeout=10000)
+    pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("S.published && S.published.jours.length > 0", timeout=10000)
     # import de la fiche : lecture, noms à associer, aperçu
     pg.set_input_files("#upRcp", FICHE)
     pg.wait_for_selector("#rcpSave", timeout=10000)
