@@ -35,8 +35,9 @@ for nom, cmd in etapes:
         sys.stderr.write(r.stderr)
     resultats.append((nom, r.returncode == 0))
     if r.returncode and os.environ.get("GITHUB_ACTIONS"):
-        derniere = [l for l in r.stderr.strip().splitlines() if l.strip()][-3:] if r.stderr else []
-        print(f"::error::Échec de l'étape « {nom} » (code {r.returncode}) " + " | ".join(x.strip() for x in derniere)[:900])
+        tout = [l for l in r.stderr.strip().splitlines() if l.strip()] if r.stderr else []
+        derniere = [l for l in tout if l.lstrip().startswith(('File "', "playwright.", "Error", "TimeoutError", "AssertionError")) or "Error:" in l][-6:] or tout[-3:]
+        print(f"::error::Échec de l'étape « {nom} » (code {r.returncode}) " + " | ".join(x.strip() for x in derniere)[:1500])
     if nom == "Construction" and r.returncode:
         break
 print("\n==================== BILAN ====================")
