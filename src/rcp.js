@@ -137,7 +137,7 @@ function jourRcp(t) {
 
 // Initiales collées ou mal lues (« EBISG », « JBlMDP », « sG/]B/EB ») découpées selon les initiales connues
 function decouperInitiales(brut, connues) {
-  const s = sansAccents(brut).toUpperCase().replace(/\]/g, "J").replace(/[^A-Z\/|1!]/g, "");
+  const s = sansAccents(brut).toUpperCase().replace(/\]/g, "J").replace(/\^/g, "A").replace(/[72]/g, "Z").replace(/0/g, "O").replace(/5/g, "S").replace(/8/g, "B").replace(/[^A-Z\/|1!]/g, "");
   const set = new Set(connues.map((x) => x.toUpperCase()));
   const sep = new Set(["/", "|", "1", "!", "I", "L"]);
   const best = new Array(s.length + 1).fill(null);   // best[i] = {res, saut} pour s[0..i)
@@ -148,13 +148,40 @@ function decouperInitiales(brut, connues) {
     if (sep.has(s[i])) cand(i + 1, best[i].res, best[i].saut + (s[i] === "/" ? 0 : 1));
     for (let L = 2; L <= 5 && i + L <= s.length; L++) {
       const w = s.slice(i, i + L);
+      const proche = !set.has(w) && [...set].find((x) => x.length === L && [...x].every((ch, q) => ch === w[q] || (ch === "J" && /[IT]/.test(w[q])) || (ch === "I" && w[q] === "L")));
       if (set.has(w)) cand(i + L, [...best[i].res, w], best[i].saut);
+      else if (proche) cand(i + L, [...best[i].res, proche], best[i].saut + 0.5);   // « IB », « TB » → JB
       else if (L === 2 && /^[A-Z]{2}$/.test(w)) cand(i + L, [...best[i].res, w], best[i].saut + 1);   // initiales inconnues du site (ex. médecin parti)
     }
     cand(i + 1, best[i].res, best[i].saut + 3);   // caractère illisible
   }
   const r = best[s.length];
   return r && r.saut < 3 ? r.res : null;
+}
+
+// Jours des lignes : croissants de haut en bas ; un jour illisible ou incohérent est déduit des lignes voisines,
+// sur les jours de la semaine déjà vus dans la fiche (ex. fiche des lundis : 0 entre le 9 et ... → 2).
+function deduireJours(lignes, an, mois) {
+  const nbJ = new Date(Date.UTC(an, mois, 0)).getUTCDate(), jds = (j) => new Date(Date.UTC(an, mois - 1, j)).getUTCDay();
+  // jours lus mais incohérents (pas croissants) : oubliés
+  for (let i = 0; i < lignes.length; i++) {
+    const l = lignes[i]; if (!l.jour) continue;
+    const av = lignes.slice(0, i).filter((x) => x.jour).pop(), ap = lignes.slice(i + 1).find((x) => x.jour);
+    if ((av && l.jour <= av.jour) || (ap && l.jour >= ap.jour && (!av || ap.jour > av.jour)) || l.jour > nbJ) l.jour = 0;
+  }
+  const vus = new Set(lignes.filter((l) => l.jour).map((l) => jds(l.jour)));
+  for (let i = 0; i < lignes.length; i++) {
+    if (lignes[i].jour) continue;
+    const av = lignes.slice(0, i).filter((x) => x.jour).pop(), ap = lignes.slice(i + 1).find((x) => x.jour);
+    const restants = lignes.slice(i + 1).filter((x) => !x.jour && (!ap || lignes.indexOf(x) < lignes.indexOf(ap))).length;
+    const de = av ? av.jour + 1 : 1, a = ap ? ap.jour - 1 : nbJ;
+    const cand = [];
+    for (let j = de; j <= a; j++) { const w = jds(j); if (w >= 1 && w <= 5 && (!vus.size || vus.has(w))) cand.push(j); }
+    // plus proche de la ligne précédente (ou de la suivante pour la première), en laissant la place aux suivantes
+    lignes[i].jour = (av ? cand[0] : cand[Math.max(0, cand.length - 1 - restants)]) || 0;
+    lignes[i].deduit = true;
+  }
+  for (let i = lignes.length - 1; i >= 0; i--) if (!lignes[i].jour) lignes.splice(i, 1);
 }
 
 // Tableau RCP lu depuis les mots du PDF
@@ -184,11 +211,18 @@ function lireRcp(mots, medecins = {}, alias = {}) {
   const gauche = M.filter((w) => w.x < xMaxDates && w.y < (date ? date.y : svc.y) - 2).sort((a, b) => b.y - a.y);
   for (const w of gauche) {
     const voisins = gauche.filter((v) => Math.abs(v.y - w.y) < 3 && v !== w && v.x > w.x).sort((a, b) => a.x - b.x);
-    const j = jourRcp(w.t + voisins.map((v) => v.t).join(""));
-    if (j && !lignesDates.some((l) => Math.abs(l.y - w.y) < 6)) lignesDates.push({ y: w.y + w.s * 0.3, jour: j });
+    const txt = w.t + voisins.map((v) => v.t).join("");
+    let j = jourRcp(txt);
+    // « 0217112026 » : barres lues comme des chiffres ; « B/rÿ2026 » : jour illisible (déduit plus bas des lignes voisines)
+    if (!j && /^\s*[0-3OoDQ]?[0-9OoQD]?.{0,6}(20\d\d|2O\d\d)\s*$/.test(txt.replace(/\s+/g, "")) && txt.replace(/\s+/g, "").length >= 7) {
+      const m = /^([0-3OoQD])([0-9OoQD])(?:[17lI|\/])/.exec(txt.replace(/\s+/g, ""));
+      j = m ? (jourRcp(m[1] + m[2] + "/") || 0) : 0;
+    }
+    if (j !== null && !lignesDates.some((l) => Math.abs(l.y - w.y) < 6)) lignesDates.push({ y: w.y + w.s * 0.3, jour: j || 0 });
   }
-  if (!lignesDates.length) throw new Error("Aucune date reconnue dans la colonne de gauche.");
+  if (!lignesDates.some((l) => l.jour)) throw new Error("Aucune date reconnue dans la colonne de gauche.");
   lignesDates.sort((a, b) => b.y - a.y);
+  deduireJours(lignesDates, an, mois);
   // en-têtes : mots de la ligne SERVICE (et leur seconde ligne, ex. NEURO- / VASCULAIRE), à droite de « SERVICE »
   const heure = M.find((w) => w.u === "HEURE" || w.u === "EURE");
   const yBasEntete = heure ? heure.y + 2 : svc.y - 12;
@@ -202,7 +236,7 @@ function lireRcp(mots, medecins = {}, alias = {}) {
   cols.sort((a, b) => a.x1 - b.x1);
   for (const c of cols) {
     c.xc = (c.x1 + c.x2) / 2;
-    c.service = c.mots.sort((a, b) => b.y - a.y || a.x - b.x).map((w) => w.t.trim()).join(" ").replace(/-\s+/g, "-").replace(/\s+/g, " ");
+    c.service = c.mots.sort((a, b) => b.y - a.y || a.x - b.x).map((w) => w.t.trim()).join(" ").replace(/[-.]\s+(?=[A-Z])/g, "-").replace(/\s+/g, " ");
   }
   if (!cols.length) throw new Error("Aucune colonne (service) reconnue.");
   const bornes = cols.map((c, i) => [i ? (cols[i - 1].xc + c.xc) / 2 : c.x1 - 60, i < cols.length - 1 ? (c.xc + cols[i + 1].xc) / 2 : c.x2 + 80]);
@@ -215,7 +249,7 @@ function lireRcp(mots, medecins = {}, alias = {}) {
     const k = colDe(w); if (k < 0) continue;
     cols[k].horaire = ((cols[k].horaire || "") + " " + w.t).trim();
   }
-  const propre = (h) => String(h || "").replace(/(^|[\s-])t(?=\d)/g, "$11").replace(/(\d)\s*H\s*-\s*(\d)/gi, "$1h-$2").replace(/(\d)H\b/gi, "$1h").replace(/(\d)H(\d)/gi, "$1h$2")
+  const propre = (h) => String(h || "").replace(/(^|[\s-])([0-9OoZzlLtI]{1,2})(?=\s*[hH](?:\b|\d|-))/g, (m, p, d) => p + d.replace(/[Oo]/g, "0").replace(/[Zz]/g, "2").replace(/[lLtI]/g, "1")).replace(/(\d\s*H\s*\d*)\s*\.\s*(?=\d)/gi, "$1-").replace(/(^|[\s-])t(?=\d)/g, "$11").replace(/(\d)\s*H\s*-\s*(\d)/gi, "$1h-$2").replace(/(\d)H\b/gi, "$1h").replace(/(\d)H(\d)/gi, "$1h$2")
     .replace(/\s*-\s*/g, "-").replace(/(\d+h)\.?\s+(\d+h)/g, "$1-$2").replace(/\s+/g, " ").replace(/TUNDI/i, "LUNDI").trim();
   const colonnes = cols.map((c) => ({ service: c.service, horaire: propre(c.horaire) }));
   // cases
@@ -260,7 +294,7 @@ function lireRcp(mots, medecins = {}, alias = {}) {
       const sans = brut.replace(/\b(po[s5]i?te|poste)\s*[\d.,O]+/gi, " ").replace(/\b[\d.,]{3,}\b/g, " ");
       const ini = [], inc = [];
       // 1. noms (« Mr COUSSY Alexis ») : mot en majuscules d'au moins 3 lettres
-      const noms = [], toks = sansAccents(sans).split(/\s+/).filter(Boolean);
+      const noms = [], toks = sansAccents(sans).split(/\s+/).filter(Boolean).map((t) => t.replace(/^[a-z|!.,'’]+(?=M)/, ""));
       for (let t = 0; t < toks.length; t++) {
         let suite = -1;
         const colle = /^M[RT]([A-Z]{3,})$/.exec(toks[t]);   // « MTGUERRAB »

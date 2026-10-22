@@ -3501,14 +3501,16 @@ async function rcpEnregistrer() {
   const alias = { ...((S.rcp && S.rcp.alias) || {}) };
   for (const [n, v] of Object.entries(choix)) if (v) alias[n] = v;
   const nouveaux = [], cles = new Set();
-  for (const l of lots) for (const c of l.colonnes) cles.add(`${l.an * 100 + l.mois}|${c.service}|${c.horaire}`);
+  // même mois et même RCP (service écrit sans ponctuation : un import précédent mal lu, « NEURO. VASCULAIRE », est aussi remplacé)
+  const svcCle = (x) => String(x).toUpperCase().replace(/[^A-Z]/g, "");
+  for (const l of lots) for (const c of l.colonnes) cles.add(`${l.an * 100 + l.mois}|${svcCle(c.service)}`);
   for (const l of lots) for (const it of l.items) {
     const c = l.colonnes[it.col];
     nouveaux.push({ d: dayFromYMD(l.an, l.mois, it.jour), service: c.service, horaire: c.horaire,
       ini: [...new Set([...it.ini, ...it.inconnus.map((n) => choix[n]).filter(Boolean)])] });
   }
   const limite = todayDay() - 400;   // 13 mois gardés : équilibre du générateur
-  const garder = rcpItems().filter((x) => x.d >= limite && !cles.has(`${moisDeJour(x.d)}|${x.service}|${x.horaire}`));
+  const garder = rcpItems().filter((x) => x.d >= limite && !cles.has(`${moisDeJour(x.d)}|${svcCle(x.service)}`));
   try {
     await S.store.set(PATHS.rcp(), { items: garder.concat(nouveaux).sort((a, b) => a.d - b.d), alias, majLe: Date.now(), par: (S.auth && S.auth.email) || "" });
     RCP_ATTENTE = null; rcpApercu();

@@ -98,6 +98,18 @@ with sync_playwright() as p:
       const r = lireRcp(mots, {}, { ALPHA: 'IA', BETA: 'OB', GAMMA: 'DA' });
       return r.items.map((i) => [i.jour, r.colonnes[i.col].service, i.ini.join('/')]).sort(); }""")
     B.ok(sorted(hl) == [[2, "ORL", "DA"], [2, "PNEUMO", "IA"], [9, "PNEUMO", "OB"], [16, "ORL", "OB"], [16, "PNEUMO", "DA"]], f"lignes de hauteurs différentes : chaque nom dans sa case ({hl})")
+    # dates illisibles (« 0217112026 », « B/rÿ2026 ») déduites des lignes voisines ; « ^Z/IB » → AZ/JB ; « L7h-zOH », « 13h.14h »
+    ab = pg.evaluate("""() => { const W = (x, y, t, s = 10) => ({ x, y, s, t });
+      const mots = [W(256, 738, 'RCP NOVEMBRE 2026', 15), W(62, 621, 'SERVICE', 8), W(150, 620, 'PNEUMO'), W(280, 620, 'SENO'), W(410, 630, 'NEURO.'), W(400, 619, 'VASCULAIRE'),
+        W(150, 590, 'L7h-zOH'), W(280, 590, '13h.14h'), W(410, 590, 'MARDI 12h30'), W(52, 570, 'DATE', 8),
+        W(55, 520, '0217112026'), W(140, 530, 'Mr BETA Paul'), W(145, 505, 'Poste 7270'), W(280, 520, '^Z/IB/SG'),
+        W(55, 450, '09/71/2026'), W(140, 460, 'fM r GAMMA Luc'), W(145, 435, 'Poste 7349'),
+        W(55, 380, 'B/rÿ2026'), W(280, 380, 'A7/JB'), W(55, 310, '30 /L712026'), W(280, 310, 'CBTB/SG')];
+      const r = lireRcp(mots, { AZ: '', JB: '', SG: '', CB: '' }, { BETA: 'OB', GAMMA: 'DA' });
+      return { cols: r.colonnes, it: r.items.map((i) => [i.jour, r.colonnes[i.col].service, i.ini.join('/')]).sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1])) }; }""")
+    B.ok(ab["it"] == [[2, "PNEUMO", "OB"], [2, "SENO", "AZ/JB/SG"], [9, "PNEUMO", "DA"], [16, "SENO", "AZ/JB"], [30, "SENO", "CB/JB/SG"]],
+         f"fiche mal scannée : dates déduites, initiales corrigées ({ab['it']})")
+    B.ok([c["horaire"] for c in ab["cols"]] == ["17h-20h", "13h-14h", "MARDI 12h30"] and ab["cols"][2]["service"] == "NEURO-VASCULAIRE", f"horaires et services relus ({ab['cols']})")
     pg.select_option('[data-rcp-alias="ALPHA"]', "IA"); pg.select_option('[data-rcp-alias="BETA"]', "OB")
     B.ok("ALPHA ?" not in pg.inner_text("#rcpApercu") and pg.locator("#rcpApercu tbody tr").count() == 5, "aperçu : noms associés, 5 RCP")
     pg.click("#rcpSave"); pg.wait_for_function("S.rcp && S.rcp.items && S.rcp.items.length === 5", timeout=8000)
