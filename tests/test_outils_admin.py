@@ -131,9 +131,11 @@ with sync_playwright() as p:
     B.ok(pg.inner_text("#indCalSel").count("du ") == 1 and "Sélection" in pg.inner_text("#indCalSel"), f"jours touchés regroupés en plages ({pg.inner_text('#indCalSel')})")
     avant = pg.evaluate("S.indispos.length")
     pg.click("#indSubmit"); pg.wait_for_function("document.querySelector('#indMsg').innerText.includes('demandes envoyées')", timeout=8000)
-    pg.wait_for_function("S.indispos.filter((x) => x.ini === 'OC' && x.statut === 'attente').length >= 2", timeout=8000)
+    try: pg.wait_for_function("S.indispos.filter((x) => x.ini === 'OC' && x.statut === 'attente').length >= 2", timeout=8000)
+    except Exception: pass
+    diag = pg.evaluate("JSON.stringify([document.querySelector('#indMsg').innerText, S.indispos.filter((x) => x.ini === 'OC'), S.me, todayDay()])")
     r = pg.evaluate("(a) => S.indispos.filter((x) => x.ini === 'OC' && x.statut === 'attente').map((x) => [x.d1, x.d2]).sort()", J(M2))
-    B.ok(r == [[J(M2) + 3, J(M2) + 7], [J(M2) + 9, J(M2) + 9]], f"2 demandes : jeudi → lundi (week-end compris dans la plage) et mercredi ({r})")
+    B.ok(r == [[J(M2) + 3, J(M2) + 7], [J(M2) + 9, J(M2) + 9]], f"2 demandes : jeudi → lundi (week-end compris dans la plage) et mercredi ({r} {diag if len(r) != 2 else ''})")
     pg.click("[data-indmode='dates']")
     B.ok(pg.is_visible("#indD1") and pg.is_hidden("#indCal"), "saisie par dates toujours possible")
     pg.evaluate("S.admin = true")
