@@ -89,6 +89,15 @@ with sync_playwright() as p:
     B.ok(set(it) == {(2, "PNEUMO"), (2, "SENO"), (2, "URO"), (16, "URO"), (23, "SENO")}, f"dates abîmées relues (« 0z/ll » → 2, « 23/77 » → 23) : {sorted(it)}")
     B.ok(it[(2, "SENO")][2] == "DA/OA" and it[(23, "SENO")][2] == "SB/JB" and it[(16, "URO")][3] == "BETA", f"initiales collées ou mal lues découpées ({it[(2, 'SENO')]}, {it[(23, 'SENO')]})")
     B.ok("Si vous" not in str(lu["items"]), "texte hors tableau ignoré")
+    # lignes du tableau de hauteurs différentes : le nom en haut d'une case ne doit pas glisser dans la ligne du dessus
+    hl = pg.evaluate("""() => { const W = (x, y, t, s = 10) => ({ x, y, s, t });
+      const mots = [W(256, 738, 'RCP NOVEMBRE 2026', 15), W(62, 621, 'SERVICE', 8), W(150, 620, 'PNEUMO'), W(280, 620, 'ORL'), W(150, 590, '16H - 17H'), W(280, 590, '13H - 14H'), W(52, 570, 'DATE', 8),
+        W(55, 520, '02/11/2026'), W(140, 555, 'Mme ALPHA Anne'), W(145, 540, 'Unité 3'), W(145, 525, 'bureau 2'), W(145, 495, 'Poste 1234'), W(280, 545, 'DA'),
+        W(55, 450, '09/11/2026'), W(140, 470, 'Mr BETA Paul'), W(145, 432, 'Poste 7270'),
+        W(55, 360, '16/11/2026'), W(140, 410, 'Mr GAMMA'), W(150, 398, 'Luc'), W(145, 375, 'Poste 7349'), W(280, 410, 'Mr BETA'), W(285, 398, 'Paul'), W(282, 375, 'Poste 7270')];
+      const r = lireRcp(mots, {}, { ALPHA: 'IA', BETA: 'OB', GAMMA: 'DA' });
+      return r.items.map((i) => [i.jour, r.colonnes[i.col].service, i.ini.join('/')]).sort(); }""")
+    B.ok(sorted(hl) == [[2, "ORL", "DA"], [2, "PNEUMO", "IA"], [9, "PNEUMO", "OB"], [16, "ORL", "OB"], [16, "PNEUMO", "DA"]], f"lignes de hauteurs différentes : chaque nom dans sa case ({hl})")
     pg.select_option('[data-rcp-alias="ALPHA"]', "IA"); pg.select_option('[data-rcp-alias="BETA"]', "OB")
     B.ok("ALPHA ?" not in pg.inner_text("#rcpApercu") and pg.locator("#rcpApercu tbody tr").count() == 5, "aperçu : noms associés, 5 RCP")
     pg.click("#rcpSave"); pg.wait_for_function("S.rcp && S.rcp.items && S.rcp.items.length === 5", timeout=8000)

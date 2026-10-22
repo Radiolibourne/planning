@@ -223,10 +223,36 @@ function lireRcp(mots, medecins = {}, alias = {}) {
   const parNom = {};   // NOM → INI d'après le nom saisi dans les paramètres
   for (const [ini, nom] of Object.entries(medecins)) for (const p of sansAccents(nom).toUpperCase().split(/[^A-Z]+/)) if (p.length >= 3) (parNom[p] = parNom[p] || []).push(ini);
   const items = [], inconnus = new Set();
+  const bandes = lignesDates.map((l, r) => ({
+    haut: r ? (lignesDates[r - 1].y + l.y) / 2 : yPremiere,
+    bas: r < lignesDates.length - 1 ? (l.y + lignesDates[r + 1].y) / 2 : l.y - (r ? (lignesDates[r - 1].y - l.y) / 2 : 30) }));
+  const ligneDe = new Map();   // mot -> rang de la ligne (date)
+  const corps = M.filter((w) => w.x > xMaxDates - 10 && w.y < yPremiere && w.y >= bandes[bandes.length - 1].bas);
+  for (const w of corps) { const r = bandes.findIndex((b) => w.y < b.haut && w.y >= b.bas); if (r >= 0) ligneDe.set(w, r); }
+  // Une fiche « Mr NOM Prénom … Poste 1234 » est rangée d'un bloc dans la ligne dont la date est la plus proche de son centre :
+  // les lignes du tableau n'ont pas toutes la même hauteur, un nom en haut de case peut déborder dans la bande de la ligne voisine.
+  const pas = lignesDates.length > 1 ? (lignesDates[0].y - lignesDates[lignesDates.length - 1].y) / (lignesDates.length - 1) : 60;
+  const titre = (w, suiv) => /^(M[RT]\.?|MME|MLLE|DR\.?|M\.)$/.test(w.u.split(/\s+/)[0]) || /^M[RT][A-Z]{3,}/.test(w.u) || (w.u === "M" && suiv && /^[RT]\b/.test(suiv.u));
+  cols.forEach((c, k) => {
+    const ws = corps.filter((w) => colDe(w) === k).sort(ordre);
+    let bloc = null;
+    const fermer = () => {
+      if (!bloc) return;
+      const ys = bloc.map((w) => w.y), yc = (Math.max(...ys) + Math.min(...ys)) / 2;
+      let r = 0; lignesDates.forEach((l, i) => { if (Math.abs(l.y - yc) < Math.abs(lignesDates[r].y - yc)) r = i; });
+      for (const w of bloc) ligneDe.set(w, r);
+      bloc = null;
+    };
+    ws.forEach((w, i) => {
+      if (titre(w, ws[i + 1])) { fermer(); bloc = [w]; }
+      else if (bloc && bloc[0].y - w.y < pas * 0.9) bloc.push(w);
+      else fermer();
+      if (bloc && /po[s5]i?te\s*[\d.,O]{3,}|^[\d.,O]{3,}$/i.test(w.t.trim()) && bloc.length > 1) fermer();
+    });
+    fermer();
+  });
   lignesDates.forEach((l, r) => {
-    const haut = r ? (lignesDates[r - 1].y + l.y) / 2 : yPremiere;
-    const bas = r < lignesDates.length - 1 ? (l.y + lignesDates[r + 1].y) / 2 : l.y - (r ? (lignesDates[r - 1].y - l.y) / 2 : 30);
-    const dansLigne = M.filter((w) => w.y < haut && w.y >= bas && w.x > xMaxDates - 10);
+    const dansLigne = corps.filter((w) => ligneDe.get(w) === r);
     cols.forEach((c, k) => {
       const ws = dansLigne.filter((w) => colDe(w) === k).sort(ordre);
       if (!ws.length) return;
