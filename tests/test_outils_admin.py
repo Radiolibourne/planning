@@ -37,7 +37,7 @@ with sync_playwright() as p:
     pg.click("#pubOk"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
     v1 = pg.evaluate("JSON.stringify(S.published.cases)")
     # modification d'une case déjà publiée
-    pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])")
+    pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])"); pg.wait_for_function("S.draft && S.draft.cases && S.published && S.published.cases")
     k, avant = pg.evaluate("""() => { const k = Object.keys(S.draft.cases).find((k) => splitInis(S.draft.cases[k]).length === 1 && !k.endsWith('-TT'));
         const a = S.draft.cases[k]; S.draft.cases[k] = ''; return [k, a]; }""")
     pg.click("#publishBtn"); pg.wait_for_selector("#pubOverlay:not([hidden])")
@@ -45,14 +45,14 @@ with sync_playwright() as p:
     B.ok("1 demi-journée(s) déjà publiée(s) changent" in t and avant in t and "→" in t, f"récapitulatif : changement par médecin ({t[:120]})")
     pg.click("#pubAnnul"); B.ok(pg.is_hidden("#pubOverlay") and pg.evaluate("JSON.stringify(S.published.cases)") == v1, "« Retour » : rien n'est publié")
     pg.click("#publishBtn"); pg.click("#pubOk")
-    pg.wait_for_function("(k) => S.published.cases[k] === ''", arg=k, timeout=10000)
+    pg.wait_for_function("(k) => S.published && S.published.cases[k] === ''", arg=k, timeout=10000)
     pg.wait_for_selector("#undoPub:not([hidden])", timeout=8000)
     pg.click("#undoPub")
-    pg.wait_for_function("(v) => JSON.stringify(S.published.cases) === v", arg=v1, timeout=10000)
+    pg.wait_for_function("(v) => S.published && JSON.stringify(S.published.cases) === v", arg=v1, timeout=10000)
     B.ok(pg.evaluate("S.published.publication.retour === true && Object.keys(S.published.publication.modifs).length === 1"), "retour à la publication précédente (médecin concerné prévenu)")
 
     # ---------------------------------------------------------------- 2. cadenas et régénération d'une semaine
-    pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])")
+    pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])"); pg.wait_for_function("S.draft && S.draft.cases && S.published && S.published.cases")
     k2 = pg.evaluate("""(l2) => Object.keys(S.draft.cases).find((k) => +k.split('_')[0] >= l2 && splitInis(S.draft.cases[k]).length === 1 && !k.endsWith('-TT'))""", (L1 - dt.date(1970, 1, 1)).days + 7)
     semaine1 = pg.evaluate("(l1) => JSON.stringify(Object.entries(S.draft.cases).filter(([k]) => +k.split('_')[0] < l1 + 7))", (L1 - dt.date(1970, 1, 1)).days)
     occ = pg.evaluate("(k) => S.draft.cases[k]", k2)
@@ -67,7 +67,7 @@ with sync_playwright() as p:
     B.ok(pg.evaluate("!('verrous' in S.published)"), "les cadenas ne sont pas publiés")
 
     # ---------------------------------------------------------------- 3. équilibre par médecin pendant les retouches
-    pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])")
+    pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])"); pg.wait_for_function("S.draft && S.draft.cases && S.published && S.published.cases")
     pg.evaluate("document.getElementById('eqDetails').open = true")
     tot = lambda: int(pg.inner_text("#dEq tbody tr:has(td b:text-is('DA')) td:nth-child(2)"))
     t0 = tot()

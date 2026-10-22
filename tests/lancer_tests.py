@@ -36,7 +36,9 @@ for nom, cmd in etapes:
     resultats.append((nom, r.returncode == 0))
     if r.returncode and os.environ.get("GITHUB_ACTIONS"):
         tout = [l for l in r.stderr.strip().splitlines() if l.strip()] if r.stderr else []
-        derniere = [l for l in tout if l.lstrip().startswith(('File "', "playwright.", "Error", "TimeoutError", "AssertionError")) or "Error:" in l][-6:] or tout[-3:]
+        ici = [l for i, l in enumerate(tout) if "/tests/" in l and l.lstrip().startswith('File "')][-1:]
+        ici += [tout[tout.index(ici[0]) + 1]] if ici and tout.index(ici[0]) + 1 < len(tout) else []
+        derniere = ici + ([l for l in tout if "Error:" in l][-1:] or tout[-3:])
         print(f"::error::Échec de l'étape « {nom} » (code {r.returncode}) " + " | ".join(x.strip() for x in derniere)[:1500])
     if nom == "Construction" and r.returncode:
         break
