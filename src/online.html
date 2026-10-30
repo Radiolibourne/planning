@@ -815,6 +815,20 @@ table.rcped td.d { width: 150px; } table.rcped td.x { width: 30px; }
 .indcalnav { display: flex; justify-content: flex-end; gap: 6px; margin: -2px 0 4px; }
 .indcalnav .b { min-height: 32px; padding: 2px 14px; }
 @media (max-width: 999px) { .indcal .calg .cj { min-height: 32px; font-size: 13px; } .indcal .calg { gap: 2px; } }
+
+/* Mon planning : semaines à la suite, en-tête collé en haut, intertitres de mois, jours fériés */
+#vMon .card.monhead { position: sticky; z-index: 6; box-shadow: 0 4px 10px -8px rgba(0,0,0,.35); }
+#vMon .moissep { grid-column: 1 / -1; font-weight: 800; font-size: 15px; text-transform: capitalize; color: var(--accent); margin: 14px 2px 6px; padding-bottom: 4px; border-bottom: 2px solid var(--line); }
+#vMon .semgrid > .moissep:first-child { margin-top: 2px; }
+#vMon .day.ferie .slot.ferie { background: var(--closed-bg, #fdecec); border-color: transparent; color: var(--closed-ink, #9b1c1c); }
+#vMon .day.ferie .slot.ferie .t { font-weight: 800; }
+#vMon .day.ferie .date { color: var(--closed-ink, #9b1c1c); }
+
+/* jour off travaillé : toute la case en jaune, bien visible */
+#vMon .day.offtrav { background: #ffe66d; border: 2px solid #e0b400; border-style: solid; }
+#vMon .day.offtrav .slot, #vMon .day.offtrav .slot .p, #vMon .day.offtrav .slot .t { color: #3d2e00; }
+#vMon .day.offtrav .date { background: #fff6c2; color: #6b4e00; }
+#vMon .offtb { display: inline-block; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: #6b4e00; background: #fff6c2; border-radius: 6px; padding: 1px 7px; margin-bottom: 3px; }
 </style>
 </head>
 <body>
@@ -1933,19 +1947,21 @@ function renderMon() {
   const pd = perDoctor(pub)[me] || {};
   const myConf = conflicts(pub, S.indispos.filter((x) => String(x.ini).toUpperCase() === me));
   const today = todayDay();
-  // un mois à la fois (menu déroulant) : par défaut le mois en cours, sinon le premier mois à venir
+  // semaines à la suite, tous mois confondus ; le menu des mois suit le défilement (et y amène)
   const moisDe = (d) => { const x = ymd(d); return x.y * 100 + x.m; };
   const listeMois = [...new Set(pub.jours.map(moisDe))];
-  if (!listeMois.includes(S.monMois)) S.monMois = listeMois.includes(moisDe(today)) ? moisDe(today) : (listeMois.find((m) => m > moisDe(today)) ?? listeMois[listeMois.length - 1]);
-  const moisSel = S.monMois;
-  const nHalf = Object.entries(pd).filter(([k, c]) => c.code && moisDe(+k.split("_")[0]) === moisSel).length;
+  const moisSel = listeMois.includes(moisDe(today)) ? moisDe(today) : (listeMois.find((m) => m > moisDe(today)) ?? listeMois[listeMois.length - 1]);
+  const nHalfDe = (m) => Object.entries(pd).filter(([k, c]) => c.code && moisDe(+k.split("_")[0]) === m).length;
+  const nHalf = nHalfDe(moisSel);
+  const j0 = pub.jours[0], j1 = pub.jours[pub.jours.length - 1];
+  const feries = feriesPeriode(j0, j1, S.P && S.P.feries);
   const libMois = (m) => `${MOIS[m % 100 - 1]} ${Math.floor(m / 100)}`;
   let html = `<div class="card monhead">
     <div class="row" style="align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap">
       <h2 style="margin:0">Mon planning · ${esc(me)}</h2>
       ${listeMois.length > 1 ? `<select id="monMois" aria-label="Mois" style="width:auto;min-height:36px;padding:4px 8px;font-size:14px">${listeMois.map((m) => `<option value="${m}"${m === moisSel ? " selected" : ""}>${libMois(m)}</option>`).join("")}</select>` : `<span class="small muted">${libMois(moisSel)}</span>`}
     </div>
-    <p class="sub" style="margin:4px 0 0;font-size:12px">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} ce mois-ci` : ""}</p>
+    <p class="sub" id="monSub" style="margin:4px 0 0;font-size:12px">Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${nHalf ? ` · ${nHalf} demi-journée${nHalf > 1 ? "s" : ""} ce mois-ci` : ""}</p>
   </div>`;
   html += relanceBanner();
   // bandeau refermable (croix) ; il revient si une nouvelle demi-journée est concernée
@@ -1960,10 +1976,14 @@ function renderMon() {
   // semaine en cours en premier ; semaines passées repliées en bas
   const semaine = (w) => {
     let html = "";
-    const days = pub.jours.filter((d) => mondayOf(d) === w.lundi && moisDe(d) === moisSel);
+    const days = [0, 1, 2, 3, 4].map((k) => w.lundi + k).filter((d) => pub.jours.includes(d) || (feries.has(d) && d >= j0 && d <= j1));
     if (!days.length) return "";
     html += `<div class="semaine"><div class="week-h">Semaine du ${fmtDay(w.lundi, false)}${w.lundi === mondayOf(today) ? " · cette semaine" : ""}</div>`;
     for (const d of days) {
+      if (!pub.jours.includes(d)) {   // jour férié
+        html += `<div class="day ferie${d === today ? " today" : ""}" data-m="${moisDe(d)}"><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div><div class="slot off ferie"><span class="t">Férié</span><span class="p">${esc(feries.get(d) || "Jour férié")}</span></div></div></div>`;
+        continue;
+      }
       const m = pd[`${d}_M`], a = pd[`${d}_AM`];
       // case modifiée lors d'une republication récente (10 jours)
       const mesModifs = (pub.modifs && pub.modifs[me]) || {};
@@ -1995,22 +2015,36 @@ function renderMon() {
       if (moi(quiAst) || monWe) body = `<div class="astb"><span class="rk">ASTREINTE</span>${monWe ? (moi(quiAst) ? "Vous êtes d'astreinte ce soir et ce week-end" : "Vous êtes d'astreinte ce week-end") : "Vous êtes d'astreinte"}</div>` + body;
       else if (ast.length) body += `<div class="note astreinte">${ast.map(esc).join(" · ")}</div>`;
       if (autres.length) body += `<div class="note">${autres.map(esc).join(" · ")}</div>`;
-      html += `<div class="day${d === today ? " today" : ""}" ${d === today ? 'id="todayRow"' : ""}><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
+      // jour off travaillé : toute la case en jaune
+      const offTrav = estMonOff(me, d) && ((m && m.code) || (a && a.code));
+      if (offTrav) body = `<div class="offtb">Jour off travaillé</div>` + body;
+      html += `<div class="day${d === today ? " today" : ""}${offTrav ? " offtrav" : ""}" data-m="${moisDe(d)}" ${d === today ? 'id="todayRow"' : ""}><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
     }
     // week-end : astreinte du samedi et du dimanche (la mienne partout ; celle des autres sur ordinateur seulement)
     for (const d of [w.lundi + 5, w.lundi + 6]) {
       const qui = astConn.get(d) || [];
-      if (!qui.length || moisDe(d) !== moisSel) continue;
+      if (!qui.length || d > j1) continue;
       const mienne = qui.some((q) => q.toUpperCase() === me.toUpperCase());
       const body = mienne ? `<div class="astb"><span class="rk">ASTREINTE</span>Vous êtes d'astreinte</div>` : `<div class="note astreinte">Astreinte : ${qui.map(esc).join(" / ")}</div>`;
-      html += `<div class="day we${mienne ? "" : " wehors"}${d === today ? " today" : ""}"><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
+      html += `<div class="day we${mienne ? "" : " wehors"}${d === today ? " today" : ""}" data-m="${moisDe(d)}"><div class="date">${JC[weekday(d)]}<span>${fmtDay(d, false)}</span></div><div>${body}</div></div>`;
     }
     return html + "</div>";
   };
-  const semMois = pub.semaines.filter((w) => pub.jours.some((d) => mondayOf(d) === w.lundi && moisDe(d) === moisSel));
+  const semMois = pub.semaines.filter((w) => pub.jours.some((d) => mondayOf(d) === w.lundi));
   const passees = semMois.filter((w) => w.lundi + 4 < today);
   const aVenir = semMois.filter((w) => w.lundi + 4 >= today);
-  const grille = (l) => `<div class="semgrid">${l.map(semaine).join("")}</div>`;
+  // un intertitre au début de chaque nouveau mois
+  const grille = (l) => {
+    let vu = 0, out = "";
+    for (const w of l) {
+      const ms = [...new Set([0, 1, 2, 3, 4].map((k) => moisDe(w.lundi + k)))].filter((m) => listeMois.includes(m));
+      const nouveau = ms.filter((m) => m > vu);
+      if (nouveau.length && (vu || l === aVenir || !aVenir.length)) out += `<div class="moissep" data-m="${nouveau[nouveau.length - 1]}">${esc(libMois(nouveau[nouveau.length - 1]))}</div>`;
+      if (ms.length) vu = Math.max(vu, ...ms);
+      out += semaine(w);
+    }
+    return `<div class="semgrid">${out}</div>`;
+  };
   if (!aVenir.length) html += grille(semMois);
   else {
     html += grille(aVenir);
@@ -2018,7 +2052,64 @@ function renderMon() {
   }
   v.innerHTML = html;
   if ($("confFermer")) $("confFermer").onclick = () => { ls.set("planning-radio-conflit-vu", sigConf); renderMon(); };
-  if ($("monMois")) $("monMois").onchange = (e) => { S.monMois = +e.target.value; renderMon(); };
+  brancherMoisMon(listeMois, nHalfDe, pub);
+}
+// jour off habituel du médecin (semaine A / B du classeur de paramètres)
+function estMonOff(ini, d) {
+  const doc = S.P && S.P.docs && S.P.docs[String(ini).toUpperCase()];
+  if (!doc || weekday(d) > 4) return false;
+  const off = typeSemaineAB(mondayOf(d), S.P.refA) === "A" ? doc.offA : doc.offB;
+  return !!off && (off.has ? off.has(weekday(d)) : off.includes(weekday(d)));
+}
+// Mon planning : l'en-tête reste en haut ; le menu des mois suit le défilement, le choisir y amène
+function brancherMoisMon(listeMois, nHalfDe, pub) {
+  const sel = $("monMois"), head = document.querySelector("#vMon .monhead"), top = document.querySelector("header.top");
+  if (!head) return;
+  head.style.top = (top ? top.offsetHeight : 0) + "px";
+  const sub = $("monSub");
+  const majSub = (m) => {
+    if (!sub) return;
+    const n = nHalfDe(m);
+    sub.textContent = `Publié le ${pub.publieLe ? new Date(pub.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"}${n ? ` · ${n} demi-journée${n > 1 ? "s" : ""} en ${MOIS[m % 100 - 1]}` : ""}`;
+  };
+  const visibles = () => [...document.querySelectorAll("#vMon .day[data-m]")].filter((e) => e.offsetParent !== null);
+  const suivre = () => {
+    if (!sel || currentTab() !== "mon" || !head.isConnected) return;
+    const bas = head.getBoundingClientRect().bottom + 4;
+    // en bas de page, le dernier mois ne peut pas monter jusqu'en haut : on garde le mois choisi s'il est à l'écran
+    const enBas = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+    if (enBas && S.monChoix && visibles().some((e) => +e.dataset.m === S.monChoix && e.getBoundingClientRect().top < window.innerHeight)) return;
+    if (!enBas) S.monChoix = 0;
+    const j = visibles().find((e) => e.getBoundingClientRect().bottom > bas);
+    if (j && sel.value !== j.dataset.m && listeMois.includes(+j.dataset.m)) { sel.value = j.dataset.m; majSub(+j.dataset.m); }
+  };
+  if (sel) sel.onchange = () => {
+    const m = +sel.value;
+    S.monChoix = m;
+    let cible = visibles().find((e) => +e.dataset.m === m);
+    if (!cible) {   // seulement dans les semaines passées : on les déplie
+      const det = document.querySelector("#vMon details.passees");
+      if (det) { det.open = true; cible = visibles().find((e) => +e.dataset.m === m); }
+    }
+    majSub(m);
+    if (!cible) return;
+    const sep = document.querySelector(`#vMon .moissep[data-m="${m}"]`);
+    const el = sep && sep.offsetParent !== null && sep.getBoundingClientRect().top <= cible.getBoundingClientRect().top ? sep : cible;
+    const y = window.scrollY + el.getBoundingClientRect().top - head.getBoundingClientRect().bottom - 8;
+    S.monSuiviOff = Date.now();
+    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+  };
+  if (!S.monScroll) {
+    S.monScroll = true;
+    let att = 0;
+    window.addEventListener("scroll", () => {
+      if (Date.now() - (S.monSuiviOff || 0) < 900 || att) return;
+      att = requestAnimationFrame(() => { att = 0; (S.monSuivre || (() => {}))(); });
+    }, { passive: true });
+  }
+  S.monSuivre = suivre;
+  majSub(sel ? +sel.value : listeMois[0]);
+  suivre();   // nouveau rendu (données mises à jour) : le menu garde le mois affiché à l'écran
 }
 
 // Onglet Calendrier : abonnement (mise à jour automatique) ou import ponctuel du mois

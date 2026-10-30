@@ -114,7 +114,7 @@ def main():
         # --- médecin : son planning
         doc.click("a[data-tab=mon]"); doc.wait_for_selector("#vMon .day", timeout=5000)
         B.ok(doc.query_selector("#vMon #icsMe") is None, "Mon planning : plus de bouton calendrier (onglet Calendrier)")
-        B.ok(doc.locator("#vMon .day").count() == len(ouvres), f"planning personnel : {len(ouvres)} jours ouvrés")
+        B.ok(doc.locator("#vMon .day:not(.ferie)").count() == len(ouvres), f"planning personnel : {len(ouvres)} jours ouvrés")
         B.ok("Absent" in doc.inner_text("#vMon"), "congés affichés")
         # semaine en cours en premier, semaines passées repliées (aujourd'hui simulé au mercredi de la 2e semaine)
         w2 = doc.evaluate("S.published.semaines[1].lundi")

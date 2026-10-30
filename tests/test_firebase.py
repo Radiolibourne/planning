@@ -204,7 +204,7 @@ with sync_playwright() as pw:
     ok(doc.evaluate('globalThis.__cacheLocal === true'), 'cache local des données Firestore activé')
     # --- médecin : reçoit le planning en temps réel
     doc.click('a[data-tab=mon]'); doc.wait_for_selector('#vMon .day', timeout=8000)
-    ok(doc.locator('#vMon .day').count() == len(ouvres), 'médecin : planning reçu en temps réel')
+    ok(doc.locator('#vMon .day:not(.ferie)').count() == len(ouvres), 'médecin : planning reçu en temps réel')
     doc.click('#gearBtn'); doc.wait_for_selector('#icsMe', timeout=8000)
     ok(True, 'onglet Calendrier : import du mois disponible')
     # --- abonnement calendrier : fichier produit « par GitHub » à partir de Firestore (réponse REST simulée)

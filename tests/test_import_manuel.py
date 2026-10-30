@@ -109,9 +109,24 @@ with sync_playwright() as p:
     pg.click("#publishBtn"); pg.click("#pubOk"); pg.wait_for_function("S.published && S.published.jours.includes(%d)" % jn(12, 7), timeout=10000)
     pg.evaluate("S.me = 'OA'; location.hash = '#mon'"); pg.wait_for_selector("#monMois", timeout=8000)
     opts = pg.evaluate("[...document.querySelectorAll('#monMois option')].map((o) => o.textContent)")
-    pg.select_option("#monMois", label="décembre 2026"); pg.wait_for_timeout(300)
-    nj = pg.locator("#vMon .day").count()
-    B.ok(opts == ["novembre 2026", "décembre 2026"] and nj == 5, f"Mon planning : menu des mois, décembre seul affiché ({opts}, {nj} jours)")
+    mois = pg.evaluate("[...new Set([...document.querySelectorAll('#vMon .day[data-m]')].map((e) => e.dataset.m))]")
+    sep = pg.evaluate("[...document.querySelectorAll('#vMon .moissep')].map((e) => e.innerText.toLowerCase())")
+    B.ok(opts == ["novembre 2026", "décembre 2026"] and mois == ["202611", "202612"] and sep == ["novembre 2026", "décembre 2026"], f"Mon planning : novembre et décembre à la suite, un intertitre par mois ({opts}, {sep})")
+    fe = pg.locator("#vMon .day.ferie")
+    B.ok(fe.count() == 1 and "11/11" in fe.inner_text() and "Armistice" in fe.inner_text(), "Mon planning : jour férié affiché (11 novembre)")
+    # jour off travaillé : toute la case en jaune
+    ot = pg.evaluate("""() => { const me = S.me, d = S.published.jours.find((j) => estMonOff(me, j));
+        if (!d) return 'aucun off';
+        const code = Object.keys(S.published.postes)[0]; S.published.cases[caseKey(d, 'M', code)] = me; delete (S.published.statuts[me] || {})[d + '_M'];
+        renderMon(); const e = document.querySelector('#vMon .day.offtrav');
+        return e ? [e.innerText.toLowerCase().includes('jour off travaillé'), getComputedStyle(e).backgroundColor] : 'pas de case jaune'; }""")
+    B.ok(isinstance(ot, list) and ot[0] and ot[1] == "rgb(255, 230, 109)", f"Mon planning : jour off travaillé en jaune ({ot})")
+    pg.select_option("#monMois", label="décembre 2026"); pg.wait_for_timeout(1500)
+    vu = pg.evaluate("""() => { const b = document.querySelector('#vMon .monhead').getBoundingClientRect().bottom;
+        const j = [...document.querySelectorAll('#vMon .day[data-m="202612"]')][0].getBoundingClientRect(); return j.top > b - 2 && j.top < innerHeight - 40 ? "202612" : String(j.top); }""")
+    B.ok(vu == "202612" and pg.input_value("#monMois") == "202612", f"choisir décembre amène à décembre ({vu})")
+    pg.evaluate("window.scrollTo(0, 0)"); pg.wait_for_timeout(1200)
+    B.ok(pg.input_value("#monMois") == "202611", f"en remontant, le menu repasse seul à novembre ({pg.input_value('#monMois')})")
     # Général, vue « Semaine » : postes en lignes, jours en colonnes, astreinte en tête
     pg.evaluate("S.genView.mode = 'semaine'; S.genView.week = String(%d); location.hash = '#general'" % jn(11, 2))
     pg.wait_for_selector("#genBody table.sem", timeout=8000)

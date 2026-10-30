@@ -80,6 +80,7 @@ with sync_playwright() as p:
     # ---------------------------------------------------------------- 4. calendrier des absences, demandes qui se chevauchent
     J = lambda d: (d - dt.date(1970, 1, 1)).days
     M2 = L1 + dt.timedelta(days=28)   # hors planning publié
+    if (M2 + dt.timedelta(days=2)).month != M2.month: M2 += dt.timedelta(days=7)   # lundi → mercredi dans le même mois (grille mensuelle)
     pg.evaluate("""([a, b]) => { S.store.add(PATHS.indispos(), { ini: 'DB', d1: a, d2: a + 2, periode: 'Journée', motif: '', creeLe: Date.now(), statut: 'acceptee' });
         S.store.add(PATHS.indispos(), { ini: 'IA', d1: a + 1, d2: a + 1, periode: 'Matin', motif: '', creeLe: Date.now(), statut: 'attente' });
         S.store.add(PATHS.indispos(), { ini: 'SA', d1: a + 1, d2: a + 1, periode: 'Journée', motif: '', creeLe: Date.now(), statut: 'attente' }); }""", [J(M2), 0])
