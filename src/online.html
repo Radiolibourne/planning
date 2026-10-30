@@ -2905,7 +2905,9 @@ function renderQui() {
     };
     const pill = (x, lab) => `<span class="qpc q-${x.cls}">${lab ? `<span class="qh">${lab}</span>` : ""}<span class="ql">${esc(x.lib)}</span>${x.site ? `<span class="qs"${x.site === "TT" ? ' title="télétravail"' : ""}>${esc(x.site)}</span>` : ""}</span>`;
     const cpt = {};
-    const lignes = Object.keys(pd).filter((ini) => match(ini)).sort((x, y) => x.localeCompare(y, "fr")).map((ini) => {
+    // présents d'abord, puis sans poste, puis repos / absents ; ordre alphabétique dans chaque groupe
+    const rang = (ini) => { const v = [pd[ini][`${d}_M`], pd[ini][`${d}_AM`]]; return v.some((x) => x && x.code) ? 0 : v.some((x) => x && x.statut) ? 2 : 1; };
+    const lignes = Object.keys(pd).filter((ini) => match(ini)).sort((x, y) => rang(x) - rang(y) || x.localeCompare(y, "fr")).map((ini) => {
       const m = info(pd[ini][`${d}_M`]), a = info(pd[ini][`${d}_AM`]);
       const meme = m.cls === a.cls && m.lib === a.lib && m.site === a.site;
       const princ = [m, a].find((x) => /^(r\d|tt)$/.test(x.cls)) || m;
