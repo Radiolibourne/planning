@@ -829,6 +829,43 @@ table.rcped td.d { width: 150px; } table.rcped td.x { width: 30px; }
 #vMon .day.offtrav .slot, #vMon .day.offtrav .slot .p, #vMon .day.offtrav .slot .t { color: #3d2e00; }
 #vMon .day.offtrav .date { background: #fff6c2; color: #6b4e00; }
 #vMon .offtb { display: inline-block; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: #6b4e00; background: #fff6c2; border-radius: 6px; padding: 1px 7px; margin-bottom: 3px; }
+
+/* Postes → par personne : pastilles colorées par site */
+#quiBody .qpsums { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; }
+#quiBody .qsum { font-size: 12px; border-radius: 999px; padding: 2px 9px; background: var(--qbg); color: var(--qfg); border: 1px solid var(--qbd); }
+#quiBody .qpgrid { display: grid; gap: 5px; }
+@media (min-width: 1000px) { #quiBody .qpgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } }
+#quiBody .qp { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 5px 7px; }
+#quiBody .qp.me { border: 2px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
+#quiBody .qav { flex: 0 0 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; letter-spacing: .02em; background: var(--qc); color: #fff; }
+#quiBody .qav.q-off, #quiBody .qav.q-vide { background: var(--off); color: var(--muted); }
+#quiBody .qav.q-abs { background: var(--closed-bg); color: var(--closed-ink); }
+#quiBody .qav.q-ind { background: color-mix(in srgb, var(--warn) 22%, var(--panel)); color: var(--warn); }
+#quiBody .qps { flex: 1; min-width: 0; display: flex; gap: 5px; }
+#quiBody .qpc { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; border-radius: 8px; padding: 3px 8px 3px 9px; background: var(--qbg); color: var(--qfg); border-left: 4px solid var(--qc); line-height: 1.2; min-height: 36px; }
+#quiBody .qpc .qh { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; opacity: .7; }
+#quiBody .qpc .ql { font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#quiBody .qpc .qs { font-size: 10.5px; font-weight: 700; color: var(--qc); }
+#quiBody .qpc .ql + .qs { margin-top: -1px; }
+#quiBody .qpc.q-off, #quiBody .qpc.q-vide { border-left-style: dashed; }
+#quiBody .qpc.q-off .ql, #quiBody .qpc.q-vide .ql { font-weight: 600; }
+#quiBody .q-r0 { --qc: var(--site0); --qbg: color-mix(in srgb, var(--site0) 13%, var(--panel)); --qfg: var(--ink); --qbd: color-mix(in srgb, var(--site0) 35%, var(--panel)); }
+#quiBody .q-r1 { --qc: var(--site1); --qbg: color-mix(in srgb, var(--site1) 13%, var(--panel)); --qfg: var(--ink); --qbd: color-mix(in srgb, var(--site1) 35%, var(--panel)); }
+#quiBody .q-r2 { --qc: var(--site2); --qbg: color-mix(in srgb, var(--site2) 14%, var(--panel)); --qfg: var(--ink); --qbd: color-mix(in srgb, var(--site2) 35%, var(--panel)); }
+#quiBody .q-tt { --qc: var(--site-tt); --qbg: color-mix(in srgb, var(--site-tt) 13%, var(--panel)); --qfg: var(--ink); --qbd: color-mix(in srgb, var(--site-tt) 35%, var(--panel)); }
+#quiBody .q-off, #quiBody .q-vide { --qc: color-mix(in srgb, var(--muted) 55%, var(--panel)); --qbg: var(--off); --qfg: var(--muted); --qbd: var(--line); }
+#quiBody .q-abs { --qc: var(--closed-ink); --qbg: var(--closed-bg); --qfg: var(--closed-ink); --qbd: color-mix(in srgb, var(--closed-ink) 30%, var(--panel)); }
+#quiBody .q-ind { --qc: var(--warn); --qbg: color-mix(in srgb, var(--warn) 14%, var(--panel)); --qfg: var(--warn); --qbd: color-mix(in srgb, var(--warn) 35%, var(--panel)); }
+#quiBody .q-vide { --qbg: transparent; }
+
+#quiBody .qp { padding: 3px 5px; gap: 7px; border-radius: 10px; }
+#quiBody .qpgrid { gap: 4px; }
+#quiBody .qav { flex-basis: 32px; height: 32px; font-size: 12px; }
+#quiBody .qpc { flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; min-height: 30px; padding: 2px 7px 2px 8px; }
+#quiBody .qpc .qh { flex: 0 0 auto; font-size: 10px; opacity: .65; }
+#quiBody .qpc .ql { flex: 0 1 auto; }
+#quiBody .qpc .qs { flex: 0 0 auto; margin: 0; font-size: 10.5px; }
+#quiBody .qpc.q-off, #quiBody .qpc.q-vide { min-height: 30px; }
 </style>
 </head>
 <body>
@@ -2851,18 +2888,33 @@ function renderQui() {
     }
     html += tables.length ? `<div class="quigrid">${tables.join("")}</div>` : `<div class="empty">Aucun poste ne correspond.</div>`;
   } else {
+    // par personne : une ligne par médecin, pastille d'initiales et vacations colorées selon le site
     const pd = perDoctor(pub);
-    const ST = { OFF: "repos", ABS: "absent", INDISPO: "indisponible" };
+    const ST = { OFF: ["repos", "off"], ABS: ["absent", "abs"], INDISPO: ["indisponible", "ind"] };
     const court = (code) => libelleCourt((pub.postes[code] || { label: code }).label);
-    const cell = (v) => v && v.code ? (v.code.endsWith(TT_SUFFIX) ? `<i class="tt">${esc(court(v.code))}*</i>` : esc(court(v.code)) + (pub.postes[v.code] && pub.sites.indexOf(pub.postes[v.code].site) > 0 ? ` <span class="site ${siteClass(pub, pub.postes[v.code].site)}">${esc(pub.postes[v.code].site.replace(/-la-Grande$/i, ""))}</span>` : ""))
-      : v && v.statut ? `<span class="st">${ST[v.statut] || v.statut}</span>` : `<span class="st">sans poste</span>`;
-    const lignes = Object.keys(pd).filter((ini) => match(ini)).map((ini) =>
-      { const m = cell(pd[ini][`${d}_M`]), am = cell(pd[ini][`${d}_AM`]);
-        return `<tr class="${ini === S.me ? "me" : ""}${/class="st"/.test(m + am) && m === am ? " rep" : ""}"><td>${esc(ini)}</td>${m === am ? `<td colspan="2" class="jr">${m}</td>` : `<td>${m}</td><td>${am}</td>`}</tr>`; });
-    // ordinateur : liste coupée en trois colonnes ; téléphone : les tableaux se suivent
-    const tiers = Math.ceil(lignes.length / 3) || 1, blocs = [];
-    for (let k = 0; k < lignes.length; k += tiers) blocs.push(`<table class="qui pers"><thead><tr><th>Médecin</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>${lignes.slice(k, k + tiers).join("")}</tbody></table>`);
-    html += lignes.length ? `<div class="quigrid">${blocs.join("")}</div>` : `<div class="empty">Personne ne correspond.</div>`;
+    const sitesCourts = (site) => String(site).replace(/-la-Grande$/i, "");
+    const info = (v) => {
+      if (v && v.code) {
+        const p = pub.postes[v.code] || {}, tt = v.code.endsWith(TT_SUFFIX) || p.site === TT_SITE;
+        const sc = tt ? "tt" : (siteClass(pub, p.site) || "r0");
+        const mot = " " + String(p.site || "").split(/[-\s]/)[0].toLowerCase(), lib = court(v.code), k = lib.toLowerCase().indexOf(mot);
+        return { cls: sc, lib: k > 0 ? lib.slice(0, k) : lib, site: tt ? "TT" : (sc !== "r0" ? sitesCourts(p.site) : ""), cat: tt ? "tt" : sc };
+      }
+      if (v && v.statut) { const [l, c] = ST[v.statut] || [v.statut, "off"]; return { cls: c, lib: l, site: "", cat: c }; }
+      return { cls: "vide", lib: "sans poste", site: "", cat: "vide" };
+    };
+    const pill = (x, lab) => `<span class="qpc q-${x.cls}">${lab ? `<span class="qh">${lab}</span>` : ""}<span class="ql">${esc(x.lib)}</span>${x.site ? `<span class="qs"${x.site === "TT" ? ' title="télétravail"' : ""}>${esc(x.site)}</span>` : ""}</span>`;
+    const cpt = {};
+    const lignes = Object.keys(pd).filter((ini) => match(ini)).map((ini) => {
+      const m = info(pd[ini][`${d}_M`]), a = info(pd[ini][`${d}_AM`]);
+      const meme = m.cls === a.cls && m.lib === a.lib && m.site === a.site;
+      const princ = [m, a].find((x) => /^(r\d|tt)$/.test(x.cls)) || m;
+      for (const c of new Set([m.cat, a.cat])) cpt[c] = (cpt[c] || 0) + 1;
+      return `<div class="qp${ini === S.me ? " me" : ""}"><span class="qav q-${princ.cls}">${esc(ini)}</span><div class="qps">${meme ? pill(m, "") : pill(m, "M") + pill(a, "AM")}</div></div>`;
+    });
+    const noms = { r0: sitesCourts(pub.sites[0] || "Site principal"), r1: sitesCourts(pub.sites[1] || ""), r2: sitesCourts(pub.sites[2] || ""), tt: "Télétravail", off: "Repos", abs: "Absents", ind: "Indispo.", vide: "Sans poste" };
+    const resume = Object.keys(noms).filter((c) => cpt[c] && noms[c]).map((c) => `<span class="qsum q-${c}"><b>${cpt[c]}</b> ${esc(noms[c])}</span>`).join("");
+    html += lignes.length ? `<div class="qpsums">${resume}</div><div class="qpgrid">${lignes.join("")}</div>` : `<div class="empty">Personne ne correspond.</div>`;
   }
   body.innerHTML = html;
   const go = (x) => { if (x !== undefined) { S.qui.day = x; renderQui(); } };

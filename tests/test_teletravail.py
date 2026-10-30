@@ -179,6 +179,11 @@ with sync_playwright() as p:
     t = pg.evaluate("""() => ({ ths: [...document.querySelectorAll('#vGeneral th')].map((x) => x.innerText), tt: document.querySelectorAll('#vGeneral i.tt').length })""")
     B.ok(not any(x.strip().upper() == "TÉLÉTRAVAIL" for x in t["ths"]) and t["tt"] > 0, f"Général : médecins en télétravail sur leur poste, en italique avec étoile ({t['tt']})")
     pg.click("a[data-tab=qui]"); pg.wait_for_selector("#quiBody table.qui", timeout=8000)
+    # par personne : une ligne par médecin, vacations colorées selon le site, résumé du jour
+    pg.evaluate("S.qui.day = S.published.jours.find((d) => Object.keys(S.published.cases).some((k) => k.startsWith(d + '_') && k.endsWith('-TT') && S.published.cases[k]))")
+    pg.click("#quiBody [data-qm=personne]"); pg.wait_for_selector("#quiBody .qpgrid", timeout=8000)
+    qp = pg.evaluate("({ n: document.querySelectorAll('#quiBody .qp').length, tt: document.querySelectorAll('#quiBody .qpc.q-tt').length, sum: document.querySelector('#quiBody .qpsums').innerText, w: document.documentElement.scrollWidth <= innerWidth })")
+    B.ok(qp["n"] == pg.evaluate("Object.keys(perDoctor(S.published)).length") and qp["tt"] >= 1 and "Télétravail" in qp["sum"] and qp["w"], f"Postes → par personne : pastilles colorées, télétravail, résumé du jour ({qp})")
     B.ok(not errs, "aucune erreur JavaScript" + (f" : {errs[:3]}" if errs else ""))
     b.close()
 raise SystemExit(0 if B.fin() else 1)
