@@ -34,7 +34,7 @@ with sync_playwright() as p:
     generer()
     pg.click("#publishBtn"); pg.wait_for_selector("#pubOverlay:not([hidden])")
     B.ok("jour(s) nouveau(x)" in pg.inner_text("#pubCorps"), "récapitulatif : jours nouveaux annoncés")
-    pg.click("#pubOk"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié')", timeout=10000)
+    pg.click("#pubOk"); pg.wait_for_function("document.querySelector('#gMsg').innerText.startsWith('Planning publié') && S.published && S.published.cases", timeout=10000)
     v1 = pg.evaluate("JSON.stringify(S.published.cases)")
     # modification d'une case déjà publiée
     pg.click("#editPublished"); pg.wait_for_selector("#draftBody:not([hidden])"); pg.wait_for_function("S.draft && S.draft.cases && S.published && S.published.cases")
