@@ -93,7 +93,11 @@ with sync_playwright() as p:
     B.ok("Déjà absents ces jours-là : DB" in pg.inner_text("#admInd"), "demande à valider : collègues déjà absents indiqués")
 
     # ---------------------------------------------------------------- 5. absence imprévue
-    ini, jour = pg.evaluate("""(l1) => { const k = Object.keys(S.published.cases).find((k) => +k.split('_')[0] >= l1 && /_(ECH1|MAM|IRM1)$/.test(k) && splitInis(S.published.cases[k]).length === 1);
+    # une case dont chaque demi-journée du médecin a au moins deux remplaçants possibles (planning tiré au hasard)
+    ini, jour = pg.evaluate("""(l1) => { const ok = (k) => { const i = splitInis(S.published.cases[k])[0], d = +k.split('_')[0];
+          return casesDe(S.published, i, d, d, 'Journée').every((c) => remplacants(S.published, c.d, c.h, c.code, i).length >= 2); };
+        const ks = Object.keys(S.published.cases).filter((k) => +k.split('_')[0] >= l1 && /_(ECH1|MAM|IRM1)$/.test(k) && splitInis(S.published.cases[k]).length === 1);
+        const k = ks.find(ok) || ks[0];
         return [splitInis(S.published.cases[k])[0], +k.split('_')[0]]; }""", J(L1))
     pg.select_option("#impIni", ini); pg.fill("#impD1", (dt.date(1970, 1, 1) + dt.timedelta(days=jour)).isoformat()); pg.fill("#impD2", (dt.date(1970, 1, 1) + dt.timedelta(days=jour)).isoformat())
     pg.click("#impChercher"); pg.wait_for_selector("#impRes table.impt, #impRes p")
