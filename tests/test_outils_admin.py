@@ -101,6 +101,8 @@ with sync_playwright() as p:
     rempl = [pg.locator(f"#impRes select[data-imp='{i}']").input_value() for i in range(n)]
     B.ok(n >= 1 and all(r and r != ini for r in rempl), f"absence imprévue : {n} demi-journée(s) à remplacer, remplaçants proposés ({rempl})")
     pg.click("#impValider"); pg.wait_for_function("document.querySelector('#impMsg').innerText.includes('republié')", timeout=10000)
+    pg.wait_for_function("""([ini, d]) => S.published && !Object.keys(S.published.cases).some((k) => +k.split('_')[0] === d && splitInis(S.published.cases[k]).includes(ini))
+        && S.indispos.some((x) => x.ini === ini && x.d1 === d)""", arg=[ini, jour], timeout=10000)
     r = pg.evaluate("""([ini, d]) => ({ reste: Object.keys(S.published.cases).filter((k) => +k.split('_')[0] === d && splitInis(S.published.cases[k]).includes(ini)).length,
         abs: S.published.statuts[ini][d + '_M'] === 'ABS' && S.published.statuts[ini][d + '_AM'] === 'ABS', ind: S.indispos.some((x) => x.ini === ini && x.d1 === d && x.statut === 'acceptee'),
         notif: Object.keys(S.published.publication.modifs) })""", [ini, jour])
