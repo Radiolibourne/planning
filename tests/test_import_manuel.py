@@ -156,6 +156,27 @@ with sync_playwright() as p:
          f"sauvegarde : données, paramètres et plannings par mois ({noms}, {feuilles})")
     pg.wait_for_function("S.sauvegarde && S.sauvegarde.derniere", timeout=8000)
     B.ok("Dernière sauvegarde le" in pg.inner_text("#sauvEtat"), "date de la dernière sauvegarde affichée")
+    # off travaillés : détection, compensation dans la semaine, liste modifiable
+    ot = pg.evaluate("""() => {
+      const p = JSON.parse(JSON.stringify(S.published)), code = p.ordre.find((c) => !c.endsWith('-TT'));
+      const ini = Object.keys(S.P.docs).find((i) => p.jours.some((d) => estMonOff(i, d)));
+      const d = p.jours.find((j) => estMonOff(ini, j)), sem = p.jours.filter((j) => mondayOf(j) === mondayOf(d));
+      const libere = (j) => { for (const k of Object.keys(p.cases)) if (+k.split('_')[0] === j) p.cases[k] = splitInis(p.cases[k]).filter((x) => x !== ini).join('/'); for (const h of ['M', 'AM']) delete (p.statuts[ini] || {})[j + '_' + h]; };
+      for (const j of sem) { libere(j); if (j !== d) { p.cases[caseKey(j, 'M', code)] = ini; } }
+      p.cases[caseKey(d, 'M', code)] = ini; p.cases[caseKey(d, 'AM', code)] = ini;
+      const a = offTravDetectes(p, ini, sem);
+      const autre = sem.find((j) => j !== d && !estMonOff(ini, j)); libere(autre);
+      const b = offTravDetectes(p, ini, sem);
+      return [a.length === 1 && a[0].d === d && a[0].n === 1 && a[0].comp === null, b.length === 1 && b[0].comp === autre, ini]; }""")
+    B.ok(ot[0] and ot[1], f"off travaillé détecté ; compensé si une autre journée de la semaine est libérée ({ot})")
+    pg.evaluate("location.hash = '#admin'"); pg.wait_for_selector("#statCard:not([hidden]) #otAjout", state="attached", timeout=8000)
+    pg.evaluate("document.getElementById('otDetails').open = true")
+    n0 = float(pg.inner_text("#otN").replace(",", "."))
+    pg.select_option("#otIni", "DA"); pg.fill("#otDate", "2026-11-04"); pg.select_option("#otVal", "0.5"); pg.fill("#otNote", "échange de off"); pg.click("#otAjout")
+    pg.wait_for_function("(n) => parseFloat(document.querySelector('#otN').innerText.replace(',', '.')) === n + 0.5", arg=n0, timeout=8000)
+    B.ok("échange de off" in pg.inner_text("#otListe") and pg.locator("#statTable td.otc").count() >= 1, "off travaillé ajouté à la main, compté dans le tableau")
+    pg.click("#otListe [data-ot-suppr]"); pg.wait_for_function("(n) => parseFloat(document.querySelector('#otN').innerText.replace(',', '.')) === n", arg=n0, timeout=8000)
+    B.ok("échange de off" not in pg.inner_text("#otListe") and pg.evaluate("S.offtrav.ajouts.length === 0"), "ajout supprimé")
     # statistiques et export par période
     pg.evaluate("location.hash = '#admin'"); pg.wait_for_selector("#statCard:not([hidden]) #statPer option", state="attached", timeout=8000)
     pg.select_option("#statPer", label="décembre 2026"); pg.wait_for_function("document.querySelector('#statSub').innerText.startsWith('Du 07/12/2026 au 11/12/2026')", timeout=5000)

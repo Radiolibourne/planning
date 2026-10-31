@@ -866,6 +866,17 @@ table.rcped td.d { width: 150px; } table.rcped td.x { width: 30px; }
 #quiBody .qpc .ql { flex: 0 1 auto; }
 #quiBody .qpc .qs { flex: 0 0 auto; margin: 0; font-size: 10.5px; }
 #quiBody .qpc.q-off, #quiBody .qpc.q-vide { min-height: 30px; }
+
+/* Statistiques : off travaillés (liste modifiable) */
+.otbox { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--r-md, 12px); padding: 8px 10px; background: color-mix(in srgb, #ffe66d 18%, var(--panel)); }
+.otbox > summary { cursor: pointer; list-style: revert; }
+ul.otl { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+ul.otl li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid #e0b400; border-radius: 8px; padding: 5px 8px; }
+ul.otl li.otno { border-left-color: var(--line); opacity: .7; }
+ul.otl li.otno .oti, ul.otl li.otno .otd { text-decoration: line-through; }
+ul.otl .otd { min-width: 82px; font-weight: 600; } ul.otl .oti { min-width: 36px; } ul.otl .otp { flex: 1; min-width: 140px; font-size: 13px; }
+ul.otl .tag.ok { background: color-mix(in srgb, var(--ok) 18%, var(--panel)); color: var(--ok); }
+td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1184,6 +1195,18 @@ table.rcped td.d { width: 150px; } table.rcped td.x { width: 30px; }
         </div>
         <div class="row" style="margin-bottom:12px"><button class="b" type="button" id="statXlsx">Excel des statistiques de la période</button></div>
         <div class="tablewrap" id="statTable"></div>
+        <details class="otbox" id="otDetails" open>
+          <summary><b>Off travaillés</b> <span class="tag" id="otN">0</span> <span class="small muted">jour off théorique où le médecin est programmé, sauf s'il est libéré un autre jour de la même semaine</span></summary>
+          <div id="otListe"></div>
+          <div class="row otadd" style="margin-top:8px;align-items:flex-end;gap:6px">
+            <label class="f" style="min-width:90px">Médecin<select id="otIni"></select></label>
+            <label class="f">Date<input type="date" id="otDate"></label>
+            <label class="f" style="min-width:110px">Durée<select id="otVal"><option value="1">Journée</option><option value="0.5">Demi-journée</option></select></label>
+            <label class="f grow" style="min-width:140px">Note<input type="text" id="otNote" maxlength="80" placeholder="Facultatif"></label>
+            <button class="b" type="button" id="otAjout">Ajouter</button>
+          </div>
+          <div class="msg" id="otMsg" role="status"></div>
+        </details>
         <div class="grid2" style="margin-top:16px">
           <div><h3 style="margin-top:0">Couverture des postes</h3><div class="cov" id="statCov"></div></div>
           <div><h3 style="margin-top:0">Contrôle des règles</h3><ul class="checks" id="statChecks"></ul></div>
@@ -1515,7 +1538,7 @@ const S = {
   unsub: [],
 };
 const base = () => `espaces/${S.code}`;
-const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, rcpGen: () => `${base()}/config/rcp`, conges: () => `${base()}/config/conges`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces`, precedent: () => `${base()}/planning/precedent` };
+const PATHS = { params: () => `${base()}/config/parametres`, planning: () => `${base()}/planning/publie`, indispos: () => `${base()}/indispos`, saisie: () => `${base()}/config/saisie`, astrCfg: () => `${base()}/config/astreintes`, astrInd: () => `${base()}/astrIndispo`, rcp: () => `${base()}/planning/rcp`, rcpGen: () => `${base()}/config/rcp`, conges: () => `${base()}/config/conges`, archives: () => `${base()}/archives`, sauvegarde: () => `${base()}/config/sauvegarde`, acces: () => `${base()}/config/acces`, precedent: () => `${base()}/planning/precedent`, offtrav: () => `${base()}/config/offtrav` };
 
 // ------------------------------------------------------------ hors connexion
 function updateOnline() { $("offlineBanner").hidden = navigator.onLine !== false || !S.store || S.store.mode === "demo"; }
@@ -1678,7 +1701,7 @@ function watchAdminCollections() {
 
 function leaveSpace() {
   S.unsub.forEach((f) => f()); S.unsub = []; S.precWatch = false; S.precedent = null;
-  S.code = null; S.params = S.P = S.published = S.saisie = S.rcp = S.astrCfg = null; S.astrInd = []; S.indispos = []; paramsSig = "";
+  S.code = null; S.params = S.P = S.published = S.saisie = S.rcp = S.astrCfg = S.offtrav = null; S.astrInd = []; S.indispos = []; paramsSig = "";
 }
 
 function forgetCode(message) {
@@ -1727,6 +1750,7 @@ async function enter(code, silent) {
   S.unsub.push(S.store.watchDoc(PATHS.planning(), (d) => { S.published = d; updateHeader(); render(); }, onErr));
   S.unsub.push(S.store.watchDoc(PATHS.rcp(), (d) => { S.rcp = d; render(); }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.conges(), (d) => { S.conges = d; render(); }, () => {}));
+  S.unsub.push(S.store.watchDoc(PATHS.offtrav(), (d) => { S.offtrav = d; if (S.admin) { statsSig = ""; renderStats(); } }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.rcpGen(), (d) => { S.rcpCfg = d; if (S.admin) renderRcpGen(); }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.sauvegarde(), (d) => { S.sauvegarde = d; if (S.admin) renderSauvegarde(); }, () => {}));
   S.unsub.push(S.store.watchDoc(PATHS.astrCfg(), (d) => { S.astrCfg = d; render(); }, () => {}));
@@ -2098,6 +2122,72 @@ function estMonOff(ini, d) {
   const off = typeSemaineAB(mondayOf(d), S.P.refA) === "A" ? doc.offA : doc.offB;
   return !!off && (off.has ? off.has(weekday(d)) : off.includes(weekday(d)));
 }
+// Off travaillés : jour off théorique (semaine A / B) où le médecin a au moins une vacation.
+// Compensé automatiquement par une journée entièrement libre (repos ou sans poste, hors absence) un autre jour de la même semaine.
+// Retouches de l'administrateur dans config/offtrav : {etats: {"INI_jour": "compte" | "non"}, ajouts: [{ini, d, n, note}]}.
+function offTravDetectes(pub, ini, jours) {
+  const pd = perDoctor(pub)[ini] || {}, out = [], sem = new Map();
+  for (const d of jours) { const w = mondayOf(d); if (!sem.has(w)) sem.set(w, []); sem.get(w).push(d); }
+  for (const ds of sem.values()) {
+    const libres = [];
+    const travailles = [];
+    for (const d of ds) {
+      const c = HALVES.map((h) => pd[`${d}_${h}`]);
+      const n = c.filter((x) => x && x.code).length / 2;
+      if (estMonOff(ini, d)) { if (n) travailles.push({ ini, d, n, postes: [...new Set(c.filter((x) => x && x.code).map((x) => x.code))] }); }
+      else if (!n && !c.some((x) => x && x.statut && x.statut !== "OFF")) libres.push(d);
+    }
+    for (const t of travailles) { const l = libres.shift(); out.push({ ...t, comp: l ?? null }); }
+  }
+  return out;
+}
+function offTravListe(pub, du, au) {
+  const jours = pub.jours.filter((d) => d >= du && d <= au), cfg = S.offtrav || {}, etats = cfg.etats || {};
+  const inis = [...new Set([...(pub.medecins || []), ...Object.keys(perDoctor(pub))])];
+  const l = inis.flatMap((ini) => offTravDetectes(pub, ini, jours)).map((x) => {
+    const e = etats[`${x.ini}_${x.d}`];
+    return { ...x, auto: true, compte: e ? e === "compte" : x.comp === null, force: !!e };
+  });
+  (cfg.ajouts || []).forEach((a, i) => { if (a.d >= du && a.d <= au) l.push({ ini: a.ini, d: a.d, n: +a.n || 1, note: a.note || "", auto: false, compte: true, idx: i }); });
+  return l.sort((a, b) => a.d - b.d || a.ini.localeCompare(b.ini));
+}
+async function majOffTrav(fn, quoi) {
+  const msg = $("otMsg");
+  if (!needOnline(msg)) return;
+  const cfg = JSON.parse(JSON.stringify(S.offtrav || {}));
+  cfg.etats = cfg.etats || {}; cfg.ajouts = cfg.ajouts || [];
+  fn(cfg);
+  try { await S.store.set(PATHS.offtrav(), { etats: cfg.etats, ajouts: cfg.ajouts, majLe: Date.now() }); S.offtrav = { ...cfg, majLe: Date.now() }; statsSig = ""; renderStats(); journaliser("Off travaillés", quoi); setMsg(msg, "Enregistré.", "ok"); }
+  catch (e) { setMsg(msg, e.message, "err"); }
+}
+function renderOffTrav(pub, du, au) {
+  const l = offTravListe(pub, du, au), nb = (x) => String(x).replace(".", ",");
+  const lib = (c) => libelleCourt((pub.postes[c] || { label: c }).label);
+  $("otN").textContent = nb(l.filter((x) => x.compte).reduce((a, x) => a + x.n, 0));
+  $("otListe").innerHTML = l.length ? `<ul class="otl">${l.map((x) => `<li class="${x.compte ? "" : "otno"}">
+      <span class="otd">${JC[weekday(x.d)]} ${fmtDay(x.d, false)}</span><b class="oti">${esc(x.ini)}</b>
+      <span class="otp">${x.n === 0.5 ? "½ j." : "1 j."}${x.postes ? " · " + x.postes.map((c) => esc(lib(c))).join(", ") : ""}${x.note ? " · " + esc(x.note) : ""}
+        ${!x.auto ? ` <span class="tag">ajouté</span>` : !x.compte && x.comp !== null && !x.force ? ` <span class="tag ok">compensé ${JC[weekday(x.comp)].toLowerCase()} ${fmtDay(x.comp, false)}</span>` : x.force ? ` <span class="tag">modifié</span>` : ""}</span>
+      ${x.auto ? `<button class="x" type="button" data-ot-etat="${esc(x.ini)}_${x.d}" data-ot-val="${x.compte ? "non" : "compte"}">${x.compte ? "Ne pas compter" : "Compter"}</button>${x.force ? `<button class="x" type="button" data-ot-auto="${esc(x.ini)}_${x.d}" title="Revenir au calcul automatique">Auto</button>` : ""}`
+        : `<button class="x" type="button" data-ot-suppr="${x.idx}">Supprimer</button>`}</li>`).join("")}</ul>`
+    : `<p class="small muted" style="margin:6px 0">Aucun off travaillé sur la période.</p>`;
+  const docs = [...new Set([...(pub.medecins || []), ...doctorList()])].map((x) => x.toUpperCase()).sort();
+  const sel = $("otIni"), v = sel.value; sel.innerHTML = docs.map((i) => `<option>${esc(i)}</option>`).join(""); if (v) sel.value = v;
+  if (!$("otDate").value) $("otDate").value = toInput(du);
+  return l;
+}
+$("otListe").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.otEtat) { const k = b.dataset.otEtat, v = b.dataset.otVal; majOffTrav((c) => { c.etats[k] = v; }, `${k.replace("_", " ")} : ${v === "non" ? "non compté" : "compté"}`); }
+  else if (b.dataset.otAuto) { const k = b.dataset.otAuto; majOffTrav((c) => { delete c.etats[k]; }, `${k} : calcul automatique`); }
+  else if (b.dataset.otSuppr !== undefined) { const i = +b.dataset.otSuppr; majOffTrav((c) => { c.ajouts.splice(i, 1); }, "ajout supprimé"); }
+});
+$("otAjout").addEventListener("click", () => {
+  const ini = $("otIni").value, d = fromInput($("otDate").value), n = +$("otVal").value, note = $("otNote").value.trim().slice(0, 80);
+  if (!ini || d === null) { setMsg($("otMsg"), "Choisissez le médecin et la date.", "err"); return; }
+  majOffTrav((c) => { c.ajouts.push({ ini, d, n, note }); }, `${ini} ${fmtDay(d)} ajouté`);
+  $("otNote").value = "";
+});
 // Mon planning : l'en-tête reste en haut ; le menu des mois suit le défilement, le choisir y amène
 function brancherMoisMon(listeMois, nHalfDe, pub) {
   const sel = $("monMois"), head = document.querySelector("#vMon .monhead"), top = document.querySelector("header.top");
@@ -4157,7 +4247,7 @@ function renderStats() {
   if (au < du) au = du;
   const joursP = pub.jours.filter((d) => d >= du && d <= au);
   if (joursP.length) { du = joursP[0]; au = joursP[joursP.length - 1]; }
-  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}|${du}|${au}|${S.statPer.mode}|${(S.P && S.P.astreintes || []).length}|${pub.jours.length}`;
+  const sig = `${pub.publieLe}|${paramsSig}|${S.indispos.length}|${du}|${au}|${S.statPer.mode}|${(S.P && S.P.astreintes || []).length}|${pub.jours.length}|${(S.offtrav && S.offtrav.majLe) || 0}`;
   if (sig === statsSig) return;
   statsSig = sig;
   S.statBornes = [du, au];
@@ -4171,6 +4261,8 @@ function renderStats() {
   const groupe = (code) => { const base = String(code).replace(/-TT$/, ""); return (P && P.postes[base] && P.postes[base].group) || (pub.postes[code] && pub.postes[code].label) || code; };
   const pd = perDoctor(pub), inis = [...new Set([...(pub.medecins || []), ...Object.keys(pd)])];
   const groupes = [...new Set(pub.ordre.map(groupe))];
+  const nOff = {};
+  for (const x of renderOffTrav(pub, du, au)) if (x.compte) nOff[x.ini] = (nOff[x.ini] || 0) + x.n;
   const lignes = inis.map((ini) => {
     const m = pd[ini] || {};
     const g = Object.fromEntries(groupes.map((x) => [x, 0]));
@@ -4186,13 +4278,13 @@ function renderStats() {
       else dispo++;
     }
     const q = P && P.docs[ini] ? P.docs[ini].quotite : null;
-    return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo, astr: nAstr[ini.toUpperCase()] || 0 };
+    return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo, astr: nAstr[ini.toUpperCase()] || 0, offt: nOff[ini] || 0 };
   }).filter((l) => l.total || l.absent).sort((a, b) => a.ini.localeCompare(b.ini));
   $("statSub").textContent = `Du ${fmtDay(du)} au ${fmtDay(au)} (${joursP.length} jours ouvrés) · ${lignes.length} médecins. Visible par les administrateurs uniquement ; l'Excel des médecins ne contient que le planning.`;
   S.statData = { du, au, nJours: joursP.length, groupes, lignes, mainSite: pub.mainSite, cov: [], checks: [] };
   const th = (t) => `<th>${esc(t)}</th>`;
-  $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Astreintes")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
-    ${lignes.map((l) => `<tr><td class="lead">${esc(l.ini)}</td><td>${l.q ? Math.round(l.q * 100) + " %" : "—"}</td><td><b>${l.total}</b></td>${groupes.map((x) => `<td>${l.g[x] || ""}</td>`).join("")}<td>${l.hors || ""}</td><td>${l.tt || ""}</td><td>${l.astr || ""}</td><td>${l.absent || ""}</td><td>${l.dispo || ""}</td></tr>`).join("")}</tbody></table>`;
+  $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Astreintes")}${th("Off travaillés (j)")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
+    ${lignes.map((l) => `<tr><td class="lead">${esc(l.ini)}</td><td>${l.q ? Math.round(l.q * 100) + " %" : "—"}</td><td><b>${l.total}</b></td>${groupes.map((x) => `<td>${l.g[x] || ""}</td>`).join("")}<td>${l.hors || ""}</td><td>${l.tt || ""}</td><td>${l.astr || ""}</td><td${l.offt ? ' class="otc"' : ""}>${l.offt ? String(l.offt).replace(".", ",") : ""}</td><td>${l.absent || ""}</td><td>${l.dispo || ""}</td></tr>`).join("")}</tbody></table>`;
   if (P) {
     try {
       const pr = problemFor(du, au), R = { assign: assignFromDraft(pr, pub), iterations: 0 };
@@ -4213,13 +4305,13 @@ $("statXlsx").addEventListener("click", async () => {
       cel = { border: "thin", align: "center" }, nom = { border: "thin", font: { b: true } };
     // 1. statistiques par médecin
     const ws = wb.add("Statistiques");
-    const entetes = ["Médecin", "Quotité", "Demi-journées", ...D.groupes, `Jours hors ${D.mainSite}`, "Jours télétravail", "Astreintes", "Off / absent", "Sans poste"];
+    const entetes = ["Médecin", "Quotité", "Demi-journées", ...D.groupes, `Jours hors ${D.mainSite}`, "Jours télétravail", "Astreintes", "Off travaillés (jours)", "Off / absent", "Sans poste"];
     ws.cell(1, 1, "Statistiques du planning", titre);
     ws.cell(2, 1, `Du ${fmtDay(D.du)} au ${fmtDay(D.au)} · ${D.nJours} jours ouvrés · ${D.lignes.length} médecins (en demi-journées sauf mention)`);
     entetes.forEach((t, k) => { ws.cell(4, k + 1, t, hd); ws.width(k + 1, k ? 12 : 11); });
     ws.height(4, 42);
     D.lignes.forEach((l, i) => {
-      const v = [l.ini, l.q || "", l.total, ...D.groupes.map((g) => l.g[g] || 0), l.hors, l.tt, l.astr, l.absent, l.dispo];
+      const v = [l.ini, l.q || "", l.total, ...D.groupes.map((g) => l.g[g] || 0), l.hors, l.tt, l.astr, l.offt || 0, l.absent, l.dispo];
       v.forEach((x, k) => ws.cell(5 + i, k + 1, x, k === 0 ? nom : k === 1 && x ? { ...cel, num: "0%" } : cel));
     });
     const fin = 4 + D.lignes.length;
