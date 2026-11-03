@@ -1,12 +1,38 @@
 // ================================================================ Générateur d'astreintes
 // Unités : chaque nuit du lundi au jeudi (« S », ou « F » si le jour est férié) ; le week-end du vendredi au dimanche
-// pour un seul médecin (« W » ; un férié tombant un vendredi, un samedi ou un dimanche ne compte pas comme férié).
+// pour un seul médecin (« W »). Férié un samedi ou un dimanche : rien de plus (il est déjà dans le week-end).
+// Vendredi férié : compté comme un férié de semaine, le week-end compte alors aussi comme un férié (W + F).
 // Règles strictes : indisponibilités d'astreinte, écart minimum entre deux astreintes d'une même personne,
-// jamais d'astreinte le lundi qui suit son week-end. Équité : trois compteurs (semaine, week-end, férié) au prorata de la quotité.
+// jamais d'astreinte le lundi qui suit son week-end.
+// Objectif 1 : l'équilibre de chaque catégorie (semaine, week-end, férié) au prorata de la quotité, 12 derniers mois compris.
+// Objectif 2 : quand cet équilibre n'est pas possible (indisponibilités, nombres qui ne tombent pas juste), les points
+// (nuit 1, week-end 3, férié 2 par défaut) compensent, par les nuits de semaine : un week-end de moins = 3 nuits de plus.
 // Utilise dayToDate / weekday / dayFromYMD d'engine.js (jours = nombre de jours depuis le 1er janvier 1970).
 
 const ASTR_TYPES = ["S", "W", "F"];
 const ASTR_LIB = { S: "Semaine", W: "Week-end", F: "Férié" };
+const ASTR_POINTS_DEFAUT = { S: 1, W: 3, F: 2 };
+// points réglés par l'administrateur (config/astreintes.points) ; valeur absente ou invalide : défaut
+function astrPoints(p) {
+  const out = { ...ASTR_POINTS_DEFAUT };
+  for (const t of ASTR_TYPES) { const v = p && p[t] !== "" && p[t] !== null ? Number(p[t]) : NaN; if (Number.isFinite(v) && v >= 0 && v <= 20) out[t] = v; }
+  return out;
+}
+// compteurs touchés par une unité : un week-end dont le vendredi est férié compte aussi comme un férié
+const typesUnite = (u) => (u.type === "W" && u.ferie ? ["W", "F"] : [u.type]);
+const pointsUnite = (u, pts) => typesUnite(u).reduce((s, t) => s + pts[t], 0);
+// compteurs et points de chacun pour une liste d'unités (aussi après des retouches à la main)
+function bilanAstreintes(unites, ids, pts) {
+  const out = {};
+  for (const id of ids) out[id] = { S: 0, W: 0, F: 0, points: 0 };
+  for (const u of unites) {
+    const b = u.qui && out[u.qui];
+    if (!b) continue;
+    for (const t of typesUnite(u)) b[t]++;
+    b.points += pointsUnite(u, pts);
+  }
+  return out;
+}
 
 // Jours fériés en France (métropole) pour une année : Map jour → nom
 function feriesFrance(an) {
@@ -38,7 +64,8 @@ function unitesAstreinte(du, au, feries) {
     if (j >= 4) {           // vendredi, samedi, dimanche : un seul bloc jusqu'au dimanche
       const fin = Math.min(au, d + (6 - j));
       const jours = []; for (let x = d; x <= fin; x++) jours.push(x);
-      out.push({ id: out.length, jours, type: "W", debut: d, fin });
+      const vf = jours.find((x) => weekday(x) === 4 && feries.has(x));   // vendredi férié (samedi, dimanche : rien de plus)
+      out.push({ id: out.length, jours, type: "W", debut: d, fin, ferie: vf !== undefined ? feries.get(vf) : "" });
       d = fin + 1;
     } else {
       out.push({ id: out.length, jours: [d], type: feries.has(d) ? "F" : "S", debut: d, fin: d, ferie: feries.get(d) || "" });
@@ -53,12 +80,15 @@ function hasard(graine) {   // mulberry32
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-// opts : {du, au, participants: [{id, quotite}], indispo: {id: [jours]}, fixes: Map(jour → id), ecart, feries: Map, graine, iterations}
+// opts : {du, au, participants: [{id, quotite}], indispo: {id: [jours]}, fixes: Map(jour → id), ecart, feries: Map,
+//        points: {S, W, F}, historique, graine, iterations}
 function genererAstreintes(opts) {
   const { du, au, participants } = opts;
   const ecart = Math.max(0, opts.ecart ?? 3);
+  const PTS = astrPoints(opts.points);
   const feries = feriesPeriode(du, au, opts.feries);
   const U = unitesAstreinte(du, au, feries);
+  const TU = U.map(typesUnite), PU = U.map((u) => pointsUnite(u, PTS));
   const P = participants.filter((p) => p && p.id && (p.quotite ?? 1) > 0);
   const ids = P.map((p) => p.id);
   const indispo = {};
@@ -70,13 +100,20 @@ function genererAstreintes(opts) {
   // cibles au prorata de la quotité
   const sq = P.reduce((s, p) => s + (p.quotite ?? 1), 0) || 1;
   const nb = { S: 0, W: 0, F: 0 };
-  U.forEach((u) => nb[u.type]++);
-  const cible = {};
-  // historique (12 derniers mois) : la cible porte sur l'ensemble « historique + période », moins ce qui a déjà été fait
+  TU.forEach((ts) => ts.forEach((t) => nb[t]++));
+  // historique (12 derniers mois) : la cible porte sur l'ensemble « historique + période », moins ce qui a déjà été fait.
+  // Cible en points : sans plancher par catégorie (un excès passé de week-ends se compense par moins de nuits).
   const H = opts.historique || { nb: { S: 0, W: 0, F: 0 }, compteurs: {} };
-  for (const p of P) cible[p.id] = Object.fromEntries(ASTR_TYPES.map((t) => [t,
-    Math.max(0, ((nb[t] + (H.nb[t] || 0)) * (p.quotite ?? 1)) / sq - ((H.compteurs[p.id] || {})[t] || 0))]));
-  const POIDS = { S: 1, W: 3, F: 3 };
+  const cible = {}, ciblePts = {};
+  for (const p of P) {
+    const q = (p.quotite ?? 1) / sq, hc = H.compteurs[p.id] || {};
+    const brut = Object.fromEntries(ASTR_TYPES.map((t) => [t, (nb[t] + (H.nb[t] || 0)) * q - (hc[t] || 0)]));
+    cible[p.id] = Object.fromEntries(ASTR_TYPES.map((t) => [t, Math.max(0, brut[t])]));
+    ciblePts[p.id] = Math.max(0, ASTR_TYPES.reduce((s, t) => s + PTS[t] * brut[t], 0));
+  }
+  // 1. équilibre de chaque catégorie : week-ends et fériés d'abord (poids forts) ; nuits de semaine : poids faible,
+  // 2. points : ils fixent le nombre de nuits de semaine quand week-ends ou fériés ne peuvent pas être équilibrés.
+  const KCAT = { S: 0.1, W: 4 * (1 + PTS.W ** 2), F: 4 * (1 + PTS.F ** 2) };
   const dispo = (id, u) => u.jours.every((d) => !indispo[id] || !indispo[id].has(d));
   // compatibilité de deux unités pour une même personne
   const compatible = (a, b) => {
@@ -91,10 +128,11 @@ function genererAstreintes(opts) {
   const coutPersonne = (id) => {
     if (!cible[id]) return 0;
     const c = { S: 0, W: 0, F: 0 };
+    let pts = 0;
     const ks = listes[id].slice().sort((a, b) => U[a].debut - U[b].debut);
-    ks.forEach((k) => c[U[k].type]++);
-    let s = 0;
-    for (const t of ASTR_TYPES) s += POIDS[t] * (c[t] - cible[id][t]) ** 2;
+    for (const k of ks) { for (const t of TU[k]) c[t]++; pts += PU[k]; }
+    let s = (pts - ciblePts[id]) ** 2;
+    for (const t of ASTR_TYPES) s += KCAT[t] * (c[t] - cible[id][t]) ** 2;
     for (let i = 1; i < ks.length; i++) { const g = U[ks[i]].debut - U[ks[i - 1]].fin - 1; if (g < 7) s += 0.15 * (7 - g); }
     return s;
   };
@@ -141,12 +179,12 @@ function genererAstreintes(opts) {
     }
   }
   // résultat
-  const compteurs = {};
-  for (const id of ids) compteurs[id] = { S: 0, W: 0, F: 0 };
-  U.forEach((u, k) => { if (qui[k] && compteurs[qui[k]]) compteurs[qui[k]][u.type]++; });
+  const unites = U.map((u, k) => ({ ...u, qui: qui[k], fixe: verrou[k] }));
+  const bil = bilanAstreintes(unites, ids, PTS);
+  const compteurs = {}, points = {};
+  for (const id of ids) { const { points: p, ...c } = bil[id]; compteurs[id] = c; points[id] = p; }
   return {
-    unites: U.map((u, k) => ({ ...u, qui: qui[k], fixe: verrou[k] })),
-    compteurs, cibles: cible, nb,
+    unites, compteurs, cibles: cible, nb, points, ciblePts, pts: PTS,
     aPourvoir: U.filter((u, k) => !qui[k]).map((u) => u.debut),
   };
 }
@@ -171,16 +209,19 @@ function controlerAstreintes(res, indispo, ecart) {
   return pb;
 }
 
-// Historique à partir des astreintes déjà connues [{d, ini}] avant `du` (12 mois) : compteurs par type
+// Historique à partir des astreintes déjà connues [{d, ini}] avant `du` (12 mois) : compteurs par type.
+// Un week-end compte une fois par personne ; un vendredi férié compte aussi comme un férié pour celui qui l'a tenu.
 function historiqueAstreintes(liste, du, feries) {
-  const debut = du - 365, nb = { S: 0, W: 0, F: 0 }, compteurs = {}, weVus = new Set();
+  const debut = du - 365, nb = { S: 0, W: 0, F: 0 }, compteurs = {}, weVus = new Set(), vfVus = new Set();
   for (const a of liste || []) {
     if (a.d < debut || a.d >= du || !a.ini) continue;
     const j = weekday(a.d);
-    let t = j >= 4 ? "W" : feries.has(a.d) ? "F" : "S";
-    if (t === "W") { const cle = `${a.ini}|${a.d - j + 4}`; if (weVus.has(cle)) continue; weVus.add(cle); }
-    nb[t]++;
-    const c = (compteurs[a.ini] = compteurs[a.ini] || { S: 0, W: 0, F: 0 }); c[t]++;
+    const c = (compteurs[a.ini] = compteurs[a.ini] || { S: 0, W: 0, F: 0 });
+    if (j >= 4) {
+      const cle = `${a.ini}|${a.d - j + 4}`;
+      if (!weVus.has(cle)) { weVus.add(cle); nb.W++; c.W++; }
+      if (j === 4 && feries.has(a.d) && !vfVus.has(cle)) { vfVus.add(cle); nb.F++; c.F++; }
+    } else { const t = feries.has(a.d) ? "F" : "S"; nb[t]++; c[t]++; }
   }
   return { nb, compteurs };
 }

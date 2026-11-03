@@ -350,6 +350,22 @@ table.astg td.qd { white-space: nowrap; }
 .astrbar { box-shadow: 0 -6px 10px -6px rgba(0,0,0,.15); border-radius: 10px; padding: 8px 10px; }
 table.astg select { min-height: 32px; padding: 2px 6px; font-size: 13.5px; width: auto; }
 .tag.tS { background: var(--line); } .tag.tW { background: var(--site-tt); color: #fff; } .tag.tF { background: var(--warn); color: #fff; }
+/* Astreintes : encadré des règles (valeur en points, répartition, règles toujours respectées) */
+.astregles { border: 1px solid color-mix(in srgb, var(--astr) 35%, var(--line)); background: color-mix(in srgb, var(--astr) 5%, var(--panel)); border-radius: 12px; padding: 10px 12px; margin: 4px 0 14px; }
+.astregles > summary { font-weight: 700; font-size: 15px; cursor: pointer; }
+.astregles > summary .small { font-weight: 500; color: var(--muted); }
+.astpts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0 6px; }
+.astpts > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; min-width: 0; }
+.astpts .an { font-weight: 700; font-size: 13.5px; line-height: 1.2; }
+.astpts .aq { color: var(--muted); font-size: 11.5px; line-height: 1.25; flex: 1; }
+.astpts .av { margin-top: 4px; display: flex; align-items: baseline; gap: 4px; font-size: 12px; color: var(--muted); }
+.astpts .av b { font-size: 21px; line-height: 1; color: var(--astr); }
+.astpts .av input, .astrl input { width: 58px; min-height: 32px; padding: 2px 6px; font-weight: 700; }
+.astrt { font-weight: 700; font-size: 13.5px; margin: 10px 0 2px; }
+.astrl { margin: 2px 0 4px; padding-left: 20px; font-size: 13.5px; line-height: 1.45; }
+.astrl li { margin: 2px 0; }
+table.astg.eq td.astpe { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.astregles .msg:empty { display: none; }
 /* Réglages */
 .regl-t { font-size: 22px; font-weight: 800; margin: 0 2px 12px; }
 /* Onglets des semaines */
@@ -1073,6 +1089,11 @@ ul.demacc .b { font-size: 14px; }
       <p class="sub" id="astSub"></p>
       <div id="astBody"></div>
     </div>
+    <div class="card" id="astReglesCard" hidden>
+      <h2>Règles des astreintes</h2>
+      <p class="sub">Comment les astreintes sont réparties entre les médecins.</p>
+      <div id="astRegles"></div>
+    </div>
   </section>
 
   <!-- Qui est posté ? -->
@@ -1326,7 +1347,8 @@ ul.demacc .b { font-size: 14px; }
       <div class="card" id="astrCard">
         <h2>Astreintes</h2>
         <p class="sub">Deux fois par an : ouvrir la saisie des indisponibilités, puis générer.</p>
-        <p class="aide" hidden>1. Ouvrez la saisie des indisponibilités d'astreinte (6 mois). 2. Chacun coche ses jours dans l'onglet Astreintes. 3. Générez : équité semaine / week-end / férié au prorata de la quotité, écart minimum, jamais le lundi après son week-end.</p>
+        <p class="aide" hidden>1. Ouvrez la saisie des indisponibilités d'astreinte (6 mois). 2. Chacun coche ses jours dans l'onglet Astreintes. 3. Générez : chacun sa part de nuits, de week-ends et de fériés (au prorata de la quotité, 12 derniers mois compris) ; quand ce n'est pas possible, les points compensent. Les règles et les points se modifient dans l'encadré « Règles des astreintes » (enregistré aussitôt) ; l'équipe les voit dans l'onglet Astreintes.</p>
+        <div id="astrRegAdm"></div>
         <div id="astrAdm"></div>
         <div class="msg" id="astrMsg" role="status"></div>
       </div>
@@ -2797,6 +2819,8 @@ function astreintesConnues() {
 }
 function renderAstr() {
   renderAstrSaisie();
+  $("astReglesCard").hidden = !S.astrCfg;
+  if (S.astrCfg) $("astRegles").innerHTML = reglesAstrHtml(false);
   const conn = astreintesConnues();
   if (!conn.size) { $("astSub").textContent = ""; $("astBody").innerHTML = `<div class="empty">Aucune astreinte renseignée pour l'instant.</div>`; return; }
   const liste = [...new Set([...conn.keys()].map(moisDeJour))].sort((a, b) => a - b);
@@ -2884,6 +2908,62 @@ function renderAstrSaisie() {
   if (ouverte && !peutDeclarer()) $("astSaisie").insertAdjacentHTML("afterbegin", `<div class="banner warn">Connectez-vous avec votre compte pour saisir vos indisponibilités.</div>`);
 }
 
+// ------------------------------------------------------------ Règles des astreintes (encadré)
+// Points (config/astreintes.points) et écart minimum : modifiables par l'administrateur (enregistrés aussitôt),
+// affichés à l'équipe dans l'onglet Astreintes.
+const nbFr = (v) => String(+(+v).toFixed(2)).replace(".", ",");
+const ptsFr = (v) => `${nbFr(v)} point${+v > 1 ? "s" : ""}`;
+function reglesAstrHtml(edit) {
+  const c = S.astrCfg || {}, P = astrPoints(c.points), ecart = c.ecart ?? 3;
+  const val = (t) => `<span class="av">${edit ? `<input type="number" inputmode="decimal" min="0" max="20" step="0.5" id="asPts${t}" value="${P[t]}" aria-label="Points : ${ASTR_LIB[t].toLowerCase()}"> pt` : `<b>${nbFr(P[t])}</b> point${P[t] > 1 ? "s" : ""}`}</span>`;
+  const tuile = (t, nom, quand) => `<div><span class="an">${nom}</span><span class="aq">${quand}</span>${val(t)}</div>`;
+  const comp = [P.S > 0 && P.W > 0 ? `un week-end de moins = ${nbFr(P.W / P.S)} nuit${P.W / P.S > 1 ? "s" : ""} de semaine de plus` : "", P.S > 0 && P.F > 0 ? `un férié de moins = ${nbFr(P.F / P.S)} nuit${P.F / P.S > 1 ? "s" : ""} de plus` : ""].filter(Boolean).join(", ");
+  return `<div class="astpts">${tuile("S", "Nuit de semaine", "du lundi au jeudi")}${tuile("W", "Week-end", "vendredi → dimanche, un seul médecin")}${tuile("F", "Jour férié", "du lundi au vendredi")}</div>
+    <ul class="astrl">
+      <li>Férié un samedi ou un dimanche : rien de plus, il est déjà dans le week-end.</li>
+      <li>Vendredi férié : compté comme un férié de semaine. Le week-end compte alors aussi comme un férié (${nbFr(P.W)} + ${nbFr(P.F)} = ${ptsFr(P.W + P.F)}).</li>
+    </ul>
+    <p class="astrt">Répartition</p>
+    <ol class="astrl">
+      <li><b>D'abord l'équilibre</b> : chacun sa part de nuits, de week-ends et de fériés, au prorata de sa quotité, en tenant compte des 12 derniers mois.</li>
+      <li><b>Si ce n'est pas possible</b> (indisponibilités, nombres qui ne tombent pas juste), <b>les points compensent</b> par les nuits de semaine${comp ? ` : ${comp}` : ""}.</li>
+    </ol>
+    <p class="astrt">Toujours respecté</p>
+    <ul class="astrl">
+      <li>les indisponibilités saisies ;</li>
+      <li>au moins ${edit ? `<input type="number" inputmode="numeric" min="0" max="14" id="asEcart" value="${ecart}" aria-label="Jours sans astreinte entre deux astreintes">` : `<b>${ecart}</b>`} jour${ecart > 1 || edit ? "s" : ""} sans astreinte entre deux astreintes d'un même médecin ;</li>
+      <li>jamais d'astreinte le lundi qui suit son week-end.</li>
+    </ul>`;
+}
+// valeurs saisies dans l'encadré (Admin)
+function lireReglesAstr() {
+  const c = S.astrCfg || {}, P = astrPoints(c.points), points = {};
+  for (const t of ASTR_TYPES) { const el = $("asPts" + t), v = el ? parseFloat(String(el.value).replace(",", ".")) : NaN; points[t] = Number.isFinite(v) ? Math.min(20, Math.max(0, Math.round(v * 2) / 2)) : P[t]; }
+  const e = $("asEcart") ? parseInt($("asEcart").value, 10) : NaN;
+  return { points, ecart: Number.isFinite(e) ? Math.max(0, Math.min(14, e)) : (c.ecart ?? 3) };
+}
+function renderAstrReglesAdm() {
+  const el = $("astrRegAdm"); if (!el) return;
+  const c = S.astrCfg || {}, sig = JSON.stringify([astrPoints(c.points), c.ecart ?? 3]);
+  if (el.dataset.sig === sig && el.innerHTML) return;
+  const ouvert = el.querySelector("details") ? el.querySelector("details").open : true;
+  el.dataset.sig = sig;
+  el.innerHTML = `<details class="astregles"${ouvert ? " open" : ""}><summary>Règles des astreintes <span class="small">· modifiables</span></summary>${reglesAstrHtml(true)}
+    <p class="small muted" style="margin:6px 0 0">Enregistré dès que vous changez une valeur ; l'équipe voit ces règles dans l'onglet Astreintes.</p><div class="msg" id="asRegMsg" role="status"></div></details>`;
+  el.querySelectorAll("input").forEach((i) => i.onchange = sauverReglesAstr);
+  renderAstrRes();
+}
+async function sauverReglesAstr() {
+  const msg = $("asRegMsg");
+  if (!needOnline(msg)) return;
+  const { points, ecart } = lireReglesAstr();
+  try {
+    await S.store.set(PATHS.astrCfg(), { ...(S.astrCfg || {}), points, ecart, majLe: Date.now() });
+    setMsg(msg, "Règles enregistrées.", "ok");
+    journaliser("Règles des astreintes modifiées", `nuit ${nbFr(points.S)} · week-end ${nbFr(points.W)} · férié ${nbFr(points.F)} · écart ${ecart} j`);
+  } catch (e) { setMsg(msg, e.message, "err"); }
+}
+
 // ------------------------------------------------------------ Admin : générateur d'astreintes
 let ASTR_RES = null;   // résultat en attente d'enregistrement
 const inputJour = (d) => (Number.isFinite(d) ? toInput(d) : "");
@@ -2893,8 +2973,10 @@ function astrParticipantsDefaut() {
 function renderAstrAdmin() {
   const el = $("astrAdm"); if (!el) return;
   const c = S.astrCfg || {};
-  // ne redessiner que si les données ont changé (pour ne pas effacer une saisie en cours)
-  const sig = JSON.stringify([c, (S.astrInd || []).map((x) => [x.id, x.majLe]), doctorList(), paramsSig]);
+  renderAstrReglesAdm();
+  // ne redessiner que si les données ont changé (pour ne pas effacer une saisie en cours) ; les règles ont leur propre encadré
+  const { points: _p, ecart: _e, majLe: _m, ...cSig } = c;
+  const sig = JSON.stringify([cSig, (S.astrInd || []).map((x) => [x.id, x.majLe]), doctorList(), paramsSig]);
   if (el.dataset.sig === sig && el.innerHTML) { renderAstrPour(); return; }
   el.dataset.sig = sig;
   const t = todayDay(), x = ymd(t);
@@ -2919,7 +3001,6 @@ function renderAstrAdmin() {
       ${extra.map((i) => `<tr data-id="${esc(i)}"><td><label class="chk" style="margin:0"><input type="checkbox" data-part> ${esc(i)}</label></td><td><input type="number" step="0.1" min="0.1" max="1" value="${(S.P && S.P.docs[i] && S.P.docs[i].quotite) || 1}" data-q style="width:80px;min-height:32px;padding:2px 6px"></td><td></td></tr>`).join("")}
     </tbody></table></div>
     <div class="row" style="margin-top:6px"><label class="f">Ajouter un interne (nom)<input type="text" id="asNouv" maxlength="20" placeholder="ex. Rayann"></label><button class="b" type="button" id="asAjout">Ajouter</button></div>
-    <div class="row" style="margin-top:10px"><label class="f">Écart minimum entre deux astreintes (jours)<input type="number" id="asEcart" min="0" max="14" value="${c.ecart ?? 3}" style="width:90px"></label></div>
     <div class="row" style="margin-top:8px"><button class="b primary" type="button" id="asOuvrir">${astrCfg() ? "Enregistrer les réglages" : "Ouvrir la saisie"}</button>${astrCfg() && ouverte ? `<button class="b" type="button" id="asClore">Clore la saisie maintenant</button>` : ""}</div>
     ${astrCfg() ? `<h3 style="margin:14px 0 4px">3. Saisir pour quelqu'un</h3>
       <div class="row"><label class="f">Personne<select id="asPour"><option value="">— choisir —</option>${parts.map((p) => `<option${S.astrPour === p.id ? " selected" : ""}>${esc(p.id)}</option>`).join("")}</select></label></div>
@@ -2946,7 +3027,8 @@ function renderAstrAdmin() {
     if (!needOnline(msg)) return;
     const nouvelle = !astrCfg() || c.du !== du || c.au !== au;
     try {
-      await S.store.set(PATHS.astrCfg(), { du, au, limite: lim, finMs: parisEndOfDayMs(lim), participants, ecart: Math.max(0, Math.min(14, +$("asEcart").value || 0)),
+      const { points, ecart } = lireReglesAstr();
+      await S.store.set(PATHS.astrCfg(), { du, au, limite: lim, finMs: parisEndOfDayMs(lim), participants, ecart, points,
         ouvertLe: nouvelle ? Date.now() : (c.ouvertLe || Date.now()), majLe: Date.now() });
       setMsg(msg, nouvelle ? "Saisie ouverte : chacun voit son calendrier dans l'onglet Astreintes." : "Réglages enregistrés.", "ok");
       journaliser(nouvelle ? "Saisie des indisponibilités d'astreinte ouverte" : "Réglages des astreintes modifiés", `${fmtDay(du, false)} → ${fmtDay(au)} · avant le ${fmtDay(lim, false)} · ${participants.length} participants`);
@@ -2980,7 +3062,7 @@ function genererAstrAdmin(garder) {
   setMsg(msg, "Génération…");
   setTimeout(() => {
     try {
-      const res = genererAstreintes({ du: c.du, au: c.au, participants: parts, indispo, fixes, ecart: c.ecart ?? 3, feries: feriesP, historique, graine: Date.now() % 100000 });
+      const res = genererAstreintes({ du: c.du, au: c.au, participants: parts, indispo, fixes, ecart: c.ecart ?? 3, points: c.points, feries: feriesP, historique, graine: Date.now() % 100000 });
       ASTR_RES = { res, indispo, ecart: c.ecart ?? 3, historique };
       setMsg(msg, res.aPourvoir.length ? `${res.aPourvoir.length} astreinte(s) sans personne disponible : à attribuer à la main (en rouge).` : "Astreintes générées : vérifiez puis enregistrez.", res.aPourvoir.length ? "err" : "ok");
       renderAstrRes();
@@ -2992,11 +3074,13 @@ function renderAstrRes() {
   if (!ASTR_RES) { el.innerHTML = ""; return; }
   const { res, indispo, ecart } = ASTR_RES;
   const parts = astrParticipants();
-  const cpt = {};
-  for (const p of parts) cpt[p.id] = { S: 0, W: 0, F: 0 };
-  for (const u of res.unites) if (u.qui && cpt[u.qui]) cpt[u.qui][u.type]++;
+  const pts = res.pts || astrPoints();
+  const cpt = bilanAstreintes(res.unites, parts.map((p) => p.id), pts);   // compteurs et points (retouches comprises)
   const pbs = controlerAstreintes(res, indispo, ecart);
-  const quand = (u) => u.type === "W" ? `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)} → ${JC[weekday(u.fin)]} ${fmtDay(u.fin, false)}` : `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)}${u.ferie ? ` · ${esc(u.ferie)}` : ""}`;
+  const c = S.astrCfg || {};
+  const change = JSON.stringify(astrPoints(c.points)) !== JSON.stringify(pts) || (c.ecart ?? 3) !== ecart;
+  const quand = (u) => (u.type === "W" ? `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)} → ${JC[weekday(u.fin)]} ${fmtDay(u.fin, false)}` : `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)}`) + (u.ferie ? ` · ${esc(u.ferie)}` : "");
+  const ecartPts = (id) => (cpt[id] ? cpt[id].points : 0) - ((res.ciblePts || {})[id] ?? 0);
   const parMois = {};
   for (const u of res.unites) (parMois[moisDeJour(u.debut)] = parMois[moisDeJour(u.debut)] || []).push(u);
   const opt = (u) => `<option value="">— à pourvoir —</option>` + parts.map((p) => {
@@ -3004,14 +3088,15 @@ function renderAstrRes() {
     return `<option value="${esc(p.id)}"${u.qui === p.id ? " selected" : ""}>${esc(p.id)}${ind ? " (indispo)" : ""}</option>`;
   }).join("");
   el.innerHTML = `<h3 style="margin:12px 0 4px">Équité</h3>
-    <div class="tablewrap sem"><table class="astg eq"><thead><tr><th></th><th>Sem.</th><th>WE</th><th>Férié</th><th class="small" title="Jours indisponibles">Indisp.</th></tr></thead><tbody>
-    ${parts.map((p) => `<tr><td><b>${esc(p.id)}</b>${p.quotite < 1 ? ` <span class="small muted">${Math.round(p.quotite * 100)}%</span>` : ""}</td>${ASTR_TYPES.map((t) => `<td>${cpt[p.id][t]}<span class="small muted">/${(res.cibles[p.id] || {})[t]?.toFixed(1) ?? "–"}</span></td>`).join("")}<td class="small">${(indispo[p.id] || []).length}</td></tr>`).join("")}
+    ${change ? `<div class="banner warn">Les règles ont changé depuis cette génération : générez à nouveau pour en tenir compte.</div>` : ""}
+    <div class="tablewrap sem"><table class="astg eq"><thead><tr><th></th><th>Sem.</th><th>WE</th><th>Férié</th><th>Points</th><th class="small" title="Jours indisponibles">Indisp.</th></tr></thead><tbody>
+    ${parts.map((p) => `<tr><td><b>${esc(p.id)}</b>${p.quotite < 1 ? ` <span class="small muted">${Math.round(p.quotite * 100)}%</span>` : ""}</td>${ASTR_TYPES.map((t) => `<td>${cpt[p.id][t]}<span class="small muted">/${(res.cibles[p.id] || {})[t]?.toFixed(1) ?? "–"}</span></td>`).join("")}<td data-pts${Math.abs(ecartPts(p.id)) >= 2 ? ' class="astpe"' : ""}><b>${nbFr(cpt[p.id].points)}</b><span class="small muted">/${(res.ciblePts || {})[p.id]?.toFixed(1) ?? "–"}</span></td><td class="small">${(indispo[p.id] || []).length}</td></tr>`).join("")}
     </tbody></table></div>
-    <p class="small muted" style="margin:4px 0 0">Nombre attribué / cible (au prorata de la quotité${ASTR_RES.historique && Object.keys(ASTR_RES.historique.compteurs).length ? ", en tenant compte des 12 derniers mois" : ""}).</p>
+    <p class="small muted" style="margin:4px 0 0">Nombre attribué / cible, au prorata de la quotité${ASTR_RES.historique && Object.keys(ASTR_RES.historique.compteurs).length ? ", en tenant compte des 12 derniers mois" : ""}. Points : nuit ${nbFr(pts.S)}, week-end ${nbFr(pts.W)}, férié ${nbFr(pts.F)} ; ils compensent quand un nombre ne peut pas être équilibré${Object.keys(cpt).some((id) => Math.abs(ecartPts(id)) >= 2) ? " (en orange : écart de 2 points ou plus, souvent dû aux indisponibilités)" : ""}.</p>
     ${pbs.length ? `<div class="banner warn" style="margin-top:8px">${pbs.slice(0, 12).map(esc).join("<br>")}</div>` : ""}
     <h3 style="margin:12px 0 4px">Planning des astreintes</h3>
     ${Object.entries(parMois).map(([m, us]) => `<details${Object.keys(parMois)[0] === m ? " open" : ""}><summary><b>${libMoisNum(+m)}</b></summary>
-      <div class="tablewrap sem"><table class="astg"><tbody>${us.map((u) => `<tr${!u.qui ? ' style="background:color-mix(in srgb, var(--err) 15%, transparent)"' : ""}><td class="qd">${quand(u)}<br><span class="tag t${u.type}">${ASTR_LIB[u.type]}</span></td><td><select data-unite="${u.id}">${opt(u)}</select>${u.fixe ? ' <span class="small muted">déjà saisie</span>' : ""}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}
+      <div class="tablewrap sem"><table class="astg"><tbody>${us.map((u) => `<tr${!u.qui ? ' style="background:color-mix(in srgb, var(--err) 15%, transparent)"' : ""}><td class="qd">${quand(u)}<br>${typesUnite(u).map((t) => `<span class="tag t${t}">${ASTR_LIB[t]}</span>`).join(" ")}</td><td><select data-unite="${u.id}">${opt(u)}</select>${u.fixe ? ' <span class="small muted">déjà saisie</span>' : ""}</td></tr>`).join("")}</tbody></table></div></details>`).join("")}
     <div class="row" style="margin-top:10px"><button class="b primary" type="button" id="asSave">Enregistrer dans les astreintes</button><button class="b" type="button" id="asAnnul">Abandonner</button></div>`;
   el.querySelectorAll("[data-unite]").forEach((sel) => sel.onchange = () => { res.unites[+sel.dataset.unite].qui = sel.value || null; renderAstrRes(); });
   $("asAnnul").onclick = () => { ASTR_RES = null; renderAstrRes(); setMsg($("astrMsg"), ""); };

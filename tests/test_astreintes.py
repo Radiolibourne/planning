@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Générateur d'astreintes (médecins fictifs) : ouverture de la saisie, calendrier d'indisponibilités du médecin,
-saisie par l'administrateur pour un interne, génération (équité semaine / week-end / férié au prorata de la quotité,
-écart minimum, pas le lundi après son week-end), enregistrement dans l'onglet Astreintes du classeur, liste du mois.
+saisie par l'administrateur pour un interne, génération (équilibre semaine / week-end / férié au prorata de la quotité,
+puis compensation par les points quand l'équilibre n'est pas possible ; écart minimum, pas le lundi après son week-end),
+encadré « Règles des astreintes » (Admin modifiable, onglet Astreintes en lecture), enregistrement dans l'onglet
+Astreintes du classeur, liste du mois.
 """
 import datetime as dt, os
 from playwright.sync_api import sync_playwright
@@ -21,9 +23,44 @@ with sync_playwright() as p:
     pg.click("#useDefault"); pg.wait_for_function("document.querySelector('#paramInfo').innerText.includes('médecins')")
     # fonctions pures
     f = pg.evaluate("""() => { const F = feriesFrance(2027); const u = unitesAstreinte(dayFromYMD(2027, 1, 1), dayFromYMD(2027, 1, 11), feriesPeriode(dayFromYMD(2027, 1, 1), dayFromYMD(2027, 1, 11)));
-        return { paques: F.get(dayFromYMD(2027, 3, 29)), pentecote: F.get(dayFromYMD(2027, 5, 17)), u: u.map((x) => x.type + x.jours.length) }; }""")
+        const mai = unitesAstreinte(dayFromYMD(2027, 4, 30), dayFromYMD(2027, 5, 2), feriesPeriode(dayFromYMD(2027, 4, 30), dayFromYMD(2027, 5, 2)));
+        const asc = unitesAstreinte(dayFromYMD(2027, 5, 6), dayFromYMD(2027, 5, 6), feriesPeriode(dayFromYMD(2027, 5, 6), dayFromYMD(2027, 5, 6)));
+        const h = historiqueAstreintes([{ d: dayFromYMD(2026, 12, 25), ini: 'DA' }, { d: dayFromYMD(2026, 12, 26), ini: 'DA' }, { d: dayFromYMD(2026, 12, 27), ini: 'DA' }, { d: dayFromYMD(2027, 5, 1), ini: 'DB' }],
+          dayFromYMD(2027, 6, 1), feriesPeriode(dayFromYMD(2026, 6, 1), dayFromYMD(2027, 5, 31)));
+        return { paques: F.get(dayFromYMD(2027, 3, 29)), pentecote: F.get(dayFromYMD(2027, 5, 17)), u: u.map((x) => x.type + x.jours.length),
+          t0: typesUnite(u[0]), p0: pointsUnite(u[0], astrPoints()), mai: typesUnite(mai[0]), asc: typesUnite(asc[0]) + "/" + pointsUnite(asc[0], astrPoints()),
+          pts: astrPoints({ W: "4", F: -1 }), h: h.compteurs }; }""")
     B.ok(f["paques"] == "Lundi de Pâques" and f["pentecote"] == "Lundi de Pentecôte", "jours fériés calculés (Pâques, Pentecôte)")
-    B.ok(f["u"] == ["W3", "S1", "S1", "S1", "S1", "W3", "S1"], f"unités : week-end du vendredi au dimanche, 1er janvier un vendredi non compté férié ({f['u']})")
+    B.ok(f["u"] == ["W3", "S1", "S1", "S1", "S1", "W3", "S1"], f"unités : week-end du vendredi au dimanche, nuits du lundi au jeudi ({f['u']})")
+    B.ok(f["t0"] == ["W", "F"] and f["p0"] == 5, f"vendredi férié (1er janvier) : le week-end compte aussi comme un férié, 3 + 2 = 5 points ({f['t0']}, {f['p0']})")
+    B.ok(f["mai"] == ["W"] and f["asc"] == "F/2", f"férié un samedi (1er mai) : rien de plus ; Ascension (jeudi) : férié, 2 points ({f['mai']}, {f['asc']})")
+    B.ok(f["pts"] == {"S": 1, "W": 4, "F": 2}, f"points réglables, valeur invalide remplacée par le défaut ({f['pts']})")
+    B.ok(f["h"] == {"DA": {"S": 0, "W": 1, "F": 1}, "DB": {"S": 0, "W": 1, "F": 0}}, f"historique : week-end de Noël (vendredi férié) = week-end + férié ({f['h']})")
+    # équilibre d'abord, puis compensation par les points (8 médecins fictifs, 6 mois)
+    c = pg.evaluate("""() => { const du = dayFromYMD(2027, 1, 1), au = dayFromYMD(2027, 6, 30), we = [];
+        for (let d = du; d <= au; d++) if (weekday(d) >= 4) we.push(d);
+        const ids = ['DA', 'DB', 'IA', 'IB', 'SA', 'SB', 'SC', 'OA'], parts = ids.map((id) => ({ id, quotite: 1 }));
+        const libre = genererAstreintes({ du, au, participants: parts, indispo: {}, ecart: 3, graine: 3, iterations: 30000 });
+        const r = genererAstreintes({ du, au, participants: parts, indispo: { SA: we }, ecart: 3, graine: 3, iterations: 30000 });
+        const dev = (x, id) => Math.abs(x.points[id] - x.ciblePts[id]), max = (x, f) => Math.max(...ids.map(f));
+        return { w: max(libre, (id) => Math.abs(libre.compteurs[id].W - libre.cibles[id].W)), f: max(libre, (id) => Math.abs(libre.compteurs[id].F - libre.cibles[id].F)),
+          pl: max(libre, (id) => dev(libre, id)), sa: r.compteurs.SA, cS: r.cibles.SA.S, devSA: dev(r, 'SA'), devMax: max(r, (id) => dev(r, id)), pb: controlerAstreintes(r, { SA: we }, 3).length }; }""")
+    B.ok(c["w"] < 1 and c["f"] < 1, f"équilibre d'abord : chacun à moins d'un week-end et d'un férié de sa cible ({c['w']:.2f}, {c['f']:.2f})")
+    B.ok(c["pl"] <= 1.5, f"points : chacun à moins de 1,5 point de sa cible ({c['pl']:.2f})")
+    B.ok(c["sa"]["W"] == 0 and c["sa"]["S"] >= c["cS"] + 5 and c["devSA"] <= 2.5 and c["devMax"] <= 2.5 and not c["pb"],
+         f"compensation : aucun week-end possible → des nuits de semaine en plus ({c['sa']}, cible nuits {c['cS']:.1f}, écart de points {c['devSA']:.1f})")
+    # encadré « Règles des astreintes » dans l'outil de l'administrateur : valeurs modifiables, enregistrées aussitôt
+    pg.wait_for_selector("#astrRegAdm details.astregles[open]", state="attached")
+    t = pg.text_content("#astrRegAdm")
+    B.ok("Nuit de semaine" in t and "Vendredi férié" in t and "3 + 2 = 5 points" in t and "les points compensent" in t and "lundi qui suit son week-end" in t,
+         "Admin : encadré des règles (points, vendredi férié, équilibre puis compensation, règles strictes)")
+    B.ok(pg.input_value("#asPtsS") == "1" and pg.input_value("#asPtsW") == "3" and pg.input_value("#asPtsF") == "2" and pg.input_value("#asEcart") == "3", "points par défaut : nuit 1, week-end 3, férié 2 ; écart 3 jours")
+    pg.fill("#asPtsW", "4"); pg.dispatch_event("#asPtsW", "change")
+    pg.wait_for_function("S.astrCfg && S.astrCfg.points && S.astrCfg.points.W === 4", timeout=8000)
+    pg.wait_for_function("document.querySelector('#astrRegAdm').textContent.includes('4 + 2 = 6 points')", timeout=8000)
+    B.ok(True, "points modifiés : enregistrés et encadré mis à jour (4 + 2 = 6)")
+    pg.fill("#asPtsW", "3"); pg.dispatch_event("#asPtsW", "change")
+    pg.wait_for_function("S.astrCfg.points.W === 3", timeout=8000)
     # 1. ouverture de la saisie (déc. 2026 → mai 2027 par défaut), avec un interne
     auj = dt.date.today(); m1 = (auj.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
     B.ok(pg.input_value("#asDu") == m1.isoformat(), "période proposée : à partir du mois suivant")
@@ -57,14 +94,23 @@ with sync_playwright() as p:
     pg.click("#asGen"); pg.wait_for_selector("#asSave", timeout=15000)
     r = pg.evaluate("""() => { const { res, indispo } = ASTR_RES; const parts = astrParticipants();
         const pb = controlerAstreintes(res, indispo, 3);
-        const ecartMax = Math.max(...parts.flatMap((p) => ASTR_TYPES.map((t) => Math.abs(res.compteurs[p.id][t] - res.cibles[p.id][t]))));
+        const ecartMax = Math.max(...parts.flatMap((p) => ['W', 'F'].map((t) => Math.abs(res.compteurs[p.id][t] - res.cibles[p.id][t]))));
+        const ptsMax = Math.max(...parts.map((p) => Math.abs(res.points[p.id] - res.ciblePts[p.id])));
         const da = res.unites.filter((u) => u.qui === 'DA').flatMap((u) => u.jours);
         const ray = res.unites.filter((u) => u.qui === 'RAYANN').flatMap((u) => u.jours);
-        return { pb, vides: res.aPourvoir.length, ecartMax, daIndispo: da.filter((d) => indispo.DA.includes(d)).length, rayIndispo: ray.filter((d) => indispo.RAYANN.includes(d)).length,
+        return { pb, vides: res.aPourvoir.length, ecartMax, ptsMax, pts: res.pts, daIndispo: da.filter((d) => indispo.DA.includes(d)).length, rayIndispo: ray.filter((d) => indispo.RAYANN.includes(d)).length,
           db: res.compteurs.DB, da2: res.compteurs.DA, nb: res.nb, we: res.unites.filter((u) => u.type === 'W').every((u) => weekday(u.debut) === 4 || u.debut === res.unites[0].debut) }; }""")
     B.ok(not r["pb"] and r["vides"] == 0, f"génération sans conflit ni trou ({r['pb'][:3]})")
     B.ok(r["daIndispo"] == 0 and r["rayIndispo"] == 0, "indisponibilités respectées")
-    B.ok(r["ecartMax"] < 1.01, f"équité : chaque compteur à moins d'une astreinte de sa cible (écart max {r['ecartMax']:.2f})")
+    B.ok(r["ecartMax"] < 1.01, f"équité : week-ends et fériés à moins d'une astreinte de la cible (écart max {r['ecartMax']:.2f})")
+    B.ok(r["ptsMax"] <= 2 and r["pts"] == {"S": 1, "W": 3, "F": 2}, f"points : chacun à 2 points au plus de sa cible ({r['ptsMax']:.2f})")
+    B.ok(pg.locator("#asRes table.eq td[data-pts]").count() == len(ids) and "Points" in pg.inner_text("#asRes table.eq thead"), "tableau d'équité : colonne Points")
+    # règles modifiées après la génération : signalé
+    pg.fill("#asPtsF", "3"); pg.dispatch_event("#asPtsF", "change")
+    pg.wait_for_function("document.querySelector('#asRes').innerText.includes('Les règles ont changé')", timeout=8000)
+    pg.fill("#asPtsF", "2"); pg.dispatch_event("#asPtsF", "change")
+    pg.wait_for_function("!document.querySelector('#asRes').innerText.includes('Les règles ont changé')", timeout=8000)
+    B.ok(True, "règles modifiées après la génération : invitation à générer à nouveau")
     B.ok(sum(r["db"].values()) < sum(r["da2"].values()), f"prorata de la quotité : DB à 50 % en fait moins ({r['db']} / {r['da2']})")
     B.ok(r["nb"]["F"] >= 3 and r["we"], f"fériés comptés à part, week-ends du vendredi au dimanche ({r['nb']})")
     B.ok(pg.locator("#asRes select[data-unite]").count() > 100, "planning des astreintes modifiable à la main")
@@ -82,6 +128,9 @@ with sync_playwright() as p:
     pg.evaluate("S.me = 'DA'; S.astMois = 202701; location.hash = '#astreintes'"); pg.wait_for_selector("#astBody table.astt", state="attached", timeout=8000)
     t = pg.text_content("#astBody")
     B.ok("Ven 01/01 → Dim 03/01" in t and pg.locator("#astBody tbody tr").count() == 21, f"Astreintes : week-end du vendredi au dimanche sur une ligne ({pg.locator('#astBody tbody tr').count()} lignes)")
+    rg = " ".join(pg.inner_text("#astReglesCard").split())
+    B.ok(pg.is_visible("#astReglesCard") and "Week-end vendredi → dimanche, un seul médecin 3 points" in rg and "Vendredi férié" in rg and "au moins 3 jours" in rg and pg.locator("#astReglesCard input").count() == 0,
+         "onglet Astreintes : règles et points visibles par l'équipe (lecture seule)")
     B.ok(pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "pas de défilement horizontal sur téléphone")
     pg.evaluate("window.scrollTo(0, 1e6)"); pg.wait_for_timeout(200)
     fin = pg.evaluate("[Math.max(...[...document.querySelectorAll('#vAstr > .card')].filter((c) => !c.hidden).map((c) => c.getBoundingClientRect().bottom)), document.querySelector('#tabs').getBoundingClientRect().top]")
