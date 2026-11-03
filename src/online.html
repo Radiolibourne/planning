@@ -877,6 +877,67 @@ ul.otl li.otno .oti, ul.otl li.otno .otd { text-decoration: line-through; }
 ul.otl .otd { min-width: 82px; font-weight: 600; } ul.otl .oti { min-width: 36px; } ul.otl .otp { flex: 1; min-width: 140px; font-size: 13px; }
 ul.otl .tag.ok { background: color-mix(in srgb, var(--ok) 18%, var(--panel)); color: var(--ok); }
 td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
+
+/* ===== Proposition : administration en rubriques ===== */
+.horsec { display: none !important; }
+#accueilCard { order: -3; } #todoCard { order: -2; }
+#genCard { order: 1; } #draftCard { order: 2; } #impCard { order: 3; }
+#indCard { order: 1; } #absCalCard { order: 2; } #cloCard { order: 3; } #congCard { order: 4; }
+#rcpCard { order: 1; } #rcpGenCard { order: 2; } #astrCard { order: 3; }
+#medCard { order: 1; } #regCard { order: 2; } #paramCard { order: 3; } #accCard { order: 4; } #setupCard { order: 5; }
+#statCard { order: 1; } #jourCard { order: 2; } #sauvCard { order: 3; } #rulesCard { order: 4; }
+.admnav { order: -100; position: sticky; top: var(--admtop, 0px); z-index: 8; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px;
+  background: var(--panel); border-radius: 16px; padding: 4px; margin: 0 0 12px; box-shadow: 0 6px 16px -10px rgba(0,0,0,.35); border: 1px solid var(--line); }
+.admnav button { position: relative; border: 0; background: transparent; color: var(--muted); border-radius: 12px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-height: 52px; font: inherit; }
+.admnav button .ti { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.admnav .al { display: none; }
+.admnav .as { font-size: 10.5px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.admnav button[aria-current=page] { background: color-mix(in srgb, var(--accent) 13%, var(--panel)); color: var(--accent); }
+.admnav .ab { position: absolute; top: 3px; right: calc(50% - 21px); min-width: 17px; height: 17px; border-radius: 999px; background: var(--err); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 17px; padding: 0 4px; font-style: normal; }
+.admnav .ad { position: absolute; top: 6px; right: calc(50% - 15px); width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+@media (min-width: 1000px) {
+  #adminBody:not([hidden]) { display: grid; grid-template-columns: 260px minmax(0, 1fr); column-gap: 20px; align-items: start; }
+  #adminBody > .card { grid-column: 2; }
+  .admnav { grid-column: 1; grid-row: 1 / span 60; display: flex; flex-direction: column; gap: 3px; padding: 8px; top: calc(var(--admtop, 0px) + 14px); margin: 0; }
+  .admnav button { flex-direction: row; justify-content: flex-start; gap: 11px; padding: 9px 12px; min-height: 0; text-align: left; color: var(--ink); }
+  .admnav button .ti { color: var(--muted); flex: none; }
+  .admnav button[aria-current=page] .ti { color: var(--accent); }
+  .admnav .as { display: none; }
+  .admnav .al { display: flex; flex-direction: column; font-weight: 700; font-size: 14.5px; line-height: 1.2; }
+  .admnav .al small { font-weight: 500; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .admnav .ab { position: static; margin-left: auto; align-self: center; }
+  .admnav .ad { position: static; margin-left: auto; align-self: center; }
+}
+/* accueil : préparer le mois */
+#accueilCard .acchead { justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.accprog { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.accprog .barre { width: 70px; height: 7px; border-radius: 99px; background: var(--off); overflow: hidden; display: inline-block; }
+.accprog .barre span { display: block; height: 100%; background: var(--ok); border-radius: 99px; }
+ol.etapes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 0; }
+ol.etapes li { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--line); }
+ol.etapes li:first-child { border-top: 0; }
+ol.etapes .num { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; background: var(--off); color: var(--muted); }
+ol.etapes .et-ok .num { background: var(--ok); color: #fff; }
+ol.etapes .et-err .num { background: var(--err); color: #fff; }
+ol.etapes .et-cours .num { background: var(--warn); color: #fff; }
+ol.etapes .et-todo .num { background: color-mix(in srgb, var(--warn) 18%, var(--panel)); color: var(--warn); border: 1.5px solid var(--warn); }
+ol.etapes .et-ok b { color: var(--muted); font-weight: 650; }
+ol.etapes .small { color: var(--muted); margin-top: 1px; }
+ol.etapes .et-err .small { color: var(--err); font-weight: 600; }
+ol.etapes .b { min-height: 36px; padding: 4px 14px; flex: none; }
+.raccourcis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.racc { border: 1px solid var(--line); background: var(--panel-2, var(--soft)); border-radius: 12px; padding: 9px 4px 7px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; color: var(--ink); font: inherit; font-size: 11.5px; font-weight: 650; text-align: center; line-height: 1.15; }
+.racc .ti { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (min-width: 1000px) { .raccourcis { grid-template-columns: repeat(4, 160px); } .racc { flex-direction: row; justify-content: center; font-size: 13px; padding: 10px; } }
+
+ol.etapes .grow { flex: 1; min-width: 0; }
+#accueilCard h2 { font-size: 19px; }
+.admoutils { order: -99; display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding: 2px 2px 4px; scrollbar-width: none; }
+.admoutils::-webkit-scrollbar { display: none; }
+.admoutils button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13.5px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.admoutils button[aria-current=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.admoutils .ab { display: inline-block; min-width: 17px; height: 17px; border-radius: 999px; background: var(--err); color: #fff; font-size: 10.5px; line-height: 17px; padding: 0 4px; margin-left: 3px; }
+@media (min-width: 1000px) { .admoutils { grid-column: 2; margin: 0 0 12px; } }
 </style>
 </head>
 <body>
@@ -1065,8 +1126,15 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
     </div>
 
     <div id="adminBody" hidden>
+      <nav class="admnav" id="admNav" aria-label="Rubriques de l'administration"></nav>
+      <div class="admoutils" id="admOutils" hidden></div>
+      <div class="card" id="accueilCard">
+        <div class="row acchead"><h2 style="margin:0" id="accTitre">Préparer le mois prochain</h2><span class="accprog" id="accProg"></span></div>
+        <ol class="etapes" id="accEtapes"></ol>
+        <div class="raccourcis" id="accRacc"></div>
+      </div>
       <div class="card" id="todoCard">
-        <h2>À faire</h2>
+        <h2>À surveiller</h2>
         <ul class="list todo" id="todoList"></ul>
       </div>
       <div class="card" id="paramCard">
@@ -3500,6 +3568,9 @@ function renderAdmin() {
   renderAbsCal();
   renderImprevu();
   renderTodo();
+  renderAccueil();
+  if (!S.admSec) S.admSec = ls.get("planning-radio-admsec") || "accueil";
+  admSection(S.admSec, false);
   renderJournal();
   // paramètres
   const p = S.params;
@@ -4190,13 +4261,13 @@ $("medForm").addEventListener("submit", async (e) => {
 });
 // ------------------------------------------------------------ Admin : cartes repliables (état mémorisé sur l'appareil)
 const PLIS_KEY = "planning-radio-plis";
-const PLIS_OUVERTES = ["todoCard", "genCard", "draftCard", "indCard"];   // ouvertes par défaut
+const PLIS_OUVERTES = Object.keys({ accueilCard: 1, todoCard: 1, genCard: 1, draftCard: 1, impCard: 1, indCard: 1, absCalCard: 1, cloCard: 1, congCard: 1, rcpCard: 1, rcpGenCard: 1, astrCard: 1, medCard: 1, regCard: 1, paramCard: 1, accCard: 1, statCard: 1, jourCard: 1, sauvCard: 1, rulesCard: 1 });   // proposition : rubriques courtes, cartes ouvertes
 (function initPlis() {
   const brut = ls.get(PLIS_KEY), tout = brut === "tout" || window.__PLIS_TOUT === true;   // (tests : toutes les cartes ouvertes)
   let etat = {};
   try { etat = tout ? {} : JSON.parse(brut || "{}") || {}; } catch (e) { etat = {}; }
   for (const card of document.querySelectorAll("#adminBody > .card")) {
-    const id = card.id; if (!id) continue;
+    const id = card.id; if (!id || id === "accueilCard" || id === "todoCard") continue;
     const tete = card.querySelector(":scope > h2, :scope > .row:first-child");
     if (!tete) continue;
     tete.classList.add("pli-tete"); card.classList.add("pliable");
@@ -4923,27 +4994,123 @@ $("discardBtn").addEventListener("click", () => {
 // ------------------------------------------------------------ « À faire » : ce qui demande une action, en tête de l'Admin
 function allerCarte(id) {
   const card = $(id); if (!card) return;
+  S.admOutil = S.admOutil || {}; S.admOutil[rubriqueDe(id)] = id;
+  admSection(rubriqueDe(id), false);
   card.classList.remove("ferme");
   const tete = card.querySelector(".pli-tete"); if (tete) tete.setAttribute("aria-expanded", "true");
   card.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+// ------------------------------------------------------------ Rubriques de l'administration (proposition)
+const ICO = (d) => `<svg class="ti" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const ADM_SECTIONS = [
+  ["accueil", "Accueil", "Accueil", ICO('<path d="M4 11.5 12 4.5l8 7"/><path d="M6.5 10v9.5h11V10"/><path d="M10 19.5v-5h4v5"/>')],
+  ["planning", "Planning", "Planning", ICO('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4M7.5 13.5h3M13.5 13.5h3M7.5 17h3"/>')],
+  ["absences", "Absences et congés", "Absences", ICO('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4M9.5 13l5 5M14.5 13l-5 5"/>')],
+  ["rcp", "RCP et astreintes", "RCP·Astr.", ICO('<path d="M17.5 14A6.5 6.5 0 0 1 9 5.5a6.5 6.5 0 1 0 8.5 8.5Z"/><path d="M15 4.5v4M13 6.5h4"/>')],
+  ["equipe", "Équipe et règles", "Équipe", ICO('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="16.5" cy="9.5" r="2.3"/><path d="M15.5 14.6c2.3-.3 4.3 1.2 5 4.4"/>')],
+  ["suivi", "Suivi et sécurité", "Suivi", ICO('<path d="M4 19.5h16"/><rect x="5.5" y="12" width="3" height="5.5" rx=".8"/><rect x="10.5" y="7.5" width="3" height="10" rx=".8"/><rect x="15.5" y="10" width="3" height="7.5" rx=".8"/>')],
+];
+const ADM_CARTES = { accueilCard: "accueil", todoCard: "accueil", genCard: "planning", draftCard: "planning", impCard: "planning",
+  indCard: "absences", absCalCard: "absences", cloCard: "absences", congCard: "absences", rcpCard: "rcp", rcpGenCard: "rcp", astrCard: "rcp",
+  medCard: "equipe", regCard: "equipe", paramCard: "equipe", accCard: "equipe", setupCard: "equipe", statCard: "suivi", jourCard: "suivi", sauvCard: "suivi", rulesCard: "suivi" };
+const ADM_OUTILS = { planning: [["genCard", "Générer"], ["draftCard", "À publier"], ["impCard", "Absence imprévue"]],
+  absences: [["indCard", "Demandes"], ["absCalCard", "Calendrier"], ["cloCard", "Dates limites"], ["congCard", "Congés"]],
+  rcp: [["rcpCard", "RCP du mois"], ["rcpGenCard", "Générateur RCP"], ["astrCard", "Astreintes"]],
+  equipe: [["medCard", "Médecins"], ["regCard", "Règles et postes"], ["paramCard", "Classeur"], ["accCard", "Comptes"], ["setupCard", "Mise en ligne"]],
+  suivi: [["statCard", "Statistiques"], ["jourCard", "Journal"], ["sauvCard", "Sauvegarde"], ["rulesCard", "Sécurité"]] };
+const unOutil = () => window.__ADM_UNOUTIL === true;
+const rubriqueDe = (id) => (id === "paramCard" && !S.P ? "accueil" : ADM_CARTES[id] || "accueil");
+function admSection(sec, haut = true) {
+  if (!ADM_SECTIONS.some((x) => x[0] === sec)) sec = "accueil";
+  S.admSec = sec; ls.set("planning-radio-admsec", sec);
+  S.admOutil = S.admOutil || {};
+  const outils = (ADM_OUTILS[sec] || []).filter(([id]) => $(id) && !$(id).hidden);
+  if (outils.length && !outils.some(([id]) => id === S.admOutil[sec])) S.admOutil[sec] = outils[0][0];
+  for (const card of document.querySelectorAll("#adminBody > .card")) if (card.id)
+    card.classList.toggle("horsec", rubriqueDe(card.id) !== sec || (unOutil() && sec !== "accueil" && card.id !== S.admOutil[sec]));
+  $("adminBody").dataset.sec = sec;
+  const so = $("admOutils");
+  if (so) { so.hidden = !unOutil() || sec === "accueil"; const e = etatsRubriques();
+    so.innerHTML = outils.map(([id, lib]) => `<button type="button" data-outil="${id}"${id === S.admOutil[sec] ? ' aria-current="true"' : ""}>${esc(lib)}${id === "indCard" && e.absences.n ? ` <b class="ab">${e.absences.n}</b>` : ""}</button>`).join(""); }
+  majAdmNav();
+  if (haut) window.scrollTo({ top: 0 });
+}
+function etatsRubriques() {
+  const today = todayDay(), ms = moisSuivant(), att = S.indispos.filter((x) => statutInd(x) === "attente").length;
+  const rcpOk = rcpItems().some((x) => moisDeJour(x.d) === ms), astrOk = [...astreintesConnues().keys()].some((d) => moisDeJour(d) === ms);
+  const sv = S.sauvegarde && S.sauvegarde.derniere, svVieille = !sv || Date.now() - sv > 90 * 86400000;
+  const conf = S.published ? conflicts(S.published, S.indispos.filter((x) => statutInd(x) === "acceptee" && x.d2 >= today)).length : 0;
+  const nMed = S.P ? Object.keys(S.P.docs).length : 0, nDem = (S.demandes || []).length;
+  return {
+    accueil: { n: att + conf, sous: "" },
+    planning: { pt: !!S.draft || conf > 0, sous: S.draft ? "brouillon non publié" : S.published ? `publié jusqu'au ${fmtDay(S.published.end, false)}` : "rien de publié" },
+    absences: { n: att, sous: att ? `${att} demande${att > 1 ? "s" : ""} à valider` : "aucune demande en attente" },
+    rcp: { pt: !rcpOk || !astrOk, sous: !rcpOk && !astrOk ? `${MOIS[ms % 100 - 1]} : RCP et astreintes à faire` : !rcpOk ? `${MOIS[ms % 100 - 1]} : RCP à faire` : !astrOk ? `${MOIS[ms % 100 - 1]} : astreintes à faire` : `${MOIS[ms % 100 - 1]} : prêt` },
+    equipe: { n: nDem, sous: nDem ? `${nDem} compte${nDem > 1 ? "s" : ""} à valider` : nMed ? `${nMed} médecins` : "paramètres à charger" },
+    suivi: { pt: svVieille, sous: svVieille ? "sauvegarde à faire" : `sauvegarde du ${new Date(sv).toLocaleDateString("fr-FR")}` },
+  };
+}
+function majAdmNav() {
+  const nav = $("admNav"); if (!nav) return;
+  const e = etatsRubriques(), sec = S.admSec || "accueil";
+  nav.innerHTML = ADM_SECTIONS.map(([id, lib, court, ico]) => { const x = e[id] || {};
+    return `<button type="button" data-sec="${id}"${id === sec ? ' aria-current="page"' : ""}>${ico}<span class="al">${esc(lib)}<small>${esc(x.sous || "")}</small></span><span class="as" aria-hidden="true">${esc(court)}</span>${x.n ? `<b class="ab">${x.n}</b>` : x.pt ? `<i class="ad"></i>` : ""}</button>`; }).join("");
+  const tete = document.querySelector("header.top");
+  nav.style.setProperty("--admtop", (tete ? tete.offsetHeight : 0) + "px");
+}
+$("admNav").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) admSection(b.dataset.sec); });
+$("admOutils").addEventListener("click", (e) => { const b = e.target.closest("[data-outil]"); if (b) { S.admOutil[S.admSec] = b.dataset.outil; admSection(S.admSec); } });
+function bornesMoisNum(m) { const y = Math.floor(m / 100), mm = m % 100; return [dayFromYMD(y, mm, 1), (mm === 12 ? dayFromYMD(y + 1, 1, 1) : dayFromYMD(y, mm + 1, 1)) - 1]; }
+function renderAccueil() {
+  if (!$("accEtapes")) return;
+  const today = todayDay(), ms = moisSuivant(), [du, au] = bornesMoisNum(ms), nom = MOIS[ms % 100 - 1];
+  const clo = ((S.saisie && S.saisie.clotures) || []).find((c) => c.du <= au && c.au >= du);
+  const att = S.indispos.filter((x) => statutInd(x) === "attente").length;
+  const pub = S.published, couvre = pub && pub.end >= au - 2, dr = S.draft && S.draft.end >= du;
+  const nRcp = rcpItems().filter((x) => moisDeJour(x.d) === ms).length;
+  const nAstr = [...astreintesConnues().keys()].filter((d) => moisDeJour(d) === ms).length;
+  const et = [
+    ["Dépôt des absences", !clo ? ["todo", `Aucune date limite fixée pour ${nom}`, "Fixer", "cloCard"]
+      : clo.limite >= today ? ["cours", `Ouvert jusqu'au ${fmtDay(clo.limite, false)}${(() => { const r = relanceInfo(clo); return r.manquants.length ? ` · ${r.manquants.length} médecin(s) sans réponse` : ""; })()}`, "Relancer", "cloCard"]
+      : ["ok", `Clos le ${fmtDay(clo.limite, false)}`, "", "cloCard"]],
+    ["Demandes d'absence", att ? ["err", `${att} demande${att > 1 ? "s" : ""} en attente`, "Valider", "indCard"] : ["ok", "Aucune demande en attente", "", "indCard"]],
+    [`Planning de ${nom}`, couvre ? ["ok", `Publié jusqu'au ${fmtDay(pub.end, false)}`, "", "draftCard"] : dr ? ["cours", "Brouillon prêt, pas encore publié", "Publier", "draftCard"] : ["todo", "À générer", "Générer", "genCard"]],
+    [`RCP de ${nom}`, nRcp ? ["ok", `${nRcp} RCP enregistrées`, "", "rcpCard"] : ["todo", "À faire (importer la fiche ou générer)", "Faire", "rcpGenCard"]],
+    [`Astreintes de ${nom}`, nAstr ? ["ok", `${nAstr} jours renseignés`, "", "astrCard"] : ["todo", "À faire", "Faire", "astrCard"]],
+  ];
+  const fait = et.filter(([, [st]]) => st === "ok").length, prochaine = et.findIndex(([, [st]]) => st !== "ok");
+  $("accTitre").textContent = `Préparer ${nom} ${Math.floor(ms / 100)}`;
+  $("accProg").innerHTML = `<span class="barre"><span style="width:${Math.round(100 * fait / et.length)}%"></span></span>${fait} / ${et.length}`;
+  $("accEtapes").innerHTML = et.map(([titre, [st, txt, bouton, carte]], i) => `<li class="et-${st}"><span class="num">${st === "ok" ? "✓" : i + 1}</span>
+      <div class="grow"><b>${esc(titre)}</b><div class="small">${esc(txt)}</div></div>
+      <button class="b${i === prochaine ? " primary" : ""}" type="button" data-todo="${carte}"${carte === "genCard" ? ` data-gen="${du}|${au}"` : ""}>${bouton || "Voir"}</button></li>`).join("");
+  $("accRacc").innerHTML = [["impCard", "Absence imprévue", ICO('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5M12 15.8v.2"/>')],
+    ["draftCard", "Modifier le publié", ICO('<path d="M4 20h4l10.5-10.5-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>')],
+    ["medCard", "Médecins", ADM_SECTIONS[4][3]], ["statCard", "Statistiques", ADM_SECTIONS[5][3]]]
+    .map(([c, l, ic]) => `<button type="button" class="racc" data-todo="${c}">${ic}<span>${esc(l)}</span></button>`).join("");
+}
+for (const id of ["accEtapes", "accRacc"]) $(id).addEventListener("click", (e) => {
+  const b = e.target.closest("[data-todo]"); if (!b) return;
+  if (b.dataset.gen) { const [a, z] = b.dataset.gen.split("|").map(Number); $("gStart").value = toInput(a); $("gEnd").value = toInput(z); }
+  allerCarte(b.dataset.todo);
+});
 function moisSuivant() { const a = ymd(todayDay()); return a.m === 12 ? (a.y + 1) * 100 + 1 : a.y * 100 + a.m + 1; }
 function todoItems() {
   const items = [], today = todayDay();
   const att = S.indispos.filter((x) => statutInd(x) === "attente");
-  if (att.length) items.push(["err", `<b>${att.length} demande(s) d'absence</b> à valider`, "indCard"]);
+  if (att.length) items.push(["err", `<b>${att.length} demande(s) d'absence</b> à valider`, "indCard", "", "", true]);
   const conf = conflicts(S.published, S.indispos.filter((x) => statutInd(x) === "acceptee" && x.d2 >= today));
   for (const c of conf.slice(0, 3)) items.push(["err", `<b>${esc(c.indispo.ini)}</b> absent (accepté) mais affecté le ${fmtDay(c.hits[0].d, false)}${c.hits.length > 1 ? ` (+${c.hits.length - 1} demi-j.)` : ""} dans le planning publié`, "impCard", `data-imp-pre="${esc(c.indispo.ini)}|${c.indispo.d1}|${c.indispo.d2}|${esc(c.indispo.periode)}"`, "Remplacer"]);
   if (conf.length > 3) items.push(["err", `… et ${conf.length - 3} autre(s) absence(s) sur le planning publié`, "indCard"]);
   if (S.demandes && S.demandes.length) items.push(["warn", `<b>${S.demandes.length} compte(s)</b> en attente de validation`, "accCard"]);
-  if (S.draft) items.push(["warn", `Un planning <b>non publié</b> est en cours (${esc(S.draftSource || "brouillon")})`, "draftCard"]);
+  if (S.draft) items.push(["warn", `Un planning <b>non publié</b> est en cours (${esc(S.draftSource || "brouillon")})`, "draftCard", "", "", true]);
   for (const c of (S.saisie && S.saisie.clotures) || []) {
     if (c.limite < today || c.limite - today > 7) continue;
     const r = relanceInfo(c);
-    items.push(["warn", `Date limite de dépôt le <b>${fmtDay(c.limite, false)}</b> (période du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)})${r.manquants.length ? ` : ${r.manquants.length} médecin(s) n'ont rien déclaré` : ""}`, "cloCard"]);
+    items.push(["warn", `Date limite de dépôt le <b>${fmtDay(c.limite, false)}</b> (période du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)})${r.manquants.length ? ` : ${r.manquants.length} médecin(s) n'ont rien déclaré` : ""}`, "cloCard", "", "", true]);
   }
   if (S.published) {
-    if (S.published.end - today < 21) items.push(["warn", `Le planning publié s'arrête le <b>${fmtDay(S.published.end, false)}</b> : pensez à générer la suite`, "genCard"]);
+    if (S.published.end - today < 21) items.push(["warn", `Le planning publié s'arrête le <b>${fmtDay(S.published.end, false)}</b> : pensez à générer la suite`, "genCard", "", "", true]);
     // demi-journées sous le minimum dans les deux semaines à venir
     let sous = 0;
     for (const d of S.published.jours) {
@@ -4957,15 +5124,15 @@ function todoItems() {
     if (sous) items.push(["info", `${sous} demi-journée(s) de poste sous le minimum dans les 2 semaines à venir (postes fermés faute de médecin)`, "draftCard"]);
   } else items.push(["warn", "Aucun planning publié", "genCard"]);
   const ms = moisSuivant();
-  if (!rcpItems().some((x) => moisDeJour(x.d) === ms)) items.push(["info", `RCP de <b>${libMoisNum(ms)}</b> pas encore faites`, "rcpGenCard"]);
-  if (![...astreintesConnues().keys()].some((d) => moisDeJour(d) === ms)) items.push(["info", `Astreintes de <b>${libMoisNum(ms)}</b> pas encore saisies`, "astrCard"]);
+  if (!rcpItems().some((x) => moisDeJour(x.d) === ms)) items.push(["info", `RCP de <b>${libMoisNum(ms)}</b> pas encore faites`, "rcpGenCard", "", "", true]);
+  if (![...astreintesConnues().keys()].some((d) => moisDeJour(d) === ms)) items.push(["info", `Astreintes de <b>${libMoisNum(ms)}</b> pas encore saisies`, "astrCard", "", "", true]);
   const sv = S.sauvegarde && S.sauvegarde.derniere;
   if (!sv || Date.now() - sv > 90 * 86400000) items.push(["info", sv ? `Dernière sauvegarde le ${new Date(sv).toLocaleDateString("fr-FR")} : pensez à en refaire une` : "Aucune sauvegarde faite", "sauvCard"]);
   return items;
 }
 function renderTodo() {
   const el = $("todoList"); if (!el) return;
-  const items = todoItems();
+  const items = todoItems().filter((x) => !x[5]);   // les étapes du mois sont dans l'accueil
   el.innerHTML = items.length ? items.map(([niv, txt, carte, attr, bouton]) => `<li><span class="pt ${niv}"></span><div class="grow small">${txt}</div><button class="b" type="button" data-todo="${carte}" ${attr || ""}>${bouton || "Voir"}</button></li>`).join("")
     : `<li><span class="pt ok"></span><div class="grow small">Tout est à jour.</div></li>`;
 }
