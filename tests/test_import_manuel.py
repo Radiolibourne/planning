@@ -42,6 +42,8 @@ with sync_playwright() as p:
     b = chromium(p)
     pg = b.new_context(viewport={"width": 1200, "height": 900}).new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e))); pg.on("dialog", lambda d: d.accept())
+    # horloge de la page au 30/10/2026 (le planning importé est celui de novembre 2026)
+    pg.add_init_script("(() => { const D = Date, delta = new D(2026, 9, 30, 9, 0).getTime() - D.now(); class F extends D { constructor(...a) { a.length ? super(...a) : super(D.now() + delta); } static now() { return D.now() + delta; } } window.Date = F; })();")
     pg.goto("file://" + os.path.join(DIST, "demo.html") + "#admin")
     pg.wait_for_selector("#loginCard:not([hidden])")
     pg.fill("#loginEmail", "a@b.fr"); pg.fill("#loginPw", "x"); pg.click("#loginForm button[type=submit]")

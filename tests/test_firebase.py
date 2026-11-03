@@ -159,7 +159,7 @@ with sync_playwright() as pw:
     adm.set_input_files('#upParams', EXEMPLE)
     adm.wait_for_function("document.querySelector('#paramMsg').innerText.includes('refusé')")
     ok('Accès refusé' in adm.inner_text('#paramMsg'), 'compte non administrateur : écriture refusée par les règles')
-    adm.click('#logoutBtn'); adm.wait_for_selector('#loginCard:not([hidden])')
+    adm.click('#gearBtn'); adm.click('#logoutBtn'); adm.wait_for_selector('#loginCard:not([hidden])')   # « Se déconnecter » : dans ⚙
     adm.fill('#loginEmail', 'admin@chl.fr'); adm.fill('#loginPw', 'secret'); adm.click('#loginForm button')
     adm.wait_for_selector('#adminBody:not([hidden])')
     adm.set_input_files('#upParams', EXEMPLE)

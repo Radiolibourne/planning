@@ -199,7 +199,6 @@ with sync_playwright() as pw:
     adm.wait_for_function("document.querySelector('#paramInfo').innerText.includes('11 médecins')", timeout=10000)
     ok(not adm.is_hidden("#accCard"), "admin : carte « Comptes » visible")
     # règles : celles de la page = celles que publie GitHub (même code source)
-    adm.click("#rulesCard summary")
     texte = adm.input_value("#rText")
     import subprocess, sys as _sys
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -115,18 +115,18 @@ with sync_playwright() as p:
     dbl = pg.evaluate("""([d]) => ['M', 'AM'].map((h) => { const n = {}; for (const c of postesAffiches(S.published)) for (const o of occupants(S.published, d, h, c)) n[o.ini] = (n[o.ini] || 0) + 1; return Math.max(...Object.values(n)); })""", [jour])
     B.ok(max(dbl) == 1, "un remplaçant pris sur un autre poste en est retiré (pas de doublon)")
 
-    # ---------------------------------------------------------------- 6. « À faire »
+    # ---------------------------------------------------------------- 6. accueil « Préparer le mois » et « À surveiller »
     ini2, j2 = pg.evaluate("""(l1) => { const k = Object.keys(S.published.cases).find((k) => +k.split('_')[0] >= l1 + 7 && /_(ECH1|MAM|IRM1)$/.test(k) && splitInis(S.published.cases[k]).length === 1);
         return [splitInis(S.published.cases[k])[0], +k.split('_')[0]]; }""", J(L1))
     pg.evaluate("([i, d]) => S.store.add(PATHS.indispos(), { ini: i, d1: d, d2: d, periode: 'Journée', motif: '', creeLe: Date.now(), statut: 'acceptee' })", [ini2, j2])
     pg.wait_for_function("(i) => document.querySelector('#todoList').innerText.includes(i + ' absent')", arg=ini2, timeout=8000)
-    t = pg.inner_text("#todoList")
-    B.ok("demande(s) d'absence" in t and "à valider" in t and "Astreintes de" in t and "Aucune sauvegarde" in t, f"À faire : demandes, astreintes du mois prochain, sauvegarde ({t[:160]})")
+    t, et = pg.inner_text("#todoList"), pg.inner_text("#accEtapes")
+    B.ok("en attente" in et and "RCP de" in et and "Aucune sauvegarde" in t and "demande" not in t, f"accueil : demandes et RCP du mois dans les étapes, sauvegarde « À surveiller » ({et[:120]} | {t[:120]})")
     pg.click(f"#todoList [data-imp-pre^='{ini2}|']")
     pg.wait_for_selector("#impRes select[data-imp]", timeout=8000)
     B.ok(pg.input_value("#impIni") == ini2 and pg.locator("#impRes select[data-imp]").count() >= 1, "« Remplacer » ouvre l'absence imprévue préremplie avec les remplaçants")
-    pg.click("#todoList [data-todo='indCard']"); pg.wait_for_timeout(1200)
-    B.ok(pg.evaluate("Math.abs(document.getElementById('indCard').getBoundingClientRect().top) < 200"), "« Voir » amène à la bonne carte")
+    pg.click("#accEtapes [data-todo='indCard']"); pg.wait_for_timeout(1200)
+    B.ok(pg.evaluate("Math.abs(document.getElementById('indCard').getBoundingClientRect().top) < 200"), "le bouton d'une étape amène au bon outil")
 
     # ---------------------------------------------------------------- 7. médecin : dépôt d'absence au calendrier
     pg.evaluate("S.admin = false; S.me = 'OC'; location.hash = '#indispos'")

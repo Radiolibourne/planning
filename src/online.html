@@ -237,18 +237,10 @@ table.pl thead th { background: var(--head); color: #fff; }
 table.pl th.s1, table.pl th.s2, table.pl th.s3 { color: #fff; }
 table.pl tr.week td { color: var(--accent); }
 table.qui tr.site td { background: var(--head); color: #fff; text-transform: none; letter-spacing: 0; font-size: 14px; }
-/* Admin : cartes repliables, dans l'ordre d'usage */
+/* Admin : ordre des cartes (voir aussi « Admin en rubriques » plus bas) */
 #adminBody:not([hidden]) { display: flex; flex-direction: column; }
 /* ordre des cartes Admin : planning du mois, absences, congés, astreintes, RCP, statistiques, réglages du service, comptes, suivi */
-#todoCard { order: -1; } #impCard { order: 0; } #genCard { order: 1; } #draftCard { order: 2; } #indCard { order: 3; } #absCalCard { order: 3; } #cloCard { order: 4; } #congCard { order: 5; } #astrCard { order: 6; } #rcpCard { order: 7; } #rcpGenCard { order: 8; } #statCard { order: 9; } #paramCard { order: 10; } #medCard { order: 11; } #regCard { order: 12; } #accCard { order: 13; } #jourCard { order: 14; } #sauvCard { order: 15; } #rulesCard { order: 16; } #setupCard { order: 17; }
-#adminBody.sansParams #paramCard { order: -2; }   /* pas encore de paramètres : la carte à remplir d'abord */
-.pli-tete { cursor: pointer; position: relative; padding-right: 30px; user-select: none; -webkit-user-select: none; }
-.pli-tete::after { content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; margin-top: -7px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
-.card.ferme .pli-tete::after { transform: rotate(-45deg); margin-top: -4px; }
-.card.pliable.ferme > :not(.pli-tete) { display: none !important; }
-.card.pliable.ferme { padding-top: 14px; padding-bottom: 14px; }
-.card.pliable.ferme .pli-tete, .card.pliable.ferme .pli-tete h2 { margin-bottom: 0; }
-@media (prefers-reduced-motion: reduce) { .pli-tete::after { transition: none; } }
+#adminBody.sansParams #paramCard { order: -4; }   /* pas encore de paramètres : la carte à remplir d'abord */
 /* fiche médecin */
 .chips.pick button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-weight: 600; cursor: pointer; min-height: 36px; }
 .chips.pick button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -602,10 +594,6 @@ table.astt .me, .astcal .aj .me { background: var(--astr); }
 .sheet::before { content: ""; display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: -8px auto 12px; }
 @media (min-width: 640px) { .sheet::before { display: none; } }
 
-/* ---- Admin : cartes repliables plus aérées */
-.card.pliable.ferme { padding-top: 13px; padding-bottom: 13px; }
-.pli-tete h2 { font-size: 16.5px; }
-#adminBody .card.pliable.ferme { box-shadow: none; }
 
 /* Qui est posté : tout le service d'un coup d'œil (une ligne par poste ou par médecin, matin = après-midi fusionnés) */
 @media (min-width: 1000px) { main.wrap { padding-bottom: 50px; } }
@@ -877,6 +865,100 @@ ul.otl li.otno .oti, ul.otl li.otno .otd { text-decoration: line-through; }
 ul.otl .otd { min-width: 82px; font-weight: 600; } ul.otl .oti { min-width: 36px; } ul.otl .otp { flex: 1; min-width: 140px; font-size: 13px; }
 ul.otl .tag.ok { background: color-mix(in srgb, var(--ok) 18%, var(--panel)); color: var(--ok); }
 td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
+
+/* ===== Proposition : administration en rubriques ===== */
+.horsec { display: none !important; }
+#accueilCard { order: -3; } #todoCard { order: -2; }
+#draftCard { order: 1; } #impCard { order: 2; }
+#indCard { order: 1; } #absCalCard { order: 2; } #cloCard { order: 3; } #congCard { order: 4; }
+#rcpCard { order: 1; } #astrCard { order: 2; }
+#medCard { order: 1; } #regCard { order: 2; } #paramCard { order: 3; } #accCard { order: 4; }
+#statCard { order: 1; } #jourCard { order: 2; } #sauvCard { order: 3; } #rulesCard { order: 4; } #setupCard { order: 5; }
+.admnav { order: -100; position: sticky; top: var(--admtop, 0px); z-index: 8; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px;
+  background: var(--panel); border-radius: 16px; padding: 4px; margin: 0 0 12px; box-shadow: 0 6px 16px -10px rgba(0,0,0,.35); border: 1px solid var(--line); }
+.admnav button { position: relative; border: 0; background: transparent; color: var(--muted); border-radius: 12px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-height: 52px; font: inherit; }
+.admnav button .ti { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.admnav .al { display: none; }
+.admnav .as { font-size: 10.5px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.admnav button[aria-current=page] { background: color-mix(in srgb, var(--accent) 13%, var(--panel)); color: var(--accent); }
+.admnav .ab { position: absolute; top: 3px; right: calc(50% - 21px); min-width: 17px; height: 17px; border-radius: 999px; background: var(--err); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 17px; padding: 0 4px; font-style: normal; }
+.admnav .ad { position: absolute; top: 6px; right: calc(50% - 15px); width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+@media (min-width: 1000px) {
+  #adminBody:not([hidden]) { display: grid; grid-template-columns: 260px minmax(0, 1fr); column-gap: 20px; align-items: start; }
+  #adminBody > .card { grid-column: 2; }
+  .admnav { grid-column: 1; grid-row: 1 / span 60; display: flex; flex-direction: column; gap: 3px; padding: 8px; top: calc(var(--admtop, 0px) + 14px); margin: 0; }
+  .admnav button { flex-direction: row; justify-content: flex-start; gap: 11px; padding: 9px 12px; min-height: 0; text-align: left; color: var(--ink); }
+  .admnav button .ti { color: var(--muted); flex: none; }
+  .admnav button[aria-current=page] .ti { color: var(--accent); }
+  .admnav .as { display: none; }
+  .admnav .al { display: flex; flex-direction: column; font-weight: 700; font-size: 14.5px; line-height: 1.2; }
+  .admnav .al small { font-weight: 500; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .admnav .ab { position: static; margin-left: auto; align-self: center; }
+  .admnav .ad { position: static; margin-left: auto; align-self: center; }
+}
+/* accueil : préparer le mois */
+#accueilCard .acchead { justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.accprog { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.accprog .barre { width: 70px; height: 7px; border-radius: 99px; background: var(--off); overflow: hidden; display: inline-block; }
+.accprog .barre span { display: block; height: 100%; background: var(--ok); border-radius: 99px; }
+ol.etapes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 0; }
+ol.etapes li { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--line); }
+ol.etapes li:first-child { border-top: 0; }
+ol.etapes .num { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; background: var(--off); color: var(--muted); }
+ol.etapes .et-ok .num { background: var(--ok); color: #fff; }
+ol.etapes .et-err .num { background: var(--err); color: #fff; }
+ol.etapes .et-cours .num { background: var(--warn); color: #fff; }
+ol.etapes .et-todo .num { background: color-mix(in srgb, var(--warn) 18%, var(--panel)); color: var(--warn); border: 1.5px solid var(--warn); }
+ol.etapes .et-ok b { color: var(--muted); font-weight: 650; }
+ol.etapes .small { color: var(--muted); margin-top: 1px; }
+ol.etapes .et-err .small { color: var(--err); font-weight: 600; }
+ol.etapes .b { min-height: 36px; padding: 4px 14px; flex: none; }
+.raccourcis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.racc { border: 1px solid var(--line); background: var(--panel-2, var(--soft)); border-radius: 12px; padding: 9px 4px 7px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; color: var(--ink); font: inherit; font-size: 11.5px; font-weight: 650; text-align: center; line-height: 1.15; }
+.racc .ti { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (min-width: 1000px) { .raccourcis { grid-template-columns: repeat(4, 160px); } .racc { flex-direction: row; justify-content: center; font-size: 13px; padding: 10px; } }
+
+ol.etapes .grow { flex: 1; min-width: 0; }
+#accueilCard h2 { font-size: 19px; }
+.admoutils { order: -99; display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 12px; padding: 2px 2px 4px; scrollbar-width: none; }
+.admoutils::-webkit-scrollbar { display: none; }
+.admoutils button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13.5px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.admoutils button[aria-current=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.admoutils .ab { display: inline-block; min-width: 17px; height: 17px; border-radius: 999px; background: var(--err); color: #fff; font-size: 10.5px; line-height: 17px; padding: 0 4px; margin-left: 3px; }
+@media (min-width: 1000px) { .admoutils { grid-column: 2; margin: 0 0 12px; } }
+
+/* aide à la demande (bouton « ? » dans le titre de la carte) */
+.aideb { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--panel-2, var(--soft)); color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 800; margin-left: 8px; vertical-align: 3px; cursor: pointer; padding: 0; line-height: 1; }
+.aideb[aria-expanded=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+p.aide { font-size: 13.5px; color: var(--ink); background: color-mix(in srgb, var(--accent) 7%, var(--panel)); border-left: 3px solid var(--accent); border-radius: 8px; padding: 8px 10px; margin: 2px 0 12px; line-height: 1.45; }
+/* Planning du mois */
+.planbloc { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; margin-top: 10px; }
+.planbloc h3 { margin: 0 0 8px; font-size: 15px; }
+#draftCard #gMsg:empty { display: none; }
+/* RCP : trois façons de faire */
+.seg.rcpmodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; margin: 2px 0 12px; }
+.seg.rcpmodes button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 4px; }
+details.rcpgcfg { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+details.rcpgcfg > summary { cursor: pointer; font-weight: 700; }
+/* accueil : demandes à décider sans changer d'écran */
+ol.etapes li { display: block; }
+ol.etapes .etl { display: flex; align-items: center; gap: 12px; }
+ul.demacc { list-style: none; margin: 8px 0 2px 42px; padding: 0; display: grid; gap: 6px; }
+ul.demacc li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel-2, var(--soft)); border-radius: 10px; padding: 6px 8px; border: 0; }
+ul.demacc li > b { min-width: 30px; }
+ul.demacc .grow { flex: 1; min-width: 120px; font-size: 13.5px; }
+ul.demacc small { display: block; color: var(--warn); font-size: 12px; }
+ul.demacc .b { min-height: 34px; padding: 4px 12px; }
+#accMsg:empty { display: none; }
+/* Réglages : compte */
+#compteCard .b { margin-top: 2px; }
+
+ul.demacc .dbt { display: flex; gap: 6px; flex: none; margin-left: auto; }
+ul.demacc .b { font-size: 14px; }
+@media (max-width: 999px) { ul.demacc { margin-left: 0; } #accueilCard h2 { font-size: 18px; } .accprog .barre { width: 52px; } }
+.planbloc .msg:empty { display: none; }
+@media (max-width: 999px) { #adminBody > .card, #adminBody .planbloc { scroll-margin-top: calc(var(--admtop, 64px) + 140px); } }
+@media (min-width: 1000px) { #adminBody > .card, #adminBody .planbloc { scroll-margin-top: 150px; } .raccourcis { grid-template-columns: repeat(4, max-content); } .racc { padding: 10px 16px; } }
 </style>
 </head>
 <body>
@@ -1065,16 +1147,22 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
     </div>
 
     <div id="adminBody" hidden>
+      <nav class="admnav" id="admNav" aria-label="Rubriques de l'administration"></nav>
+      <div class="admoutils" id="admOutils" hidden></div>
+      <div class="card" id="accueilCard">
+        <div class="row acchead"><h2 style="margin:0" id="accTitre">Préparer le mois prochain</h2><span class="accprog" id="accProg"></span></div>
+        <div class="msg" id="accMsg" role="status"></div>
+        <ol class="etapes" id="accEtapes"></ol>
+        <div class="raccourcis" id="accRacc"></div>
+      </div>
       <div class="card" id="todoCard">
-        <h2>À faire</h2>
+        <h2>À surveiller</h2>
         <ul class="list todo" id="todoList"></ul>
       </div>
       <div class="card" id="paramCard">
-        <div class="row" style="justify-content:space-between;align-items:center">
-          <h2 style="margin:0">Paramètres du service</h2>
-          <button class="x" id="logoutBtn">Se déconnecter</button>
-        </div>
-        <p class="sub" style="margin-top:6px">Médecins, postes, règles : le classeur Excel de paramètres, partagé par toute l'équipe.</p>
+        <h2>Classeur de paramètres</h2>
+        <p class="sub">Le fichier Excel des médecins, postes et règles, partagé par toute l'équipe.</p>
+        <p class="aide" hidden>Téléchargez-le pour le modifier dans Excel, puis remplacez-le ici : la génération utilise toujours la dernière version. La plupart des réglages se font aussi directement dans « Médecins » et « Règles et postes », sans passer par Excel.</p>
         <div id="paramInfo" class="small" style="margin-bottom:12px"></div>
         <div class="row">
           <button class="b" id="dlParams">Télécharger le classeur</button>
@@ -1089,36 +1177,24 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
           <h2 style="margin:0">Médecins</h2>
           <button class="b primary" id="medAdd" type="button" style="min-height:38px;padding:6px 14px">Ajouter un médecin</button>
         </div>
-        <p class="sub" style="margin-top:6px">Quotité, jours off, compétences, télétravail : modifié ici, enregistré directement dans le classeur de paramètres.</p>
+        <p class="sub" style="margin-top:6px">Quotité, jours off, compétences, télétravail.</p>
+        <p class="aide" hidden>Chaque modification est enregistrée directement dans le classeur de paramètres partagé.</p>
         <ul class="list" id="medList"></ul>
         <div class="msg" id="medMsg" role="status"></div>
       </div>
 
       <div class="card" id="regCard" hidden>
         <h2>Règles et postes</h2>
-        <p class="sub">Les autres réglages du classeur, modifiables ici. Chaque enregistrement met à jour le classeur partagé.</p>
+        <p class="sub">Postes, sites, fermetures, fériés et autres réglages.</p>
+        <p class="aide" hidden>Les autres réglages du classeur de paramètres, modifiables ici. Chaque enregistrement met à jour le classeur partagé.</p>
         <ul class="list" id="regList"></ul>
         <div class="msg" id="regMsg" role="status"></div>
       </div>
 
-      <div class="card" id="genCard">
-        <h2>Générer un planning</h2>
-        <p class="sub">Les indisponibilités saisies en ligne sont ajoutées automatiquement à celles du classeur.</p>
-        <div class="row">
-          <label class="f">Début<input type="date" id="gStart"></label>
-          <label class="f">Fin<input type="date" id="gEnd"></label>
-          <label class="f">Qualité
-            <select id="gQual"><option value="10">Rapide (10 s)</option><option value="25" selected>Standard (25 s)</option><option value="60">Approfondie (1 min)</option></select>
-          </label>
-          <button class="b primary" id="gBtn">Générer</button>
-        </div>
-        <div class="progress" id="gProg" hidden><div></div></div>
-        <div class="msg" id="gMsg" role="status"></div>
-      </div>
-
       <div class="card" id="impCard">
         <h2>Absence imprévue</h2>
-        <p class="sub">Un médecin ne peut pas venir (maladie, urgence) : l'appli libère ses cases du planning publié et propose des remplaçants (compétents, libres, les moins chargés d'abord). Vous validez, elle republie et prévient les médecins concernés.</p>
+        <p class="sub">Un médecin ne peut pas venir : l'appli propose des remplaçants et republie.</p>
+        <p class="aide" hidden>Maladie, urgence… L'appli libère les cases du médecin dans le planning publié et propose des remplaçants (compétents, libres, les moins chargés d'abord ; si personne n'est libre, un médecin pris sur un poste moins prioritaire). Vous validez, elle republie et prévient les médecins concernés.</p>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="flex:0 1 120px">Médecin<select id="impIni"></select></label>
           <label class="f">Du<input type="date" id="impD1"></label>
@@ -1131,16 +1207,32 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
       </div>
 
       <div class="card" id="draftCard">
-        <h2 id="draftTitle">Planning à publier</h2>
+        <h2><span id="draftTitle">Planning du mois</span></h2>
         <p class="sub" id="draftSub"></p>
+        <p class="aide" hidden>Générez le planning d'une période : les absences acceptées (en ligne et dans le classeur) sont prises en compte. Vous pouvez aussi modifier le planning déjà publié, ou importer un planning Excel : un fichier téléchargé depuis ce site (bouton « Excel »), éventuellement retouché, ou le planning du service fait à la main (un onglet par semaine). Rien n'est visible par l'équipe avant « Publier ».</p>
+        <div class="msg" id="gMsg" role="status"></div>
         <div id="draftEmpty">
-          <div class="row">
-            <button class="b" id="editPublished">Modifier le planning publié</button>
-            <button class="b" id="undoPub" type="button" hidden>Revenir à la publication précédente</button>
-            <label class="b" style="cursor:pointer">Importer un planning Excel<input type="file" id="upPlanning" accept=".xlsx" hidden></label>
+          <div class="planbloc" id="genCard">
+            <h3>Nouveau planning</h3>
+            <div class="row">
+              <label class="f">Début<input type="date" id="gStart"></label>
+              <label class="f">Fin<input type="date" id="gEnd"></label>
+              <label class="f">Qualité
+                <select id="gQual"><option value="10">Rapide (10 s)</option><option value="25" selected>Standard (25 s)</option><option value="60">Approfondie (1 min)</option></select>
+              </label>
+              <button class="b primary" id="gBtn">Générer</button>
+            </div>
+            <div class="progress" id="gProg" hidden><div></div></div>
           </div>
-          <p class="small muted" style="margin:8px 0 0">Importer : un fichier Excel téléchargé depuis ce site (bouton « Excel »), éventuellement retouché, ou le planning du service fait à la main (un onglet par semaine).</p>
-          <div class="msg" id="upPlanningMsg" role="status"></div>
+          <div class="planbloc">
+            <h3>Planning publié</h3>
+            <div class="row">
+              <button class="b" id="editPublished">Modifier le planning publié</button>
+              <label class="b" style="cursor:pointer">Importer un planning Excel<input type="file" id="upPlanning" accept=".xlsx" hidden></label>
+              <button class="b" id="undoPub" type="button" hidden>Revenir à la publication précédente</button>
+            </div>
+            <div class="msg" id="upPlanningMsg" role="status"></div>
+          </div>
         </div>
         <div id="draftBody" hidden>
           <div class="row" style="margin-bottom:14px">
@@ -1169,15 +1261,17 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
       </div>
 
       <div class="card" id="indCard">
-        <h2>Absences : demandes à valider <span class="tag err" id="indHeadTag" hidden></span></h2>
+        <h2>Demandes d'absence <span class="tag err" id="indHeadTag" hidden></span></h2>
         <p class="sub" id="admIndSub"></p>
+        <p class="aide" hidden>Seules les absences acceptées sont prises en compte à la génération. Une absence acceptée qui tombe sur le planning déjà publié est signalée : utilisez « Absence imprévue » (rubrique Planning) pour remplacer le médecin.</p>
         <ul class="list" id="admInd"></ul>
         <div class="msg" id="admIndMsg" role="status"></div>
       </div>
 
       <div class="card" id="absCalCard">
         <h2>Calendrier des absences</h2>
-        <p class="sub">Toute l'équipe sur le mois : absences acceptées en plein, demandes en attente en hachuré, demi-journées à moitié. En bas, le nombre d'absents par jour (en rouge au-delà du seuil).</p>
+        <p class="sub">Toute l'équipe sur un mois.</p>
+        <p class="aide" hidden>Absences acceptées en plein, demandes en attente en hachuré, demi-journées à moitié. En bas, le nombre d'absents par jour, en rouge au-delà du seuil choisi.</p>
         <div class="row" style="align-items:flex-end;margin-bottom:8px">
           <label class="f" style="flex:0 1 200px">Mois<select id="acMois"></select></label>
           <label class="f" style="flex:0 1 200px">Alerte à partir de<select id="acSeuil"></select></label>
@@ -1188,6 +1282,7 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
       <div class="card" id="statCard" hidden>
         <h2>Statistiques</h2>
         <p class="sub" id="statSub"></p>
+        <p class="aide" hidden>Visibles par les administrateurs uniquement : l'Excel téléchargé par les médecins ne contient que le planning. Vacations par médecin et par groupe de postes, déplacements, télétravail, astreintes, off travaillés, couverture des postes et contrôle des règles, sur la période choisie.</p>
         <div class="row" style="margin-bottom:8px;align-items:flex-end">
           <label class="f" style="min-width:150px">Période<select id="statPer"></select></label>
           <label class="f">Du<input type="date" id="statDu"></label>
@@ -1216,7 +1311,8 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
 
       <div class="card" id="accCard" hidden>
         <h2>Comptes <span class="tag err" id="accHeadTag" hidden></span></h2>
-        <p class="sub">Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
+        <p class="sub">Valider les comptes créés par les médecins.</p>
+        <p class="aide" hidden>Chaque médecin crée son compte (e-mail et mot de passe de son choix) ; vous le validez ici en lui attribuant ses initiales. Retirer un accès est immédiat.</p>
         <div id="accWarn" class="banner warn small" hidden></div>
         
         <h3 style="margin-top:6px">Demandes en attente <span class="tag" id="accPendN">0</span></h3>
@@ -1228,15 +1324,17 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
       </div>
 
       <div class="card" id="astrCard">
-        <h2>Générateur d'astreintes</h2>
-        <p class="sub">1. Ouvrez la saisie des indisponibilités d'astreinte (6 mois). 2. Chacun coche ses jours dans l'onglet Astreintes. 3. Générez : équité semaine / week-end / férié au prorata de la quotité, écart minimum, jamais le lundi après son week-end.</p>
+        <h2>Astreintes</h2>
+        <p class="sub">Deux fois par an : ouvrir la saisie des indisponibilités, puis générer.</p>
+        <p class="aide" hidden>1. Ouvrez la saisie des indisponibilités d'astreinte (6 mois). 2. Chacun coche ses jours dans l'onglet Astreintes. 3. Générez : équité semaine / week-end / férié au prorata de la quotité, écart minimum, jamais le lundi après son week-end.</p>
         <div id="astrAdm"></div>
         <div class="msg" id="astrMsg" role="status"></div>
       </div>
 
       <div class="card" id="sauvCard">
         <h2>Sauvegarde</h2>
-        <p class="sub">Tout le planning dans un fichier à garder en lieu sûr (ordinateur, clé USB) : plannings archivés mois par mois, paramètres, absences, astreintes, RCP, comptes et journal. Un rappel est envoyé aux administrateurs tous les 3 mois.</p>
+        <p class="sub">Tout le planning dans un fichier .zip à garder en lieu sûr.</p>
+        <p class="aide" hidden>Plannings archivés mois par mois, paramètres, absences, astreintes, RCP, comptes et journal. Gardez le fichier sur un ordinateur ou une clé USB. Un rappel est envoyé aux administrateurs tous les 3 mois.</p>
         <div id="sauvEtat"></div>
         <div class="row"><button class="b primary" type="button" id="sauvBtn">Télécharger la sauvegarde (.zip)</button></div>
         <div class="msg" id="sauvMsg" role="status"></div>
@@ -1244,7 +1342,8 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
 
       <div class="card" id="congCard">
         <h2>Compteurs de congés</h2>
-        <p class="sub">Absences acceptées décomptées : congés annuels, RTT et formation. Règle du off pour les CA et RTT (un off par semaine où des jours sont posés, pas pour une demi-journée seule) ; les RTT sont pris avant les CA. Droits au prorata de la quotité, modifiables par médecin, avec report et jours pris hors du site.</p>
+        <p class="sub">Congés annuels, RTT et formation, à partir des absences acceptées.</p>
+        <p class="aide" hidden>Règle du off pour les CA et RTT : un off décompté par semaine où des jours sont posés, pas pour une demi-journée seule ; les RTT sont pris avant les CA. Droits au prorata de la quotité, modifiables par médecin, avec report et jours pris hors du site.</p>
         <div class="row" style="align-items:flex-end;margin-bottom:8px">
           <label class="f">Année<select id="congAn" style="width:auto"></select></label>
           <label class="f">CA (temps plein)<input type="number" id="congDefCA" step="0.5" min="0" style="width:80px"></label>
@@ -1259,37 +1358,49 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
 
       <div class="card" id="jourCard">
         <h2>Journal des modifications</h2>
-        <p class="sub">Qui a changé quoi et quand (publications, retouches, absences, paramètres, comptes, astreintes, RCP). Visible par les administrateurs uniquement.</p>
+        <p class="sub">Qui a changé quoi, et quand.</p>
+        <p class="aide" hidden>Publications, retouches, absences, paramètres, comptes, astreintes, RCP. Visible par les administrateurs uniquement ; effacé après 400 jours.</p>
         <input type="search" id="jourQ" placeholder="Rechercher (médecin, action, administrateur…)" style="margin-bottom:8px">
         <ul class="list" id="jourList"></ul>
       </div>
 
       <div class="card" id="rcpCard">
-        <h2>RCP du mois</h2>
-        <p class="sub">Déposez les fiches RCP (PDF scannés, plusieurs à la fois possible). Chaque radiologue voit ses RCP dans Mon planning ; Général → RCP les affiche toutes.</p>
-        <div class="row"><label class="b" style="cursor:pointer">Importer des fiches RCP (PDF)<input type="file" id="upRcp" accept="application/pdf,.pdf" multiple hidden></label></div>
-        <div id="rcpApercu"></div>
-        <ul class="list" id="rcpListe" style="margin-top:10px"></ul>
-        <div id="rcpEdit"></div>
+        <h2>RCP</h2>
+        <p class="sub">Chaque radiologue voit ses RCP dans Mon planning, et toutes dans Général → RCP.</p>
+        <p class="aide" hidden><b>Importer la fiche</b> : déposez les fiches RCP du service (PDF scannés, plusieurs à la fois possible). <b>Générer</b> : l'appli répartit les RCP du mois entre les radiologues inscrits, en équilibrant par RCP puis au total (12 derniers mois compris) ; ne sont pas proposés les absents, les médecins en repos, affectés à Sainte-Foy ou Blaye ce jour-là, ou d'astreinte pour une RCP à partir de 17h ; mode « tous les présents » pour la séno. <b>Modifier</b> : changez les radiologues, ajoutez ou supprimez une RCP d'un mois déjà enregistré.</p>
+        <div class="seg rcpmodes" role="group" aria-label="RCP">
+          <button type="button" data-rcpmode="import" title="Importer la fiche RCP du service (PDF)">Importer</button>
+          <button type="button" data-rcpmode="gen">Générer</button>
+          <button type="button" data-rcpmode="modif">Modifier</button>
+        </div>
+        <div class="rcpmode" id="rcpImport" data-mode="import">
+          <div class="row"><label class="b primary" style="cursor:pointer">Choisir les fiches RCP (PDF)<input type="file" id="upRcp" accept="application/pdf,.pdf" multiple hidden></label></div>
+          <div id="rcpApercu"></div>
+        </div>
+        <div class="rcpmode" id="rcpGenCard" data-mode="gen">
+          <div class="row" style="align-items:flex-end">
+            <label class="f">Mois<select id="rcpgMois" style="width:auto"></select></label>
+            <button class="b primary" type="button" id="rcpgGen">Générer</button>
+          </div>
+          <div id="rcpgRes"></div>
+          <details class="rcpgcfg" id="rcpgCfg">
+            <summary>RCP du service et radiologues inscrits</summary>
+            <div id="rcpgListe"></div>
+            <div class="row" style="margin-top:8px"><button class="b" type="button" id="rcpgAjout">Ajouter une RCP</button><button class="b" type="button" id="rcpgImport">Remplir à partir des fiches importées</button></div>
+          </details>
+          <div class="msg" id="rcpgMsg" role="status"></div>
+        </div>
+        <div class="rcpmode" id="rcpModif" data-mode="modif">
+          <ul class="list" id="rcpListe"></ul>
+          <div id="rcpEdit"></div>
+        </div>
         <div class="msg" id="rcpMsg" role="status"></div>
       </div>
 
-      <div class="card" id="rcpGenCard">
-        <h2>Générateur des RCP</h2>
-        <p class="sub">Les RCP du service (jour, horaire, semaines du mois) et les radiologues inscrits à chacune. Le générateur répartit chaque mois en équilibrant par RCP puis au total (12 derniers mois compris). Ne sont pas proposés : absents, en repos (jour off), affectés à Sainte-Foy ou Blaye ce jour-là, et d'astreinte pour une RCP à partir de 17h. Mode « tous les présents » (séno) : tous les inscrits présents.</p>
-        <div id="rcpgListe"></div>
-        <div class="row" style="margin-top:8px"><button class="b" type="button" id="rcpgAjout">Ajouter une RCP</button><button class="b" type="button" id="rcpgImport">Remplir à partir des fiches importées</button></div>
-        <div class="row" style="margin-top:14px;align-items:flex-end">
-          <label class="f">Mois<select id="rcpgMois" style="width:auto"></select></label>
-          <button class="b primary" type="button" id="rcpgGen">Générer</button>
-        </div>
-        <div id="rcpgRes"></div>
-        <div class="msg" id="rcpgMsg" role="status"></div>
-      </div>
-
       <div class="card" id="cloCard">
-        <h2>Dates limites de dépôt des absences</h2>
-        <p class="sub">Les médecins ne peuvent déclarer une absence que dans ces périodes, jusqu'à leur date limite, ou après la dernière période (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus.</p>
+        <h2>Dates limites de dépôt</h2>
+        <p class="sub">Périodes où les médecins peuvent déclarer leurs absences.</p>
+        <p class="aide" hidden>Les médecins ne peuvent déclarer une absence que dans ces périodes, jusqu'à leur date limite, ou après la dernière période (les administrateurs le peuvent toujours). La période du planning publié est de toute façon verrouillée. 5 dates limites au plus. Un rappel est envoyé la veille et 3 jours avant à ceux qui n'ont rien déclaré.</p>
         <ul class="list" id="cloList"></ul>
         <div class="row" style="margin-top:10px">
           <label class="f">Période du<input type="date" id="cDu"></label>
@@ -1301,14 +1412,13 @@ td.otc { background: #fff1b8; color: #6b4e00; font-weight: 700; }
       </div>
 
       <div class="card" id="rulesCard" hidden>
-        <details>
-          <summary>Règles de sécurité à jour</summary>
-          <p class="small muted">Si la publication automatique des règles par GitHub est en place (secrets <code>FIREBASE_CLE</code> et <code>ADMIN_UID</code>), il n'y a rien à faire ici. Sinon, après une évolution du site touchant aux données : Firestore → Règles → remplacer tout le texte par celui-ci → Publier.</p>
-          <label class="f">UID des autres administrateurs (facultatif, un par ligne)<textarea id="rUids" style="min-height:50px"></textarea></label>
-          <textarea id="rText" readonly style="min-height:200px;margin-top:10px"></textarea>
-          <div class="row" style="margin-top:8px"><button class="b" id="rCopy" type="button">Copier les règles</button></div>
-          <div class="msg" id="rMsg" role="status"></div>
-        </details>
+        <h2>Règles de sécurité</h2>
+        <p class="sub">Rien à faire si GitHub les publie automatiquement.</p>
+        <p class="aide" hidden>Si la publication automatique des règles par GitHub est en place (secrets <code>FIREBASE_CLE</code> et <code>ADMIN_UID</code>), il n'y a rien à faire ici. Sinon, après une évolution du site touchant aux données : Firestore → Règles → remplacer tout le texte par celui-ci → Publier.</p>
+        <label class="f">UID des autres administrateurs (facultatif, un par ligne)<textarea id="rUids" style="min-height:50px"></textarea></label>
+        <textarea id="rText" readonly style="min-height:200px;margin-top:10px"></textarea>
+        <div class="row" style="margin-top:8px"><button class="b" id="rCopy" type="button">Copier les règles</button></div>
+        <div class="msg" id="rMsg" role="status"></div>
       </div>
 
       <div class="card" id="setupCard">
@@ -1686,7 +1796,7 @@ async function resolveAccount() {
 function watchAdminCollections() {
   const err = (e) => {
     S.accErr = e && e.code === "permission-denied"
-      ? "Comptes inactifs : republiez les règles de sécurité (carte « Règles de sécurité à jour » ci-dessous) pour les activer."
+      ? "Comptes inactifs : republiez les règles de sécurité (Admin → Suivi → Sécurité) pour les activer."
       : (e && e.message) || "";
     render();
   };
@@ -2298,7 +2408,15 @@ function renderCal() {
   const iNotif = cartes.indexOf('<div class="card" id="notifCard">');
   const avant = iNotif >= 0 ? cartes.slice(0, iNotif) : cartes, notifEtApres = iNotif >= 0 ? cartes.slice(iNotif) : "";
   html = `<h2 class="regl-t">Réglages</h2>` + apparenceHtml() + notifEtApres + avant;
+  if (S.auth) html += `<div class="card" id="compteCard"><h2>Compte</h2>
+    <p class="sub">Connecté : <b>${esc(S.auth.email || "")}</b>${S.membre && S.membre.ini ? ` · initiales <b>${esc(S.membre.ini)}</b>` : ""}${S.admin ? " · administrateur" : ""}</p>
+    <button class="b" id="logoutBtn" type="button">Se déconnecter</button></div>`;
   v.innerHTML = html;
+  if ($("logoutBtn")) $("logoutBtn").onclick = async () => {
+    if (S.membre) { logout(); return; }   // compte individuel : retour à l'écran de connexion
+    try { await S.store.signOut(); } catch (e) { /* hors connexion */ }
+    location.hash = "#admin";   // administrateur (démonstration, ancien fonctionnement) : retour à la connexion admin
+  };
   brancherApparence();
   if ($("calWho")) $("calWho").onclick = openWho;
   if ($("calInstall")) $("calInstall").onclick = openInstall;
@@ -2637,7 +2755,7 @@ function renderGeneral() {
     $("genBody").innerHTML = `<div class="toolbar">${seg}${liste.length > 1 ? `<select id="rcpMois" aria-label="Mois">${liste.map((m) => `<option value="${m}"${m === S.genView.rcpMois ? " selected" : ""}>${libMoisNum(m)}</option>`).join("")}</select>` : ""}</div>`
       + (S.admin && liste.length ? `<p class="small" style="margin:0 0 6px"><button class="x" type="button" id="rcpModifGen" style="padding:0">Modifier les RCP de ${libMoisNum(S.genView.rcpMois)}</button></p>` : "")
       + (liste.length ? rcpTable(S.genView.rcpMois, S.me) : `<div class="empty small">Aucune fiche RCP importée pour l'instant.</div>`);
-    if ($("rcpModifGen")) $("rcpModifGen").onclick = () => { location.hash = "#admin"; setTimeout(() => { ouvrirRcpEdition(S.genView.rcpMois); allerCarte("rcpCard"); }, 50); };
+    if ($("rcpModifGen")) $("rcpModifGen").onclick = () => { location.hash = "#admin"; setTimeout(() => { S.rcpMode = "modif"; ouvrirRcpEdition(S.genView.rcpMois); allerCarte("rcpModif"); }, 50); };
     $("genBody").querySelectorAll(".seg button").forEach((b) => b.onclick = () => { S.genView.mode = b.dataset.mode; renderGeneral(); });
     if ($("rcpMois")) $("rcpMois").onchange = (e) => { S.genView.rcpMois = +e.target.value; renderGeneral(); };
     return;
@@ -3477,7 +3595,6 @@ $("loginForm").addEventListener("submit", async (e) => {
   try { await connexion($("loginEmail").value.trim(), $("loginPw").value, $("loginPartage").checked); setMsg($("loginMsg"), ""); $("loginPw").value = ""; }
   catch (err) { setMsg($("loginMsg"), err.message, "err"); }
 });
-$("logoutBtn").addEventListener("click", () => S.store.signOut());
 
 function renderAdmin() {
   updateHeader();
@@ -3532,7 +3649,7 @@ function renderAdmin() {
   const attente = list.filter((x) => statutInd(x) === "attente");
   const autres = future.filter((x) => statutInd(x) !== "attente");
   $("indHeadTag").hidden = !attente.length; $("indHeadTag").textContent = `${attente.length} à valider`;
-  $("admIndSub").textContent = `${attente.length ? `${attente.length} demande(s) à valider · ` : ""}${autres.length} à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}. Seules les absences acceptées sont prises en compte à la génération.`;
+  $("admIndSub").textContent = `${attente.length ? `${attente.length} à valider · ` : ""}${autres.length} absence(s) à venir${conf.length ? ` · ${conf.length} en conflit avec le planning publié` : ""}.`;
   const ligne = (x) => indLine(x, true, true).replace("<div class=\"grow\">",
     `<div class="grow">${confIds.has(x.id) ? `<span class="tag err" style="float:right">affecté pendant l'absence</span>` : ""}`);
   const dem = attente.map((x) => ligne(x).replace(/^<li/, '<li style="flex-wrap:wrap"').replace(/<button class="x" data-del[^]*?<\/button>/, "")
@@ -3569,11 +3686,17 @@ function renderAdmin() {
   if (S.store.mode !== "demo") refreshRules();
   // mise en ligne
   $("setupDetails").open = $("setupDetails").open || S.store.mode === "demo";
+  $("setupCard").hidden = S.store.mode !== "demo";   // site déjà en ligne (publié par GitHub) : l'assistant ne sert plus
+  // accueil, RCP, rubrique affichée
+  renderAccueil();
+  majRcpMode();
+  admLire();
+  admSection(S.admSec, false);
 }
 function renderComptes() {
   $("accCard").hidden = !comptesActifs();
   if (!comptesActifs()) return;
-  const warn = S.legacy ? "Comptes inactifs : republiez les règles de sécurité (carte « Règles de sécurité à jour » ci-dessous) pour les activer." : S.accErr;
+  const warn = S.legacy ? "Comptes inactifs : republiez les règles de sécurité (Admin → Suivi → Sécurité) pour les activer." : S.accErr;
   $("accWarn").hidden = !warn; $("accWarn").textContent = warn || "";
   const docs = doctorList();
   const opts = (sel) => [...new Set([...docs, sel].filter(Boolean))].map((d) => `<option${d === sel ? " selected" : ""}>${esc(d)}</option>`).join("");
@@ -3713,6 +3836,7 @@ function rcpApercu() {
 $("upRcp").addEventListener("change", async (e) => {
   const files = [...e.target.files]; e.target.value = "";
   if (!files.length) return;
+  S.rcpMode = "import"; majRcpMode();
   const msg = $("rcpMsg");
   setMsg(msg, "Lecture des fiches…");
   const medecins = {};
@@ -3755,7 +3879,7 @@ async function rcpEnregistrer() {
 }
 $("rcpListe").addEventListener("click", async (e) => {
   const mo = e.target.closest("[data-rcp-modif]");
-  if (mo) { ouvrirRcpEdition(+mo.dataset.rcpModif); return; }
+  if (mo) { S.rcpMode = "modif"; majRcpMode(); ouvrirRcpEdition(+mo.dataset.rcpModif); return; }
   const b = e.target.closest("[data-rcp-suppr]"); if (!b) return;
   const m = +b.dataset.rcpSuppr;
   if (!confirm(`Supprimer toutes les RCP de ${libMoisNum(m)} ?`) || !needOnline($("rcpMsg"))) return;
@@ -4004,9 +4128,9 @@ $("admInd").addEventListener("click", (e) => {
   const a = e.target.closest("[data-accept],[data-refuse]"); if (a) decider(a.dataset.accept || a.dataset.refuse, !!a.dataset.accept);
 });
 // Décision de l'administrateur sur une demande d'absence
-async function decider(id, accepter) {
+async function decider(id, accepter, msgEl) {
   const x = S.indispos.find((i) => i.id === id); if (!x) return;
-  const msg = $("admIndMsg") || $("paramMsg");
+  const msg = msgEl || $("admIndMsg") || $("paramMsg");
   if (!needOnline(msg)) return;
   let refus = "";
   if (!accepter) {
@@ -4188,29 +4312,16 @@ $("medForm").addEventListener("submit", async (e) => {
   if (ok) { $("medOverlay").hidden = true; setMsg($("medMsg"), `${ini} enregistré dans le classeur.`, "ok"); }
   else setMsg(msg, $("paramMsg").textContent || "Enregistrement impossible.", "err");
 });
-// ------------------------------------------------------------ Admin : cartes repliables (état mémorisé sur l'appareil)
-const PLIS_KEY = "planning-radio-plis";
-const PLIS_OUVERTES = ["todoCard", "genCard", "draftCard", "indCard"];   // ouvertes par défaut
-(function initPlis() {
-  const brut = ls.get(PLIS_KEY), tout = brut === "tout" || window.__PLIS_TOUT === true;   // (tests : toutes les cartes ouvertes)
-  let etat = {};
-  try { etat = tout ? {} : JSON.parse(brut || "{}") || {}; } catch (e) { etat = {}; }
+// ------------------------------------------------------------ Admin : bouton « ? » des cartes (aide détaillée affichée à la demande)
+(function initAide() {
   for (const card of document.querySelectorAll("#adminBody > .card")) {
-    const id = card.id; if (!id) continue;
-    const tete = card.querySelector(":scope > h2, :scope > .row:first-child");
-    if (!tete) continue;
-    tete.classList.add("pli-tete"); card.classList.add("pliable");
-    tete.setAttribute("role", "button"); tete.setAttribute("tabindex", "0");
-    const ouvert = tout || (id in etat ? etat[id] : PLIS_OUVERTES.includes(id));
-    card.classList.toggle("ferme", !ouvert);
-    tete.setAttribute("aria-expanded", String(ouvert));
-    const basculer = () => {
-      const ferme = card.classList.toggle("ferme");
-      tete.setAttribute("aria-expanded", String(!ferme));
-      if (!tout) { etat[id] = !ferme; ls.set(PLIS_KEY, JSON.stringify(etat)); }
-    };
-    tete.addEventListener("click", (e) => { if (!e.target.closest("button, a, input, label, select")) basculer(); });
-    tete.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === tete) { e.preventDefault(); basculer(); } });
+    const aide = card.querySelector(":scope > p.aide"), h2 = card.querySelector("h2");
+    if (!aide || !h2) continue;
+    const bt = document.createElement("button");
+    bt.type = "button"; bt.className = "aideb"; bt.textContent = "?";
+    bt.setAttribute("aria-label", "Aide"); bt.setAttribute("aria-expanded", "false");
+    bt.onclick = () => { aide.hidden = !aide.hidden; bt.setAttribute("aria-expanded", String(!aide.hidden)); };
+    h2.appendChild(bt);
   }
 })();
 
@@ -4280,7 +4391,7 @@ function renderStats() {
     const q = P && P.docs[ini] ? P.docs[ini].quotite : null;
     return { ini, q, total, g, hors: horsSite.size, tt: tt.size, absent, dispo, astr: nAstr[ini.toUpperCase()] || 0, offt: nOff[ini] || 0 };
   }).filter((l) => l.total || l.absent).sort((a, b) => a.ini.localeCompare(b.ini));
-  $("statSub").textContent = `Du ${fmtDay(du)} au ${fmtDay(au)} (${joursP.length} jours ouvrés) · ${lignes.length} médecins. Visible par les administrateurs uniquement ; l'Excel des médecins ne contient que le planning.`;
+  $("statSub").textContent = `Du ${fmtDay(du)} au ${fmtDay(au)} (${joursP.length} jours ouvrés) · ${lignes.length} médecins.`;
   S.statData = { du, au, nJours: joursP.length, groupes, lignes, mainSite: pub.mainSite, cov: [], checks: [] };
   const th = (t) => `<th>${esc(t)}</th>`;
   $("statTable").innerHTML = `<table class="pl"><thead><tr><th class="lead">Médecin</th>${th("Quotité")}${th("Demi-j.")}${groupes.map(th).join("")}${th(`Jours hors ${pub.mainSite}`)}${th("Jours télétravail")}${th("Astreintes")}${th("Off travaillés (j)")}${th("Off / absent")}${th("Sans poste")}</tr></thead><tbody>
@@ -4746,13 +4857,13 @@ function renderDraft() {
   $("undoPub").hidden = !(S.precedent && S.published);
   if (S.precedent) $("undoPub").textContent = `Revenir à la publication du ${new Date(S.precedent.publieLe).toLocaleDateString("fr-FR")} ${new Date(S.precedent.publieLe).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
   if (!has) {
-    $("draftTitle").textContent = "Planning à publier";
-    $("draftSub").textContent = S.published ? `Planning publié : ${S.published.titre.replace("Planning du service de radiologie — ", "")}, le ${new Date(S.published.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}. Générez un nouveau planning, ou modifiez celui qui est publié.` : "Aucun planning publié. Générez-en un ci-dessus.";
+    $("draftTitle").textContent = "Planning du mois";
+    $("draftSub").textContent = S.published ? `Publié jusqu'au ${fmtDay(S.published.end)} (mis en ligne le ${new Date(S.published.publieLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}).` : "Aucun planning publié pour l'instant.";
     return;
   }
   const d = S.draft;
   $("draftTitle").textContent = d.titre.replace("Planning du service de radiologie — ", "Planning — ");
-  $("draftSub").textContent = `${S.draftSource} · non publié. Les médecins voient toujours ${S.published ? "la version publiée précédente" : "« aucun planning »"} tant que vous n'avez pas publié.`;
+  $("draftSub").textContent = `${S.draftSource} · non publié : les médecins voient ${S.published ? "la version publiée précédente" : "« aucun planning »"} tant que vous n'avez pas publié.`;
   const ctx = draftContext();
   if (ctx) {
     const cov = coverage(ctx.pr, ctx.R);
@@ -4920,30 +5031,189 @@ $("discardBtn").addEventListener("click", () => {
   if (!confirm("Abandonner ce planning non publié ?")) return;
   setDraft(null, "");
 });
-// ------------------------------------------------------------ « À faire » : ce qui demande une action, en tête de l'Admin
-function allerCarte(id) {
-  const card = $(id); if (!card) return;
-  card.classList.remove("ferme");
-  const tete = card.querySelector(".pli-tete"); if (tete) tete.setAttribute("aria-expanded", "true");
-  card.scrollIntoView({ behavior: "smooth", block: "start" });
+// ------------------------------------------------------------ Admin en rubriques : une rubrique, un outil à la fois
+// Accueil (préparer le mois) · Planning · Absences et congés · RCP et astreintes · Équipe et règles · Suivi et sécurité.
+// Tests : window.__PLIS_TOUT = true affiche tous les outils en même temps (toutVoir).
+const ICO = (d) => `<svg class="ti" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const ADM_SECTIONS = [
+  ["accueil", "Accueil", "Accueil", ICO('<path d="M4 11.5 12 4.5l8 7"/><path d="M6.5 10v9.5h11V10"/><path d="M10 19.5v-5h4v5"/>')],
+  ["planning", "Planning", "Planning", ICO('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4M7.5 13.5h3M13.5 13.5h3M7.5 17h3"/>')],
+  ["absences", "Absences et congés", "Absences", ICO('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4M9.5 13l5 5M14.5 13l-5 5"/>')],
+  ["rcp", "RCP et astreintes", "RCP·Astr.", ICO('<path d="M17.5 14A6.5 6.5 0 0 1 9 5.5a6.5 6.5 0 1 0 8.5 8.5Z"/><path d="M15 4.5v4M13 6.5h4"/>')],
+  ["equipe", "Équipe et règles", "Équipe", ICO('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="16.5" cy="9.5" r="2.3"/><path d="M15.5 14.6c2.3-.3 4.3 1.2 5 4.4"/>')],
+  ["suivi", "Suivi et sécurité", "Suivi", ICO('<path d="M4 19.5h16"/><rect x="5.5" y="12" width="3" height="5.5" rx=".8"/><rect x="10.5" y="7.5" width="3" height="10" rx=".8"/><rect x="15.5" y="10" width="3" height="7.5" rx=".8"/>')],
+];
+const ADM_OUTILS = {
+  planning: [["draftCard", "Planning du mois"], ["impCard", "Absence imprévue"]],
+  absences: [["indCard", "Demandes"], ["absCalCard", "Calendrier"], ["cloCard", "Dates limites"], ["congCard", "Congés"]],
+  rcp: [["rcpCard", "RCP"], ["astrCard", "Astreintes"]],
+  equipe: [["medCard", "Médecins"], ["regCard", "Règles et postes"], ["paramCard", "Classeur"], ["accCard", "Comptes"]],
+  suivi: [["statCard", "Statistiques"], ["jourCard", "Journal"], ["sauvCard", "Sauvegarde"], ["rulesCard", "Sécurité"], ["setupCard", "Mise en ligne"]],
+};
+const ADM_CARTES = { accueilCard: "accueil", todoCard: "accueil" };
+for (const [sec, l] of Object.entries(ADM_OUTILS)) for (const [id] of l) ADM_CARTES[id] = sec;
+const toutVoir = () => window.__PLIS_TOUT === true;
+const rubriqueDe = (id) => (id === "paramCard" && !S.P ? "accueil" : ADM_CARTES[id] || "accueil");
+const carteDe = (el) => (el && el.closest ? el.closest("#adminBody > .card") : null) || el;
+function admLire() {
+  if (S.admSec) return;
+  S.admSec = ls.get("planning-radio-admsec") || "accueil";
+  try { S.admOutil = JSON.parse(ls.get("planning-radio-admoutil") || "{}") || {}; } catch (e) { S.admOutil = {}; }
 }
+function admSection(sec, haut = true) {
+  admLire();
+  if (!ADM_SECTIONS.some((x) => x[0] === sec)) sec = "accueil";
+  S.admSec = sec; ls.set("planning-radio-admsec", sec);
+  const outils = (ADM_OUTILS[sec] || []).filter(([id]) => $(id) && !$(id).hidden);
+  if (outils.length && !outils.some(([id]) => id === S.admOutil[sec])) S.admOutil[sec] = outils[0][0];
+  const tout = toutVoir();
+  for (const card of document.querySelectorAll("#adminBody > .card")) if (card.id)
+    card.classList.toggle("horsec", !tout && (rubriqueDe(card.id) !== sec || (sec !== "accueil" && card.id !== S.admOutil[sec])));
+  $("adminBody").dataset.sec = sec;
+  $("adminBody").classList.toggle("toutvoir", tout);
+  const so = $("admOutils"), e = etatsRubriques();
+  so.hidden = tout || sec === "accueil" || outils.length < 2;
+  so.innerHTML = outils.map(([id, lib]) => { const n = id === "indCard" ? e.absences.n : id === "accCard" ? e.equipe.n : 0, pt = id === "draftCard" && !!S.draft;
+    return `<button type="button" data-outil="${id}"${id === S.admOutil[sec] ? ' aria-current="true"' : ""}>${esc(lib)}${n ? ` <b class="ab">${n}</b>` : pt ? ` <i class="ad"></i>` : ""}</button>`; }).join("");
+  majAdmNav(e);
+  if (haut) window.scrollTo({ top: 0 });
+}
+function sauverOutils() { ls.set("planning-radio-admoutil", JSON.stringify(S.admOutil || {})); }
+// fin des astreintes saisies (classeur + notes du planning publié) : elles se font deux fois par an (novembre → mai, mai → novembre)
+function etatAstreintes() {
+  const today = todayDay(), conn = astreintesConnues(), c = S.astrCfg || {};
+  const fin = conn.size ? Math.max(...conn.keys()) : null;
+  const cfgOk = typeof astrCfg === "function" && astrCfg();
+  if (cfgOk && Date.now() <= c.finMs) return { besoin: true, st: "cours", txt: `saisie des indisponibilités ouverte jusqu'au ${fmtDay(c.limite, false)} (période du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)})`, bouton: "Voir" };
+  if (cfgOk && (fin === null || fin < c.au)) return { besoin: true, st: "todo", txt: `saisie close : générez les astreintes du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)}`, bouton: "Générer" };
+  if (fin === null) return { besoin: true, st: "todo", txt: "aucune astreinte saisie", bouton: "Préparer" };
+  if (fin - today < 60) return { besoin: true, st: fin < today + 31 ? "err" : "todo", txt: `saisies jusqu'au ${fmtDay(fin, false)} : préparez la période suivante`, bouton: "Préparer" };
+  return { besoin: false, fin };
+}
+function etatsRubriques() {
+  const today = todayDay(), ms = moisSuivant(), att = S.indispos.filter((x) => statutInd(x) === "attente").length;
+  const rcpOk = rcpItems().some((x) => moisDeJour(x.d) === ms), ea = etatAstreintes();
+  const sv = S.sauvegarde && S.sauvegarde.derniere, svVieille = !sv || Date.now() - sv > 90 * 86400000;
+  const conf = S.published ? conflicts(S.published, S.indispos.filter((x) => statutInd(x) === "acceptee" && x.d2 >= today)).length : 0;
+  const nMed = S.P ? Object.keys(S.P.docs).length : 0, nDem = (S.demandes || []).length, nomM = MOIS[ms % 100 - 1];
+  return {
+    accueil: { n: att + conf, sous: "" },
+    planning: { pt: !!S.draft || conf > 0, sous: S.draft ? "brouillon non publié" : S.published ? `publié jusqu'au ${fmtDay(S.published.end, false)}` : "rien de publié" },
+    absences: { n: att, sous: att ? `${att} demande${att > 1 ? "s" : ""} à valider` : "aucune demande en attente" },
+    rcp: { pt: !rcpOk || ea.besoin, sous: [!rcpOk ? `RCP de ${nomM} à faire` : `RCP de ${nomM} prêtes`, ea.besoin ? "astreintes à préparer" : ""].filter(Boolean).join(" · ") },
+    equipe: { n: nDem, sous: nDem ? `${nDem} compte${nDem > 1 ? "s" : ""} à valider` : nMed ? `${nMed} médecins` : "paramètres à charger" },
+    suivi: { pt: svVieille, sous: svVieille ? "sauvegarde à faire" : `sauvegarde du ${new Date(sv).toLocaleDateString("fr-FR")}` },
+  };
+}
+function majAdmNav(e) {
+  const nav = $("admNav"); if (!nav) return;
+  e = e || etatsRubriques();
+  const sec = S.admSec || "accueil";
+  nav.innerHTML = ADM_SECTIONS.map(([id, lib, court, ico]) => { const x = e[id] || {};
+    return `<button type="button" data-sec="${id}"${id === sec ? ' aria-current="page"' : ""} aria-label="${esc(lib)}${x.n ? ` (${x.n})` : ""}">${ico}<span class="al">${esc(lib)}<small>${esc(x.sous || "")}</small></span><span class="as" aria-hidden="true">${esc(court)}</span>${x.n ? `<b class="ab">${x.n}</b>` : x.pt ? `<i class="ad"></i>` : ""}</button>`; }).join("");
+  const tete = document.querySelector("header.top");
+  nav.style.setProperty("--admtop", (tete ? tete.offsetHeight : 0) + "px");
+}
+$("admNav").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) admSection(b.dataset.sec); });
+$("admOutils").addEventListener("click", (e) => { const b = e.target.closest("[data-outil]"); if (!b) return; S.admOutil[S.admSec] = b.dataset.outil; sauverOutils(); admSection(S.admSec); });
+// Ouvre l'outil qui contient l'élément (carte ou bloc intérieur) et le fait apparaître
+function allerCarte(id) {
+  const el = $(id); if (!el) return;
+  const card = carteDe(el); if (!card || !card.id) return;
+  admLire();
+  const sec = rubriqueDe(card.id);
+  if (sec !== "accueil") { S.admOutil[sec] = card.id; sauverOutils(); }
+  if (id === "rcpGenCard") S.rcpMode = "gen"; else if (id === "rcpModif") S.rcpMode = "modif"; else if (id === "rcpImport") S.rcpMode = "import";
+  if (card.id === "rcpCard") majRcpMode();
+  if (typeof currentTab === "function" && currentTab() !== "admin") location.hash = "#admin";
+  admSection(sec, false);
+  requestAnimationFrame(() => {   // sous l'en-tête et, sur téléphone, sous la barre des rubriques
+    const nav = $("admNav"), tete = document.querySelector("header.top");
+    const haut = (tete ? tete.offsetHeight : 0) + (innerWidth < 1000 && nav ? nav.offsetHeight + 8 : 12);
+    const cible = el === card ? card : el;
+    window.scrollTo({ top: Math.max(0, cible.getBoundingClientRect().top + scrollY - haut), behavior: "smooth" });
+  });
+}
+// ------------------------------------------------------------ RCP : un outil, trois façons de faire (importer la fiche, générer, modifier)
+function rcpModeDefaut() { const ms = moisSuivant(); return rcpItems().some((x) => moisDeJour(x.d) === ms) ? "modif" : "gen"; }
+function majRcpMode() {
+  const mode = S.rcpMode || rcpModeDefaut(), tout = toutVoir();
+  document.querySelectorAll("#rcpCard [data-rcpmode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.rcpmode === mode)));
+  document.querySelectorAll("#rcpCard .rcpmode").forEach((p) => { p.hidden = !tout && p.dataset.mode !== mode; });
+  const cfg = $("rcpgCfg");
+  if (cfg && !cfg.dataset.vu) {   // première fois : liste des RCP ouverte s'il reste des radiologues à inscrire
+    const rcps = rcpCfgListe();
+    if (tout || !rcpCfgEnregistree() || rcps.some((r) => !r.medecins.length)) cfg.open = true;
+    cfg.dataset.vu = "1";
+  }
+}
+document.querySelector("#rcpCard .rcpmodes").addEventListener("click", (e) => { const b = e.target.closest("[data-rcpmode]"); if (b) { S.rcpMode = b.dataset.rcpmode; majRcpMode(); } });
+// ------------------------------------------------------------ Accueil : préparer le mois suivant
+function bornesMoisNum(m) { const y = Math.floor(m / 100), mm = m % 100; return [dayFromYMD(y, mm, 1), (mm === 12 ? dayFromYMD(y + 1, 1, 1) : dayFromYMD(y, mm + 1, 1)) - 1]; }
+function renderAccueil() {
+  if (!$("accEtapes")) return;
+  const today = todayDay(), ms = moisSuivant(), [du, au] = bornesMoisNum(ms), nom = MOIS[ms % 100 - 1];
+  const clo = ((S.saisie && S.saisie.clotures) || []).find((c) => c.du <= au && c.au >= du);
+  const att = S.indispos.filter((x) => statutInd(x) === "attente").sort((a, b) => a.d1 - b.d1);
+  const pub = S.published, couvre = pub && pub.end >= au - 2, dr = S.draft && S.draft.end >= du;
+  const nRcp = rcpItems().filter((x) => moisDeJour(x.d) === ms).length, ea = etatAstreintes();
+  const per = (x) => `${fmtDay(x.d1, false)}${x.d2 !== x.d1 ? " → " + fmtDay(x.d2, false) : ""}${x.periode && x.periode !== "Journée" ? " · " + String(x.periode).toLowerCase() : ""}`;
+  const demandes = att.length ? `<ul class="demacc">${att.slice(0, 5).map((x) => { const ch = chevauchements(x);
+      return `<li><b>${esc(x.ini)}</b><span class="grow">${esc(per(x))}${ch.length ? `<small>Déjà absents : ${ch.map(esc).join(", ")}</small>` : ""}</span>
+        <span class="dbt"><button class="b primary" type="button" data-accept="${esc(x.id)}">Accepter</button><button class="b" type="button" data-refuse="${esc(x.id)}">Refuser</button></span></li>`; }).join("")}
+      ${att.length > 5 ? `<li class="small muted">… et ${att.length - 5} autre(s)</li>` : ""}</ul>` : "";
+  const et = [
+    ["Dépôt des absences", !clo ? ["todo", `Aucune date limite fixée pour ${nom}`, "Fixer", "cloCard"]
+      : clo.limite >= today ? ["cours", `Ouvert jusqu'au ${fmtDay(clo.limite, false)}${(() => { const r = relanceInfo(clo); return r.manquants.length ? ` · ${r.manquants.length} médecin(s) sans réponse` : " · tout le monde a répondu"; })()}`, "Relancer", "cloCard"]
+      : ["ok", `Clos le ${fmtDay(clo.limite, false)}`, "", "cloCard"]],
+    ["Demandes d'absence", att.length ? ["err", `${att.length} demande${att.length > 1 ? "s" : ""} en attente`, "Tout voir", "indCard", demandes] : ["ok", "Aucune demande en attente", "", "indCard"]],
+    [`Planning de ${nom}`, couvre ? ["ok", `Publié jusqu'au ${fmtDay(pub.end, false)}`, "", "draftCard"] : dr ? ["cours", "Brouillon prêt, pas encore publié", "Publier", "draftCard"] : ["todo", "À générer", "Générer", "genCard"]],
+    [`RCP de ${nom}`, nRcp ? ["ok", `${nRcp} RCP enregistrées`, "", "rcpModif"] : ["todo", "À faire : importer la fiche ou générer", "Faire", "rcpGenCard"]],
+  ];
+  if (ea.besoin) et.push(["Astreintes (deux fois par an)", [ea.st, ea.txt.charAt(0).toUpperCase() + ea.txt.slice(1), ea.bouton, "astrCard"]]);
+  const fait = et.filter(([, [st]]) => st === "ok").length, prochaine = et.findIndex(([, [st]]) => st !== "ok");
+  $("accTitre").textContent = `Préparer ${nom} ${Math.floor(ms / 100)}`;
+  $("accProg").innerHTML = `<span class="barre"><span style="width:${Math.round(100 * fait / et.length)}%"></span></span>${fait} / ${et.length}`;
+  $("accEtapes").innerHTML = et.map(([titre, [st, txt, bouton, carte, extra]], i) => `<li class="et-${st}"><div class="etl"><span class="num">${st === "ok" ? "✓" : i + 1}</span>
+      <div class="grow"><b>${esc(titre)}</b><div class="small">${esc(txt)}</div></div>
+      <button class="b${i === prochaine && !extra ? " primary" : ""}" type="button" data-todo="${carte}"${carte === "genCard" ? ` data-gen="${du}|${au}"` : ""}>${bouton || "Voir"}</button></div>${extra || ""}</li>`).join("");
+  $("accRacc").innerHTML = [["impCard", "Absence imprévue", ICO('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5M12 15.8v.2"/>')],
+    ["editPublished", "Modifier le publié", ICO('<path d="M4 20h4l10.5-10.5-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>')],
+    ["medCard", "Médecins", ADM_SECTIONS[4][3]], ["statCard", "Statistiques", ADM_SECTIONS[5][3]]]
+    .map(([c, l, ic]) => `<button type="button" class="racc" data-todo="${c}">${ic}<span>${esc(l)}</span></button>`).join("");
+}
+$("accEtapes").addEventListener("click", (e) => {
+  const d = e.target.closest("[data-accept],[data-refuse]");
+  if (d) { decider(d.dataset.accept || d.dataset.refuse, !!d.dataset.accept, $("accMsg")); return; }
+  const b = e.target.closest("[data-todo]"); if (!b) return;
+  if (b.dataset.gen) { const [a, z] = b.dataset.gen.split("|").map(Number); $("gStart").value = toInput(a); $("gEnd").value = toInput(z); }
+  allerCarte(b.dataset.todo);
+});
+$("accRacc").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-todo]"); if (!b) return;
+  if (b.dataset.todo === "editPublished") {   // modifier le planning publié : brouillon créé à partir de la version en ligne
+    if (!S.draft && S.published) $("editPublished").click();
+    allerCarte("draftCard"); return;
+  }
+  allerCarte(b.dataset.todo);
+});
 function moisSuivant() { const a = ymd(todayDay()); return a.m === 12 ? (a.y + 1) * 100 + 1 : a.y * 100 + a.m + 1; }
 function todoItems() {
   const items = [], today = todayDay();
   const att = S.indispos.filter((x) => statutInd(x) === "attente");
-  if (att.length) items.push(["err", `<b>${att.length} demande(s) d'absence</b> à valider`, "indCard"]);
+  if (att.length) items.push(["err", `<b>${att.length} demande(s) d'absence</b> à valider`, "indCard", "", "", true]);
   const conf = conflicts(S.published, S.indispos.filter((x) => statutInd(x) === "acceptee" && x.d2 >= today));
   for (const c of conf.slice(0, 3)) items.push(["err", `<b>${esc(c.indispo.ini)}</b> absent (accepté) mais affecté le ${fmtDay(c.hits[0].d, false)}${c.hits.length > 1 ? ` (+${c.hits.length - 1} demi-j.)` : ""} dans le planning publié`, "impCard", `data-imp-pre="${esc(c.indispo.ini)}|${c.indispo.d1}|${c.indispo.d2}|${esc(c.indispo.periode)}"`, "Remplacer"]);
   if (conf.length > 3) items.push(["err", `… et ${conf.length - 3} autre(s) absence(s) sur le planning publié`, "indCard"]);
   if (S.demandes && S.demandes.length) items.push(["warn", `<b>${S.demandes.length} compte(s)</b> en attente de validation`, "accCard"]);
-  if (S.draft) items.push(["warn", `Un planning <b>non publié</b> est en cours (${esc(S.draftSource || "brouillon")})`, "draftCard"]);
+  if (S.draft) items.push(["warn", `Un planning <b>non publié</b> est en cours (${esc(S.draftSource || "brouillon")})`, "draftCard", "", "", true]);
   for (const c of (S.saisie && S.saisie.clotures) || []) {
     if (c.limite < today || c.limite - today > 7) continue;
     const r = relanceInfo(c);
-    items.push(["warn", `Date limite de dépôt le <b>${fmtDay(c.limite, false)}</b> (période du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)})${r.manquants.length ? ` : ${r.manquants.length} médecin(s) n'ont rien déclaré` : ""}`, "cloCard"]);
+    items.push(["warn", `Date limite de dépôt le <b>${fmtDay(c.limite, false)}</b> (période du ${fmtDay(c.du, false)} au ${fmtDay(c.au, false)})${r.manquants.length ? ` : ${r.manquants.length} médecin(s) n'ont rien déclaré` : ""}`, "cloCard", "", "", true]);
   }
   if (S.published) {
-    if (S.published.end - today < 21) items.push(["warn", `Le planning publié s'arrête le <b>${fmtDay(S.published.end, false)}</b> : pensez à générer la suite`, "genCard"]);
+    if (S.published.end - today < 21) items.push(["warn", `Le planning publié s'arrête le <b>${fmtDay(S.published.end, false)}</b> : pensez à générer la suite`, "genCard", "", "", true]);
     // demi-journées sous le minimum dans les deux semaines à venir
     let sous = 0;
     for (const d of S.published.jours) {
@@ -4955,17 +5225,18 @@ function todoItems() {
       }
     }
     if (sous) items.push(["info", `${sous} demi-journée(s) de poste sous le minimum dans les 2 semaines à venir (postes fermés faute de médecin)`, "draftCard"]);
-  } else items.push(["warn", "Aucun planning publié", "genCard"]);
+  } else items.push(["warn", "Aucun planning publié", "genCard", "", "", true]);
   const ms = moisSuivant();
-  if (!rcpItems().some((x) => moisDeJour(x.d) === ms)) items.push(["info", `RCP de <b>${libMoisNum(ms)}</b> pas encore faites`, "rcpGenCard"]);
-  if (![...astreintesConnues().keys()].some((d) => moisDeJour(d) === ms)) items.push(["info", `Astreintes de <b>${libMoisNum(ms)}</b> pas encore saisies`, "astrCard"]);
+  if (!rcpItems().some((x) => moisDeJour(x.d) === ms)) items.push(["info", `RCP de <b>${libMoisNum(ms)}</b> pas encore faites`, "rcpGenCard", "", "", true]);
+  const ea = etatAstreintes();
+  if (ea.besoin) items.push(["info", `Astreintes : ${ea.txt}`, "astrCard", "", "", true]);
   const sv = S.sauvegarde && S.sauvegarde.derniere;
   if (!sv || Date.now() - sv > 90 * 86400000) items.push(["info", sv ? `Dernière sauvegarde le ${new Date(sv).toLocaleDateString("fr-FR")} : pensez à en refaire une` : "Aucune sauvegarde faite", "sauvCard"]);
   return items;
 }
 function renderTodo() {
   const el = $("todoList"); if (!el) return;
-  const items = todoItems();
+  const items = todoItems().filter((x) => !x[5]);   // les étapes du mois sont dans l'accueil
   el.innerHTML = items.length ? items.map(([niv, txt, carte, attr, bouton]) => `<li><span class="pt ${niv}"></span><div class="grow small">${txt}</div><button class="b" type="button" data-todo="${carte}" ${attr || ""}>${bouton || "Voir"}</button></li>`).join("")
     : `<li><span class="pt ok"></span><div class="grow small">Tout est à jour.</div></li>`;
 }
