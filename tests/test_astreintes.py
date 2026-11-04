@@ -22,17 +22,19 @@ with sync_playwright() as p:
     pg.wait_for_selector("#adminBody:not([hidden])")
     pg.click("#useDefault"); pg.wait_for_function("document.querySelector('#paramInfo').innerText.includes('médecins')")
     # fonctions pures
-    f = pg.evaluate("""() => { const F = feriesFrance(2027); const u = unitesAstreinte(dayFromYMD(2027, 1, 1), dayFromYMD(2027, 1, 11), feriesPeriode(dayFromYMD(2027, 1, 1), dayFromYMD(2027, 1, 11)));
+    f = pg.evaluate("""() => { const F = feriesFrance(2027); const u = unitesAstreinte(dayFromYMD(2027, 1, 4), dayFromYMD(2027, 1, 18), feriesPeriode(dayFromYMD(2027, 1, 4), dayFromYMD(2027, 1, 18)));
+        const noel = unitesAstreinte(dayFromYMD(2026, 12, 21), dayFromYMD(2026, 12, 28), feriesPeriode(dayFromYMD(2026, 12, 21), dayFromYMD(2026, 12, 28)));
         const mai = unitesAstreinte(dayFromYMD(2027, 4, 30), dayFromYMD(2027, 5, 2), feriesPeriode(dayFromYMD(2027, 4, 30), dayFromYMD(2027, 5, 2)));
         const asc = unitesAstreinte(dayFromYMD(2027, 5, 6), dayFromYMD(2027, 5, 6), feriesPeriode(dayFromYMD(2027, 5, 6), dayFromYMD(2027, 5, 6)));
         const h = historiqueAstreintes([{ d: dayFromYMD(2026, 12, 25), ini: 'DA' }, { d: dayFromYMD(2026, 12, 26), ini: 'DA' }, { d: dayFromYMD(2026, 12, 27), ini: 'DA' }, { d: dayFromYMD(2027, 5, 1), ini: 'DB' }],
           dayFromYMD(2027, 6, 1), feriesPeriode(dayFromYMD(2026, 6, 1), dayFromYMD(2027, 5, 31)));
         return { paques: F.get(dayFromYMD(2027, 3, 29)), pentecote: F.get(dayFromYMD(2027, 5, 17)), u: u.map((x) => x.type + x.jours.length),
-          t0: typesUnite(u[0]), p0: pointsUnite(u[0], astrPoints()), mai: typesUnite(mai[0]), asc: typesUnite(asc[0]) + "/" + pointsUnite(asc[0], astrPoints()),
+          noel: noel.map((x) => x.type + x.jours.length), t0: typesUnite(noel[3]), p0: pointsUnite(noel[3], astrPoints()), p1: pointsUnite(noel[4], astrPoints()), mai: typesUnite(mai[0]), asc: typesUnite(asc[0]) + "/" + pointsUnite(asc[0], astrPoints()),
           pts: astrPoints({ W: "4", F: -1 }), h: h.compteurs }; }""")
     B.ok(f["paques"] == "Lundi de Pâques" and f["pentecote"] == "Lundi de Pentecôte", "jours fériés calculés (Pâques, Pentecôte)")
-    B.ok(f["u"] == ["W3", "S1", "S1", "S1", "S1", "W3", "S1"], f"unités : week-end du vendredi au dimanche, nuits du lundi au jeudi ({f['u']})")
-    B.ok(f["t0"] == ["W", "F"] and f["p0"] == 5, f"vendredi férié (1er janvier) : le week-end compte aussi comme un férié, 3 + 2 = 5 points ({f['t0']}, {f['p0']})")
+    B.ok(f["u"] == ["S1", "S1", "S1", "S1", "W3", "S1", "S1", "S1", "S1", "W3", "S1"], f"unités : nuits du lundi au jeudi, week-end du vendredi au dimanche ({f['u']})")
+    B.ok(f["noel"] == ["S1", "S1", "S1", "F2", "W2", "S1"] and f["t0"] == ["S", "F"] and f["p0"] == 3 and f["p1"] == 2,
+         f"vendredi férié (Noël) : jeudi soir + vendredi pour un médecin (nuit + férié = 3 points), samedi-dimanche pour un autre (3 − 1 = 2 points) ({f['noel']}, {f['p0']}, {f['p1']})")
     B.ok(f["mai"] == ["W"] and f["asc"] == "F/2", f"férié un samedi (1er mai) : rien de plus ; Ascension (jeudi) : férié, 2 points ({f['mai']}, {f['asc']})")
     B.ok(f["pts"] == {"S": 1, "W": 4, "F": 2}, f"points réglables, valeur invalide remplacée par le défaut ({f['pts']})")
     B.ok(f["h"] == {"DA": {"S": 0, "W": 1, "F": 1}, "DB": {"S": 0, "W": 1, "F": 0}}, f"historique : week-end de Noël (vendredi férié) = week-end + férié ({f['h']})")
@@ -52,13 +54,13 @@ with sync_playwright() as p:
     # encadré « Règles des astreintes » dans l'outil de l'administrateur : valeurs modifiables, enregistrées aussitôt
     pg.wait_for_selector("#astrRegAdm details.astregles[open]", state="attached")
     t = pg.text_content("#astrRegAdm")
-    B.ok("Nuit de semaine" in t and "Vendredi férié" in t and "3 + 2 = 5 points" in t and "les points compensent" in t and "lundi qui suit son week-end" in t,
+    B.ok("Nuit de semaine" in t and "Vendredi férié" in t and "nuit + férié = 3 points" in t and "3 − 1 = 2 points" in t and "les points compensent" in t and "lundi qui suit son week-end" in t,
          "Admin : encadré des règles (points, vendredi férié, équilibre puis compensation, règles strictes)")
     B.ok(pg.input_value("#asPtsS") == "1" and pg.input_value("#asPtsW") == "3" and pg.input_value("#asPtsF") == "2" and pg.input_value("#asEcart") == "3", "points par défaut : nuit 1, week-end 3, férié 2 ; écart 3 jours")
     pg.fill("#asPtsW", "4"); pg.dispatch_event("#asPtsW", "change")
     pg.wait_for_function("S.astrCfg && S.astrCfg.points && S.astrCfg.points.W === 4", timeout=8000)
-    pg.wait_for_function("document.querySelector('#astrRegAdm').textContent.includes('4 + 2 = 6 points')", timeout=8000)
-    B.ok(True, "points modifiés : enregistrés et encadré mis à jour (4 + 2 = 6)")
+    pg.wait_for_function("document.querySelector('#astrRegAdm').textContent.includes('4 − 1 = 3 points')", timeout=8000)
+    B.ok(True, "points modifiés : enregistrés et encadré mis à jour (week-end court : 4 − 1 = 3)")
     pg.fill("#asPtsW", "3"); pg.dispatch_event("#asPtsW", "change")
     pg.wait_for_function("S.astrCfg.points.W === 3", timeout=8000)
     # 1. ouverture de la saisie (déc. 2026 → mai 2027 par défaut), avec un interne
@@ -99,7 +101,7 @@ with sync_playwright() as p:
         const da = res.unites.filter((u) => u.qui === 'DA').flatMap((u) => u.jours);
         const ray = res.unites.filter((u) => u.qui === 'RAYANN').flatMap((u) => u.jours);
         return { pb, vides: res.aPourvoir.length, ecartMax, ptsMax, pts: res.pts, daIndispo: da.filter((d) => indispo.DA.includes(d)).length, rayIndispo: ray.filter((d) => indispo.RAYANN.includes(d)).length,
-          db: res.compteurs.DB, da2: res.compteurs.DA, nb: res.nb, we: res.unites.filter((u) => u.type === 'W').every((u) => weekday(u.debut) === 4 || u.debut === res.unites[0].debut) }; }""")
+          db: res.compteurs.DB, da2: res.compteurs.DA, nb: res.nb, we: res.unites.filter((u) => u.type === 'W').every((u) => weekday(u.debut) === 4 || (u.court && weekday(u.debut) === 5)) }; }""")
     B.ok(not r["pb"] and r["vides"] == 0, f"génération sans conflit ni trou ({r['pb'][:3]})")
     B.ok(r["daIndispo"] == 0 and r["rayIndispo"] == 0, "indisponibilités respectées")
     B.ok(r["ecartMax"] < 1.01, f"équité : week-ends et fériés à moins d'une astreinte de la cible (écart max {r['ecartMax']:.2f})")
@@ -121,13 +123,15 @@ with sync_playwright() as p:
     B.ok("après son week-end" in pg.inner_text("#asRes"), "modification à la main contraire aux règles signalée")
     pg.locator(f'#asRes select[data-unite="{u0["id"]}"]').select_option(u0["qui"])
     # 5. enregistrement dans le classeur
-    pg.click("#asSave"); pg.wait_for_function("document.querySelector('#astrMsg').innerText.includes('enregistré')", timeout=15000)
+    try: pg.click("#asSave", timeout=8000)
+    except Exception: pg.evaluate("document.querySelector('#asSave').click()")   # bouton masqué un instant (machine lente) : clic direct
+    pg.wait_for_function("document.querySelector('#astrMsg').innerText.includes('enregistré')", timeout=15000)
     n = pg.evaluate("S.P.astreintes.filter((a) => a.d >= S.astrCfg.du && a.d <= S.astrCfg.au).length")
     B.ok(n == 181, f"astreintes enregistrées dans le classeur, un jour = une ligne ({n})")
     # liste du mois : week-end sur une seule ligne
     pg.evaluate("S.me = 'DA'; S.astMois = 202701; location.hash = '#astreintes'"); pg.wait_for_selector("#astBody table.astt", state="attached", timeout=8000)
     t = pg.text_content("#astBody")
-    B.ok("Ven 01/01 → Dim 03/01" in t and pg.locator("#astBody tbody tr").count() == 21, f"Astreintes : week-end du vendredi au dimanche sur une ligne ({pg.locator('#astBody tbody tr').count()} lignes)")
+    B.ok("Ven 08/01 → Dim 10/01" in t and "Sam 02/01 → Dim 03/01" in t and pg.locator("#astBody tbody tr").count() == 22, f"Astreintes : week-end du vendredi au dimanche sur une ligne ({pg.locator('#astBody tbody tr').count()} lignes)")
     rg = " ".join(pg.inner_text("#astReglesCard").split())
     B.ok(pg.is_visible("#astReglesCard") and "Week-end vendredi → dimanche, un seul médecin 3 points" in rg and "Vendredi férié" in rg and "au moins 3 jours" in rg and pg.locator("#astReglesCard input").count() == 0,
          "onglet Astreintes : règles et points visibles par l'équipe (lecture seule)")

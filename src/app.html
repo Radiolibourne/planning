@@ -208,7 +208,7 @@ details summary { cursor: pointer; font-weight: 600; }
       <b>Règles des astreintes</b>
       <ul>
         <li>Nuit de semaine (lundi → jeudi), week-end (vendredi → dimanche, un seul médecin), jour férié (lundi → vendredi) : valeur en points ci-dessous.</li>
-        <li>Férié un samedi ou un dimanche : rien de plus. Vendredi férié : compté comme un férié de semaine, le week-end compte alors aussi comme un férié.</li>
+        <li>Férié un samedi ou un dimanche : rien de plus. Vendredi férié : un médecin fait le jeudi soir et le vendredi (nuit + férié), un autre le samedi et le dimanche (week-end sans le vendredi soir : un week-end moins une nuit).</li>
         <li><b>D'abord l'équilibre</b> : chacun sa part de nuits, de week-ends et de fériés, au prorata de la quotité (12 derniers mois compris). <b>Si ce n'est pas possible</b>, les points compensent par les nuits de semaine (un week-end de moins = 3 nuits de plus avec les points par défaut).</li>
         <li>Toujours : indisponibilités respectées, écart minimum entre deux astreintes d'un même médecin, jamais le lundi qui suit son week-end.</li>
       </ul>
@@ -407,7 +407,7 @@ function renderAstRes() {
   const { res, indispo, ecart, parts } = AST.res;
   const cpt = bilanAstreintes(res.unites, parts.map((p) => p.id), res.pts);   // compteurs et points (retouches comprises)
   const pbs = controlerAstreintes(res, indispo, ecart);
-  const quand = (u) => (u.type === "W" ? `${fmtDay(u.debut, false)} → ${fmtDay(u.fin, false)}` : fmtDay(u.debut, false)) + (u.ferie ? " · " + esc(u.ferie) : "");
+  const quand = (u) => (u.fin > u.debut ? `${fmtDay(u.debut, false)} → ${fmtDay(u.fin, false)}` : fmtDay(u.debut, false)) + (u.ferie ? " · " + esc(u.ferie) : "");
   el.innerHTML = `<h3 style="font-size:15px;margin:16px 0 6px">Équité (attribué / cible)</h3>
     <div class="tablewrap"><table class="pl"><thead><tr><th>Personne</th><th>Semaine</th><th>Week-end</th><th>Férié</th><th>Points</th></tr></thead><tbody>
     ${parts.map((p) => `<tr><td style="text-align:left"><b>${esc(p.id)}</b></td>${ASTR_TYPES.map((t) => `<td>${cpt[p.id][t]} / ${(res.cibles[p.id] || {})[t]?.toFixed(1) ?? "–"}</td>`).join("")}<td><b>${String(cpt[p.id].points).replace(".", ",")}</b> / ${(res.ciblePts[p.id] ?? 0).toFixed(1)}</td></tr>`).join("")}</tbody></table></div>

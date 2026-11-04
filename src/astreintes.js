@@ -1,7 +1,8 @@
 // ================================================================ Générateur d'astreintes
 // Unités : chaque nuit du lundi au jeudi (« S », ou « F » si le jour est férié) ; le week-end du vendredi au dimanche
 // pour un seul médecin (« W »). Férié un samedi ou un dimanche : rien de plus (il est déjà dans le week-end).
-// Vendredi férié : compté comme un férié de semaine, le week-end compte alors aussi comme un férié (W + F).
+// Vendredi férié (usage du service) : un médecin fait le jeudi soir et le vendredi (une nuit + un férié), un autre
+// le samedi et le dimanche : ce week-end court (sans le vendredi soir) vaut les points d'un week-end moins une nuit.
 // Règles strictes : indisponibilités d'astreinte, écart minimum entre deux astreintes d'une même personne,
 // jamais d'astreinte le lundi qui suit son week-end.
 // Objectif 1 : l'équilibre de chaque catégorie (semaine, week-end, férié) au prorata de la quotité, 12 derniers mois compris.
@@ -18,9 +19,10 @@ function astrPoints(p) {
   for (const t of ASTR_TYPES) { const v = p && p[t] !== "" && p[t] !== null ? Number(p[t]) : NaN; if (Number.isFinite(v) && v >= 0 && v <= 20) out[t] = v; }
   return out;
 }
-// compteurs touchés par une unité : un week-end dont le vendredi est férié compte aussi comme un férié
-const typesUnite = (u) => (u.type === "W" && u.ferie ? ["W", "F"] : [u.type]);
-const pointsUnite = (u, pts) => typesUnite(u).reduce((s, t) => s + pts[t], 0);
+// compteurs touchés par une unité : jeudi soir + vendredi férié = une nuit + un férié
+const typesUnite = (u) => u.types || [u.type];
+// points : un week-end court (sans le vendredi soir) vaut un week-end moins une nuit de semaine
+const pointsUnite = (u, pts) => Math.max(0, typesUnite(u).reduce((s, t) => s + pts[t], 0) - (u.court ? pts.S : 0));
 // compteurs et points de chacun pour une liste d'unités (aussi après des retouches à la main)
 function bilanAstreintes(unites, ids, pts) {
   const out = {};
@@ -61,12 +63,19 @@ function unitesAstreinte(du, au, feries) {
   let d = du;
   while (d <= au) {
     const j = weekday(d);   // 0 = lundi … 6 = dimanche
-    if (j >= 4) {           // vendredi, samedi, dimanche : un seul bloc jusqu'au dimanche
+    if (j === 4 && feries.has(d)) {   // vendredi férié en début de période : seul, comme un férié
+      out.push({ id: out.length, jours: [d], type: "F", debut: d, fin: d, ferie: feries.get(d) });
+      d++;
+    } else if (j >= 4) {    // vendredi, samedi, dimanche : un seul bloc jusqu'au dimanche (samedi → dimanche si le vendredi est férié)
       const fin = Math.min(au, d + (6 - j));
       const jours = []; for (let x = d; x <= fin; x++) jours.push(x);
-      const vf = jours.find((x) => weekday(x) === 4 && feries.has(x));   // vendredi férié (samedi, dimanche : rien de plus)
-      out.push({ id: out.length, jours, type: "W", debut: d, fin, ferie: vf !== undefined ? feries.get(vf) : "" });
+      const court = j === 5 && feries.has(d - 1);   // week-end sans le vendredi soir
+      out.push({ id: out.length, jours, type: "W", debut: d, fin, ...(court ? { court: true, ferie: `sans le vendredi (${feries.get(d - 1)})` } : {}) });
       d = fin + 1;
+    } else if (j === 3 && d + 1 <= au && feries.has(d + 1)) {   // jeudi soir + vendredi férié : un seul médecin
+      const tj = feries.has(d) ? "F" : "S";
+      out.push({ id: out.length, jours: [d, d + 1], type: "F", types: [tj, "F"], debut: d, fin: d + 1, ferie: feries.get(d + 1) });
+      d += 2;
     } else {
       out.push({ id: out.length, jours: [d], type: feries.has(d) ? "F" : "S", debut: d, fin: d, ferie: feries.get(d) || "" });
       d++;
@@ -210,17 +219,19 @@ function controlerAstreintes(res, indispo, ecart) {
 }
 
 // Historique à partir des astreintes déjà connues [{d, ini}] avant `du` (12 mois) : compteurs par type.
-// Un week-end compte une fois par personne ; un vendredi férié compte aussi comme un férié pour celui qui l'a tenu.
+// Un week-end compte une fois par personne ; un vendredi férié compte comme un férié pour celui qui l'a tenu.
 function historiqueAstreintes(liste, du, feries) {
   const debut = du - 365, nb = { S: 0, W: 0, F: 0 }, compteurs = {}, weVus = new Set(), vfVus = new Set();
   for (const a of liste || []) {
     if (a.d < debut || a.d >= du || !a.ini) continue;
     const j = weekday(a.d);
     const c = (compteurs[a.ini] = compteurs[a.ini] || { S: 0, W: 0, F: 0 });
-    if (j >= 4) {
+    if (j === 4 && feries.has(a.d)) {   // vendredi férié : un férié (le samedi et le dimanche font le week-end)
+      const cle = `${a.ini}|${a.d}`;
+      if (!vfVus.has(cle)) { vfVus.add(cle); nb.F++; c.F++; }
+    } else if (j >= 4) {
       const cle = `${a.ini}|${a.d - j + 4}`;
       if (!weVus.has(cle)) { weVus.add(cle); nb.W++; c.W++; }
-      if (j === 4 && feries.has(a.d) && !vfVus.has(cle)) { vfVus.add(cle); nb.F++; c.F++; }
     } else { const t = feries.has(a.d) ? "F" : "S"; nb[t]++; c[t]++; }
   }
   return { nb, compteurs };

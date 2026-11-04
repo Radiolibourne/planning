@@ -2921,7 +2921,7 @@ function reglesAstrHtml(edit) {
   return `<div class="astpts">${tuile("S", "Nuit de semaine", "du lundi au jeudi")}${tuile("W", "Week-end", "vendredi → dimanche, un seul médecin")}${tuile("F", "Jour férié", "du lundi au vendredi")}</div>
     <ul class="astrl">
       <li>Férié un samedi ou un dimanche : rien de plus, il est déjà dans le week-end.</li>
-      <li>Vendredi férié : compté comme un férié de semaine. Le week-end compte alors aussi comme un férié (${nbFr(P.W)} + ${nbFr(P.F)} = ${ptsFr(P.W + P.F)}).</li>
+      <li>Vendredi férié : un médecin fait le jeudi soir et le vendredi (nuit + férié = ${ptsFr(P.S + P.F)}), un autre le samedi et le dimanche (week-end sans le vendredi soir = ${nbFr(P.W)} − ${nbFr(P.S)} = ${ptsFr(Math.max(0, P.W - P.S))}).</li>
     </ul>
     <p class="astrt">Répartition</p>
     <ol class="astrl">
@@ -3079,7 +3079,7 @@ function renderAstrRes() {
   const pbs = controlerAstreintes(res, indispo, ecart);
   const c = S.astrCfg || {};
   const change = JSON.stringify(astrPoints(c.points)) !== JSON.stringify(pts) || (c.ecart ?? 3) !== ecart;
-  const quand = (u) => (u.type === "W" ? `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)} → ${JC[weekday(u.fin)]} ${fmtDay(u.fin, false)}` : `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)}`) + (u.ferie ? ` · ${esc(u.ferie)}` : "");
+  const quand = (u) => (u.fin > u.debut ? `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)} → ${JC[weekday(u.fin)]} ${fmtDay(u.fin, false)}` : `${JC[weekday(u.debut)]} ${fmtDay(u.debut, false)}`) + (u.ferie ? ` · ${esc(u.ferie)}` : "");
   const ecartPts = (id) => (cpt[id] ? cpt[id].points : 0) - ((res.ciblePts || {})[id] ?? 0);
   const parMois = {};
   for (const u of res.unites) (parMois[moisDeJour(u.debut)] = parMois[moisDeJour(u.debut)] || []).push(u);
