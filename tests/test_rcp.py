@@ -67,6 +67,8 @@ PLANNING = os.path.join(SORTIE, "planning_rcp.xlsx"); wb.save(PLANNING)
 with sync_playwright() as p:
     b = chromium(p)
     pg = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True).new_page(); errs = []
+    # horloge de la page fixée au 30/10/2026 : les semaines de novembre ne sont pas repliées en « semaines passées »
+    pg.add_init_script("(() => { const D = Date, delta = new D(2026, 9, 30, 9, 0).getTime() - D.now(); class F extends D { constructor(...a) { a.length ? super(...a) : super(D.now() + delta); } static now() { return D.now() + delta; } } window.Date = F; })();")
     pg.on("pageerror", lambda e: errs.append(str(e))); pg.on("dialog", lambda d: d.accept())
     pg.add_init_script("Date.now = (() => { const f = Date.now; const off = new Date('2026-11-02T09:00:00Z').getTime() - f(); return () => f() + off; })();")
     pg.goto("file://" + os.path.join(DIST, "demo.html") + "#admin")

@@ -178,7 +178,9 @@ with sync_playwright() as p:
     pg.click("a[data-tab=general]"); pg.wait_for_selector("#vGeneral table.pl", timeout=8000)
     t = pg.evaluate("""() => ({ ths: [...document.querySelectorAll('#vGeneral th')].map((x) => x.innerText), tt: document.querySelectorAll('#vGeneral i.tt').length })""")
     B.ok(not any(x.strip().upper() == "TÉLÉTRAVAIL" for x in t["ths"]) and t["tt"] > 0, f"Général : médecins en télétravail sur leur poste, en italique avec étoile ({t['tt']})")
-    pg.click("a[data-tab=qui]"); pg.wait_for_selector("#quiBody table.qui", timeout=8000)
+    pg.click("a[data-tab=qui]"); pg.wait_for_selector("#quiBody table.qpt", timeout=8000)
+    pq = pg.evaluate("({ chips: document.querySelectorAll('#quiBody table.qpt .qin').length, sum: document.querySelector('#quiBody .qpsums').innerText, w: document.documentElement.scrollWidth <= innerWidth })")
+    B.ok(pq["chips"] > 3 and "Libourne" in pq["sum"] and pq["w"], f"Postes → par poste : tableau par site, médecins en pastilles, résumé du jour ({pq})")
     # par personne : une ligne par médecin, vacations colorées selon le site, résumé du jour
     pg.evaluate("S.qui.day = S.published.jours.find((d) => Object.keys(S.published.cases).some((k) => k.startsWith(d + '_') && k.endsWith('-TT') && S.published.cases[k]))")
     pg.click("#quiBody [data-qm=personne]"); pg.wait_for_selector("#quiBody .qpgrid", timeout=8000)

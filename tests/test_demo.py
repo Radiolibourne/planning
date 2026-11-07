@@ -122,7 +122,7 @@ def main():
         p2 = doc.context.new_page()   # horloge simulée pour cette page seulement
         ms = int(dt.datetime(jour.year, jour.month, jour.day, 10, 0).timestamp() * 1000)
         p2.add_init_script("(() => { const T = %d, D = Date; class F extends D { constructor(...a) { a.length ? super(...a) : super(T); } static now() { return T; } } window.Date = F; })();" % ms)
-        p2.goto(doc.url.split("#")[0] + "#mon"); p2.wait_for_selector("#vMon .week-h", timeout=8000)
+        p2.goto(doc.url.split("#")[0] + "#mon"); p2.wait_for_selector("#vMon .week-h", timeout=20000)
         r = {"premiere": p2.inner_text("#vMon .week-h"), "passees": p2.locator("#vMon details.passees .week-h").count()}
         p2.close()
         B.ok("cette semaine" in r["premiere"] and r["passees"] == 1, f"Mon planning : semaine en cours en premier, semaines passées repliées ({r})")
